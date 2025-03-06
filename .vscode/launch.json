@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Server",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/Server/bin/Debug/net7.0/Server.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/Server",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Launch Client",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "C:\\\\Users\\theco\\Documents\\Godot\\Godot 4.exe",
+            "cwd": "${workspaceFolder}/Client",
+            "console": "internalConsole",
+            "stopAtEntry": false,
+            "args": ["--path", "${workspaceFolder}/Client"]
+        }
+    ]
+}

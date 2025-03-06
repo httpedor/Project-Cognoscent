@@ -1,0 +1,35 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\TTRpgClient.csproj", "{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Server", "Server\Server.csproj", "{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rpg", "Rpg\Rpg.csproj", "{ECDA591E-2954-4150-9779-E62EC17B7C00}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		ExportDebug|Any CPU = ExportDebug|Any CPU
+		ExportRelease|Any CPU = ExportRelease|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}.ExportDebug|Any CPU.ActiveCfg = ExportDebug|Any CPU
+		{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}.ExportDebug|Any CPU.Build.0 = ExportDebug|Any CPU
+		{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}.ExportRelease|Any CPU.ActiveCfg = ExportRelease|Any CPU
+		{4A4B08E6-FF8A-4B2A-8C55-E306B4DF412C}.ExportRelease|Any CPU.Build.0 = ExportRelease|Any CPU
+		{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}.ExportRelease|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF5C246F-6FEC-43D3-9EFA-DB5BB8B4D619}.ExportRelease|Any CPU.Build.0 = Debug|Any CPU
+		{ECDA591E-2954-4150-9779-E62EC17B7C00}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECDA591E-2954-4150-9779-E62EC17B7C00}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECDA591E-2954-4150-9779-E62EC17B7C00}.ExportDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECDA591E-2954-4150-9779-E62EC17B7C00}.ExportDebug|Any CPU.Build.0 = Debug|Any CPU
+		{ECDA591E-2954-4150-9779-E62EC17B7C00}.ExportRelease|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECDA591E-2954-4150-9779-E62EC17B7C00}.ExportRelease|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,74 @@
+[gd_scene load_steps=4 format=3 uid="uid://b3s8mwohy3e8u"]
+
+[ext_resource type="Script" path="res://scripts/ui/RadialMenu.cs" id="1_a3wmk"]
+[ext_resource type="Script" path="res://addons/advanced_radial_menu/radial_menu_class.gd" id="1_oy8hm"]
+[ext_resource type="Texture2D" uid="uid://dtwjvbjn5kxxs" path="res://icon.svg" id="3_gv8av"]
+
+[node name="ContextMenu" type="Control"]
+light_mask = 0
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_a3wmk")
+
+[node name="RadialMenu" type="Control" parent="."]
+light_mask = 0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset = Vector2(575, 330)
+script = ExtResource("1_oy8hm")
+select_action_name = "select"
+auto_sizing = false
+circle_radius = 120
+arc_color = Color(0.705882, 0, 0, 1)
+arc_inner_radius = 70
+line_color = Color(0.705882, 0, 0, 1)
+children_size = 128
+children_auto_sizing = true
+children_auto_sizing_factor = 0.5
+
+[node name="Label" type="Label" parent="RadialMenu"]
+layout_mode = 0
+offset_left = 619.675
+offset_top = 236.825
+offset_right = 666.675
+offset_bottom = 276.825
+pivot_offset = Vector2(23.5, 20)
+text = "abcde"
+
+[node name="Label2" type="Label" parent="RadialMenu"]
+layout_mode = 0
+offset_left = 488.825
+offset_top = 236.825
+offset_right = 528.825
+offset_bottom = 276.825
+pivot_offset = Vector2(20, 20)
+text = "fgeij"
+
+[node name="TextureRect" type="TextureRect" parent="RadialMenu"]
+layout_mode = 0
+offset_left = 444.825
+offset_top = 327.175
+offset_right = 572.825
+offset_bottom = 455.175
+pivot_offset = Vector2(64, 64)
+texture = ExtResource("3_gv8av")
+
+[node name="RichTextLabel" type="RichTextLabel" parent="RadialMenu"]
+layout_mode = 0
+offset_left = 623.175
+offset_top = 310.675
+offset_right = 663.175
+offset_bottom = 471.675
+pivot_offset = Vector2(20, 80.5)
+bbcode_enabled = true
+text = "Oi!
+[font_size=50]Oi?[/font_size]"
+fit_content = true

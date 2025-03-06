@@ -1,0 +1,270 @@
+[gd_scene load_steps=7 format=3 uid="uid://c66ybu14g4y0d"]
+
+[ext_resource type="Script" path="res://scripts/ui/BodyInspector.cs" id="1_y30wl"]
+[ext_resource type="Texture2D" uid="uid://cn5cw6dtnn6wv" path="res://assets/svg/humanoid.svg" id="2_u31em"]
+[ext_resource type="Script" path="res://scripts/ui/BPSelect.cs" id="3_p32xw"]
+[ext_resource type="Texture2D" uid="uid://0dvwyg8ge4n6" path="res://assets/svg/close-circle.svg" id="4_ved1t"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_sa0ee"]
+font_size = 50
+
+[sub_resource type="LabelSettings" id="LabelSettings_d3txs"]
+font_size = 25
+
+[node name="BodyPartSelector" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_y30wl")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HumanoidBody" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="TextureRect" type="TextureRect" parent="HumanoidBody"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 0.15
+anchor_right = 0.5
+anchor_bottom = 0.85
+offset_left = -324.0
+offset_right = 324.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_u31em")
+expand_mode = 2
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="HumanoidBody"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 23.0
+grow_horizontal = 2
+text = "Nenhuma Parte Selecionada"
+label_settings = SubResource("LabelSettings_sa0ee")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PartButtons" type="Control" parent="HumanoidBody"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="HandRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.414
+anchor_top = 0.5
+anchor_right = 0.448
+anchor_bottom = 0.565
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/shoulder right/arm right/hand right"
+
+[node name="HandLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.552
+anchor_top = 0.5
+anchor_right = 0.585
+anchor_bottom = 0.567
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/shoulder left/arm left/hand left"
+
+[node name="ArmLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.541
+anchor_top = 0.338
+anchor_right = 0.57
+anchor_bottom = 0.484
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/shoulder left/arm left"
+
+[node name="ArmRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.434
+anchor_top = 0.338
+anchor_right = 0.463
+anchor_bottom = 0.484
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/shoulder right/arm right"
+
+[node name="ShoulderLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.534
+anchor_top = 0.261
+anchor_right = 0.555
+anchor_bottom = 0.33
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/shoulder left"
+
+[node name="ShoulderRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.445
+anchor_top = 0.261
+anchor_right = 0.468
+anchor_bottom = 0.33
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/shoulder right"
+
+[node name="Head" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.475
+anchor_top = 0.151
+anchor_right = 0.525
+anchor_bottom = 0.24
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/neck/head"
+
+[node name="Neck" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.481
+anchor_top = 0.246
+anchor_right = 0.519
+anchor_bottom = 0.258
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/neck"
+
+[node name="Torso" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.472
+anchor_top = 0.275
+anchor_right = 0.531
+anchor_bottom = 0.524
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso"
+
+[node name="LegRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.461
+anchor_top = 0.545
+anchor_right = 0.498
+anchor_bottom = 0.776
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/leg right"
+
+[node name="LegLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.502
+anchor_top = 0.545
+anchor_right = 0.538
+anchor_bottom = 0.776
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/leg left"
+
+[node name="FootRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.473
+anchor_top = 0.799
+anchor_right = 0.498
+anchor_bottom = 0.864
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/leg right/foot right"
+
+[node name="FootLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.503
+anchor_top = 0.799
+anchor_right = 0.526
+anchor_bottom = 0.864
+color = Color(1, 0, 0, 0.415686)
+script = ExtResource("3_p32xw")
+BodyPartPath = "torso/leg left/foot left"
+
+[node name="Specifics" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.25
+anchor_right = 1.0
+anchor_bottom = 0.25
+offset_left = -170.0
+offset_bottom = 40.0
+grow_horizontal = 0
+
+[node name="Label" type="Label" parent="Specifics"]
+layout_mode = 2
+text = "Específicos"
+label_settings = SubResource("LabelSettings_d3txs")
+horizontal_alignment = 1
+
+[node name="Customs" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.25
+anchor_bottom = 0.25
+
+[node name="Label" type="Label" parent="Customs"]
+layout_mode = 2
+label_settings = SubResource("LabelSettings_d3txs")
+
+[node name="Button" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -44.5
+offset_top = -41.0
+offset_right = 44.5
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "Selecionar"
+
+[node name="CloseBtn" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_bottom = 40.0
+grow_horizontal = 0
+texture = ExtResource("4_ved1t")
+expand_mode = 2
+stretch_mode = 5

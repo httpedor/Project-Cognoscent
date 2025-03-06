@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "dgSpecHash": "IsEsI0dh69A=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\theco\\Documents\\TTRpg\\Rpg\\Rpg.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.win32.systemevents\\8.0.0\\microsoft.win32.systemevents.8.0.0.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\system.drawing.common\\8.0.3\\system.drawing.common.8.0.3.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.netcore.app.ref\\6.0.35\\microsoft.netcore.app.ref.6.0.35.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\6.0.35\\microsoft.windowsdesktop.app.ref.6.0.35.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\6.0.35\\microsoft.aspnetcore.app.ref.6.0.35.nupkg.sha512"
+  ],
+  "logs": []
+}

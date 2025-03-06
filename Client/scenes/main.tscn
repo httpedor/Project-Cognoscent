@@ -1,0 +1,37 @@
+[gd_scene load_steps=8 format=3 uid="uid://17lhshdvgq0d"]
+
+[ext_resource type="PackedScene" uid="uid://b3s8mwohy3e8u" path="res://scenes/radial_menu.tscn" id="1_iwaoh"]
+[ext_resource type="PackedScene" uid="uid://cj5avp6jaieki" path="res://scenes/chat.tscn" id="2_fwvon"]
+[ext_resource type="Script" path="res://scripts/GameManager.cs" id="2_xbo6v"]
+[ext_resource type="Script" path="res://scripts/NetworkManager.cs" id="3_cpse8"]
+[ext_resource type="PackedScene" uid="uid://c5lqpor5uufqj" path="res://scenes/menu.tscn" id="4_vvtgy"]
+[ext_resource type="PackedScene" uid="uid://cncmpok6b32j4" path="res://scenes/body_viewer.tscn" id="5_q5wrq"]
+[ext_resource type="PackedScene" uid="uid://c66ybu14g4y0d" path="res://scenes/body_part_selector.tscn" id="5_sknmr"]
+
+[node name="main" type="Node"]
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="RadialMenu" parent="UILayer" instance=ExtResource("1_iwaoh")]
+visible = false
+
+[node name="Menu" parent="UILayer" node_paths=PackedStringArray("network_manager", "game_manager") instance=ExtResource("4_vvtgy")]
+network_manager = NodePath("../../NetworkManager")
+game_manager = NodePath("../../GameManager")
+
+[node name="Chat" parent="UILayer" instance=ExtResource("2_fwvon")]
+
+[node name="BodyViewer" parent="UILayer" instance=ExtResource("5_q5wrq")]
+visible = false
+
+[node name="BodyPartSelector" parent="UILayer" instance=ExtResource("5_sknmr")]
+visible = false
+
+[node name="NetworkManager" type="Node" parent="."]
+script = ExtResource("3_cpse8")
+
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("2_xbo6v")
+
+[node name="PopupMenu" type="PopupMenu" parent="."]

@@ -1,0 +1,12 @@
+C:\Users\theco\Documents\TTRpg\Rpg\bin\Debug\net6.0\Rpg.deps.json
+C:\Users\theco\Documents\TTRpg\Rpg\bin\Debug\net6.0\Rpg.dll
+C:\Users\theco\Documents\TTRpg\Rpg\bin\Debug\net6.0\Rpg.pdb
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.AssemblyInfoInputs.cache
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.AssemblyInfo.cs
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.csproj.CoreCompileInputs.cache
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.dll
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\refint\Rpg.dll
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.pdb
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\ref\Rpg.dll
+C:\Users\theco\Documents\TTRpg\Rpg\obj\Debug\net6.0\Rpg.csproj.AssemblyReference.cache

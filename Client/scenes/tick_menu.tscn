@@ -1,0 +1,80 @@
+[gd_scene load_steps=2 format=3 uid="uid://c0mr1jtr1gwka"]
+
+[ext_resource type="Script" path="res://scripts/ui/TickControl.cs" id="1_0vecg"]
+
+[node name="TickMenu" type="Control"]
+layout_mode = 3
+anchor_left = 0.4
+anchor_top = 0.9
+anchor_right = 0.6
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+script = ExtResource("1_0vecg")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.145098, 0.145098, 0.145098, 1)
+
+[node name="TurnModeBtn" type="CheckButton" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -22.0
+offset_top = -12.0
+offset_right = 22.0
+offset_bottom = 12.0
+grow_horizontal = 2
+grow_vertical = 2
+focus_mode = 0
+
+[node name="TimeSlider" type="HSlider" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+focus_mode = 0
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="TickBtn" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -8.0
+offset_top = -4.0
+offset_right = -5.0
+offset_bottom = 4.0
+grow_horizontal = 0
+grow_vertical = 2
+focus_mode = 0
+text = "Tick"
+
+[node name="VisionBtn" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -9.5
+offset_top = -30.0
+offset_right = 9.5
+offset_bottom = 1.0
+grow_horizontal = 2
+focus_mode = 0
+text = "⌄"
