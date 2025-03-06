@@ -13,3 +13,6 @@ Characters can execute many actions while in combat, but most of them are derive
  - Backstep - You'll take a step back, dodging all parts of your body. You also have to time it right, and this one costs more stamina. 
  - Parry - Tries to parry the enemy's attack, if the enemy has more strength, he can break your parry. Has to time it right.
  - Wait - Simply waits X ticks.
+
+### Health System
+Heavily inspired by RimWorld. There's no health bar, instead, each bodypart can take a certain amount of injuries, that will decrease that body part's functionality untill it dies.
