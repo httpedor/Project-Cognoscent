@@ -11,6 +11,12 @@ namespace TTRpgClient.scripts.RpgImpl;
 
 public class ClientBoard : Board
 {
+	private static Dictionary<EntityType, Func<Entity, ClientBoard, EntityNode>> nodeConstructors = new()
+	{
+		{EntityType.Door, (ent, board) => new DoorNode((Door)ent, board)},
+		{EntityType.Light, (ent, board) => new LightNode((LightEntity)ent, board)},
+		{EntityType.Prop, (ent, board) => new PropNode((PropEntity)ent, board)}
+	};
 	private Dictionary<int, EntityNode> entityNodesCache = new Dictionary<int, EntityNode>();
 	private List<Int32> localEntityIds = new List<Int32>();
     public Node2D Node {get; protected set;}
@@ -115,7 +121,8 @@ public class ClientBoard : Board
         gridNode = new GridLines(this)
         {
             Name = "Grid",
-            ZIndex = 10
+            ZIndex = 10,
+			Visible = false
         };
         Node.AddChild(gridNode);
 
@@ -198,7 +205,12 @@ public class ClientBoard : Board
     public override void AddEntity(Entity entity)
     {
         base.AddEntity(entity);
-		EntityNode node = new EntityNode(entity, this);
+		EntityNode node;
+		if (nodeConstructors.ContainsKey(entity.GetEntityType()))
+			node = nodeConstructors[entity.GetEntityType()](entity, this);
+		else
+			node = new EntityNode(entity, this);
+
 		entityNodesCache[entity.Id] = node;
 		GetFloor(entity.FloorIndex).EntitiesNode.AddChild(node);
 
@@ -224,6 +236,10 @@ public class ClientBoard : Board
 		if (entity == null)
 			return;
 		base.RemoveEntity(entity);
+		if (entity is Door d)
+		{
+			//TODO: Remove door occluder
+		}
 		GetEntityNode(entity).QueueFree();
 
 		if (localEntityIds.Contains(entity.Id))

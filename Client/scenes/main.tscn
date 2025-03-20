@@ -2,8 +2,8 @@
 
 [ext_resource type="PackedScene" uid="uid://b3s8mwohy3e8u" path="res://scenes/radial_menu.tscn" id="1_iwaoh"]
 [ext_resource type="PackedScene" uid="uid://cj5avp6jaieki" path="res://scenes/chat.tscn" id="2_fwvon"]
-[ext_resource type="Script" path="res://scripts/GameManager.cs" id="2_xbo6v"]
-[ext_resource type="Script" path="res://scripts/NetworkManager.cs" id="3_cpse8"]
+[ext_resource type="Script" uid="uid://cxjelplhsajsx" path="res://scripts/GameManager.cs" id="2_xbo6v"]
+[ext_resource type="Script" uid="uid://dghix885enr74" path="res://scripts/NetworkManager.cs" id="3_cpse8"]
 [ext_resource type="PackedScene" uid="uid://c5lqpor5uufqj" path="res://scenes/menu.tscn" id="4_vvtgy"]
 [ext_resource type="PackedScene" uid="uid://cncmpok6b32j4" path="res://scenes/body_viewer.tscn" id="5_q5wrq"]
 [ext_resource type="PackedScene" uid="uid://c66ybu14g4y0d" path="res://scenes/body_part_selector.tscn" id="5_sknmr"]

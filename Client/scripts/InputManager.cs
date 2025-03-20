@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Threading.Tasks;
@@ -33,7 +34,7 @@ public partial class InputManager : SubViewportContainer
 	private Line2D? line;
 	private ulong lastMovementTick;
 
-	private static Node2D? InputPriority;
+	public static Node2D? InputPriority;
 	public InputManager() : base()
 	{
 		Instance = this;
@@ -44,7 +45,14 @@ public partial class InputManager : SubViewportContainer
 		SetAnchorsPreset(LayoutPreset.FullRect);
 	}
 
-	public static void RequestPriority(Node2D requester){
+    public override void _Ready()
+    {
+        base._Ready();
+
+		GetTree().Root.FilesDropped += HandleFiles;
+    }
+
+    public static void RequestPriority(Node2D requester){
 		InputPriority = requester;
 	}
 	public static void ReleasePriority(Node2D requester){
@@ -62,7 +70,7 @@ public partial class InputManager : SubViewportContainer
 			toast = null;
 		}
 	}
-	public void RequestEntity(Action<Entity?> callback, Predicate<Entity>? predicate = null)
+	public void RequestEntity(Action<Entity?> callback, Predicate<Entity>? predicate = null, string text = "Selecione uma entidade")
 	{
 		if (entityCallback != null)
 		{
@@ -72,7 +80,7 @@ public partial class InputManager : SubViewportContainer
 		entityPredicate = predicate;
 		RemoveToast();
 		toast = ToastParty.Show(new ToastParty.Config{
-			Text = "Select an entity",
+			Text = text,
 			Duration = -1
 		});
 	}
@@ -92,7 +100,7 @@ public partial class InputManager : SubViewportContainer
 		positionPredicate = predicate;
 		RemoveToast();
 		toast = ToastParty.Show(new ToastParty.Config{
-			Text = "Select a position",
+			Text = "Selecione uma posição",
 			Duration = -1
 		});
 	}
@@ -194,81 +202,48 @@ public partial class InputManager : SubViewportContainer
 	{
 		if (entityCallback != null || positionCallback != null)
 			return;
-		var hovering = InputPriority as EntityNode;
-		if (hovering != null)
+		if (GameManager.IsGm)
 		{
-			if (GameManager.IsGm)
+			if (InputPriority is EntityNode hovering)
 			{
-				ContextMenu.AddOption("Destruir Entidade", (_) => {
-					if (!Input.IsKeyPressed(Key.Shift))
-						Modal.OpenConfirmationDialog("Deletar Entidade", "Deseja deletar/remover essa entidade?", (remove) => {
-							if (remove)
-								NetworkManager.Instance.SendPacket(new EntityRemovePacket(hovering.Entity));
-						}, "Sim", "Não");
-					else
-						NetworkManager.Instance.SendPacket(new EntityRemovePacket(hovering.Entity));
-					ContextMenu.Hide();
-				});
-				if (hovering.Entity is Creature hoveringCreature)
-				{
-					ContextMenu.AddOption("Renomear", (_) => {
-						Modal.OpenStringDialog("Renomear Entidade", (name) => {
-							if (name == null)
-								return;
-							
-							hoveringCreature.Name = name;
-						}, true);
-					});
-
-					ContextMenu.AddSeparator();
-					ContextMenu.AddOption("Danificar Parte", (_) => {
-						BodyInspector.Instance.Show(hoveringCreature.Body,
-							new BodyInspector.BodyInspectorSettings(BodyInspector.BodyInspectorSettings.HEALTH)
-							{
-								OnPick = (bp) => {
-									Modal.OpenOptionsDialog("Tipo de Ferida", "Selecione o tipo de ferida que deseja aplicar", InjuryType.GetInjuryTypes().Select((i) => i.Translation).ToArray(), (typeTranslation) => {
-										if (typeTranslation == null)
-											return;
-										InjuryType type = InjuryType.GetTypeByTranslation(typeTranslation);
-										Modal.OpenStringDialog("Severidade da Ferida", (sevStr) => {
-											float severity;
-											if (Single.TryParse(sevStr, out severity))
-											{
-												NetworkManager.Instance.SendPacket(new EntityBodyPartInjuryPacket(bp, new Injury(type, severity)));
-											}
-										});
-									});
-								}
-							}
-						);
-						ContextMenu.Hide();
-					});
-					ContextMenu.AddOption("Curar Ferida", (_) => {
-						BodyInspector.Instance.Show(hoveringCreature.Body, new BodyInspector.BodyInspectorSettings(BodyInspector.BodyInspectorSettings.HEALTH)
-						{
-							OnPick = (bp) => {
-								Modal.OpenOptionsDialog("Ferida", "Selecione a ferida que deseja curar", bp.Injuries.Select((inj) => {return inj.Type.Translation + " - " + inj.Severity;}).ToArray(), (selected) => {
-									if (selected == null)
-										return;
-									var splitted = selected.Split(" - ");
-									InjuryType it = InjuryType.GetTypeByTranslation(splitted[0]);
-									float severity;
-									if (Single.TryParse(splitted[1], out severity))
-										NetworkManager.Instance.SendPacket(new EntityBodyPartInjuryPacket(bp, new Injury(it, severity), true));
-								});
-							}
-						});
-						ContextMenu.Hide();
-					});
-				}
+				hovering.AddGMContextMenuOptions();
+				ContextMenu.AddSeparator();
 			}
+
+			if (InputPriority == null)
+			{
+				ContextMenu.AddOption("Criar Criatura", (pos) => {
+					ContextMenu.Hide();
+					Modal.OpenFormDialog("Criar Criatura", (info) => {
+						string name = info["Nome"] as string;
+						BodyType bt = (BodyType)info["Corpo"];
+						byte[] img = (Byte[])info["Imagem"];
+						var fileName = info["Imagem_fName"] as string;
+						Creature c = new Creature()
+						{
+							Position = new System.Numerics.Vector3(board.CurrentFloor.PixelToWorld(new System.Numerics.Vector2(Mathf.Floor(pos.X), Mathf.Floor(pos.Y))), board.FloorIndex),
+							Display = new Midia(img, fileName),
+						};
+						switch (bt)
+						{
+							case BodyType.Humanoid:
+								c.Body = Body.NewHumanoidBody(c);
+								break;
+						}
+						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, c));
+					}, ("Nome", "Nome1", null), ("Corpo", BodyType.Humanoid, null), ("Imagem", new byte[0], null));
+				});
+			}
+		}
+		if (InputPriority is EntityNode en)
+		{
+			en.AddContextMenuOptions();
 			ContextMenu.AddSeparator();
 		}
 		
-		if (board.SelectedEntity != null && (GameManager.IsGm || (board.SelectedEntity is Creature creature && creature.Owner == GameManager.Instance.Username)))
+		if (board.SelectedEntity != null && (GameManager.IsGm || (board.SelectedEntity is Creature c && c.Owner == GameManager.Instance.Username)))
 		{
 			var entity = board.SelectedEntity;
-
 			ContextMenu.AddOption("Olhar Aqui", (pos) => {
 				var worldPos = board.PixelToWorld(pos);
 				var rotation = (worldPos - entity.Position.ToGodot().ToV2()).Angle();
@@ -323,7 +298,12 @@ public partial class InputManager : SubViewportContainer
 				lastMovementTick = Time.GetTicksMsec();
 
 				var targetPos = creature.Position.ToGodot().ToV2() + (move_dir * 0.5f);
-				NetworkManager.Instance.SendPacket(new EntityMovePacket(creature, targetPos.ToNumerics()));
+				var dir = targetPos - creature.Position.ToGodot().ToV2();
+				var angle = Mathf.Atan2(dir.Y, dir.X);
+				if (creature.Rotation != angle)
+					NetworkManager.Instance.SendPacket(new EntityRotationPacket(creature, angle));
+				else
+					NetworkManager.Instance.SendPacket(new EntityMovePacket(creature, targetPos.ToNumerics()));
 			}
 			else
 			{
@@ -358,6 +338,21 @@ public partial class InputManager : SubViewportContainer
 			var end = MousePosition;
 			line.Points = new Vector2[] { start, end };
 		}
+	}
+	private void HandleFiles(string[] files)
+	{
+		if (files.Length != 1)
+			return;
+		
+		if (GameManager.Instance.CurrentBoard == null)
+			return;
+
+		var prop = new PropEntity()
+		{
+			Position = new System.Numerics.Vector3(GameManager.Instance.CurrentBoard.CurrentFloor.PixelToWorld(MousePosition).ToNumerics(), GameManager.Instance.CurrentBoard.FloorIndex),
+			Display = new Midia(files[0]),
+		};
+		NetworkManager.Instance.SendPacket(new EntityCreatePacket(GameManager.Instance.CurrentBoard, prop));
 	}
 	public override void _Process(double delta)
 	{
@@ -436,27 +431,39 @@ public partial class InputManager : SubViewportContainer
 		var board = GameManager.Instance.CurrentBoard;
 		if (board == null)
 			return;
-		if (@event is InputEventMouse iem)
-			MousePosition = (iem.Position - board.Node.GetViewport().CanvasTransform.Origin) / board.Node.GetViewport().GetCamera2D().Zoom;
-
 		if (RadialMenu.Instance.IsOpen)
 			return;
+
+		if (@event is InputEventMouse iem)
+			MousePosition = (iem.Position - board.Node.GetViewport().CanvasTransform.Origin) / board.Node.GetViewport().GetCamera2D().Zoom;
 
 		// Mouse is over something
 		if (InputPriority != null)
 		{
-			// That thing is an entity, and the event is a left click
-			if (@event is InputEventMouseButton iemb2 && iemb2.Pressed && iemb2.ButtonIndex == MouseButton.Left && InputPriority is EntityNode entityNode)
+			// The event is a left click
+			if (@event is InputEventMouseButton iemb2 && iemb2.Pressed && iemb2.ButtonIndex == MouseButton.Left)
 			{
-				if (entityCallback != null)
+				// That thing is an entity
+				if (InputPriority is EntityNode entityNode)
 				{
-					if (entityPredicate == null || entityPredicate(entityNode.Entity))
-						SupplyEntity(entityNode.Entity);
-					AcceptEvent();
-					return;
+					if (entityCallback != null)
+					{
+						if (entityPredicate == null || entityPredicate(entityNode.Entity))
+							SupplyEntity(entityNode.Entity);
+						AcceptEvent();
+						return;
+					}
+
+					entityNode.OnClick();
+					entityNode.GetViewport().SetInputAsHandled();
+				}
+				// That thing is a door
+				if (InputPriority is DoorNode doorNode)
+				{
+
+					doorNode.GetViewport().SetInputAsHandled();
 				}
 
-				entityNode.OnClick(iemb2);
 				AcceptEvent();
 			}
 			return;

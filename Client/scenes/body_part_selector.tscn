@@ -1,8 +1,8 @@
 [gd_scene load_steps=7 format=3 uid="uid://c66ybu14g4y0d"]
 
-[ext_resource type="Script" path="res://scripts/ui/BodyInspector.cs" id="1_y30wl"]
+[ext_resource type="Script" uid="uid://b7ccvrl5d0olv" path="res://scripts/ui/BodyInspector.cs" id="1_y30wl"]
 [ext_resource type="Texture2D" uid="uid://cn5cw6dtnn6wv" path="res://assets/svg/humanoid.svg" id="2_u31em"]
-[ext_resource type="Script" path="res://scripts/ui/BPSelect.cs" id="3_p32xw"]
+[ext_resource type="Script" uid="uid://c38x5cirl2nrh" path="res://scripts/ui/BPSelect.cs" id="3_p32xw"]
 [ext_resource type="Texture2D" uid="uid://0dvwyg8ge4n6" path="res://assets/svg/close-circle.svg" id="4_ved1t"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_sa0ee"]

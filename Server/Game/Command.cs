@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
+using System.Text;
 using Rpg;
 using Rpg.Entities;
 using Rpg.Inventory;
@@ -271,7 +272,7 @@ public class Command
             "boardlist",
             "Lists all boards loaded",
             "",
-            new string[]{"showboards"},
+            new string[]{"showboards", "listboards"},
             null,
             (_, _) =>
             {
@@ -282,15 +283,35 @@ public class Command
             }
         ));
         RegisterCommand(new Command(
+            "boardrename",
+            "Renams a board",
+            "<board> <name>",
+            new string[]{"renameboard", "boardname"},
+            new Type[]{typeof(ServerBoard), typeof(string)},
+            (_, args) => 
+            {
+                var board = args[0] as ServerBoard;
+                var newName = args[1] as string;
+                var oldName = board.Name;
+                Game.RemoveBoard(oldName);
+                Game.AddBoard(board, newName);
+                return "Board " + oldName + "renamed to " + newName;
+            }
+        ));
+        RegisterCommand(new Command(
             "boardsave",
             "Saves a board to a file.",
-            "<board>",
+            "<board> [filename]",
             new string[]{"saveboard", "save"},
-            new Type[] { typeof(ServerBoard) },
+            new Type[] { typeof(ServerBoard), typeof(string)},
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                string fileName = board!.Name.ToLower().FirstCharToUpper() + ".board";
+                string fileName;
+                if (args.Length == 1)
+                    fileName = board!.Name.ToLower().FirstCharToUpper() + ".board";
+                else
+                    fileName = (String)args[1];
                 Directory.CreateDirectory("Boards");
                 try
                 {
@@ -373,9 +394,17 @@ public class Command
                     {
                         return "An error ocurred reading the file: " + e.Message;
                     }
-                    Floor? f = Uvtt.LoadFloorFromUvttJson(json);
+                    var ents = new List<Entity>();
+                    Floor? f = Uvtt.LoadFloorFromUvttJson(json, ents);
                     if (f != null)
+                    {
                         board.AddFloor(f);
+                        foreach (var entity in ents)
+                        {
+                            entity.Position = new Vector3(entity.Position.X, entity.Position.Y, board.GetFloorCount()-1);
+                            board.AddEntity(entity);
+                        }
+                    }
                     else
                         return "An error ocurred loading the floor " + fileName;
                 }
@@ -419,7 +448,8 @@ public class Command
                         Game.AddBoard(b);
                         return "Loaded board " + b.Name;
                     case "append":
-                        Floor? f = Uvtt.LoadFloorFromUvttJson(json);
+                        var ents = new List<Entity>();
+                        Floor? f = Uvtt.LoadFloorFromUvttJson(json, ents);
                         if (f != null)
                         {
                             if (Game.GetBoards().Count == 0)
@@ -431,6 +461,12 @@ public class Command
                                 return $"Board {args[2]} not found.";
 
                             board.AddFloor(f);
+
+                            foreach (var entity in ents)
+                            {
+                                entity.Position = new Vector3(entity.Position.X, entity.Position.Y, board.GetFloorCount()-1);
+                                board.AddEntity(entity);
+                            }
                             return "Loaded floor to index " + (board.GetFloorCount()-1) + " in board " + board.Name;
                         }
                         else
@@ -458,7 +494,7 @@ public class Command
                 var e = new Creature()
                 {
                     Position = new Vector3((float)x, (float)y, (float)floor),
-                    Image = Convert.FromBase64String(image)
+                    Display = new Midia(image)
                 };
                 e.Body = Body.NewHumanoidBody(e);
                 board.AddEntity(e);
@@ -511,7 +547,7 @@ public class Command
             "entityowner",
             "Sets the owner of an entity",
             "<board> <id> [owner]",
-            new string[]{"entitysetowner"},
+            new string[]{"entitysetowner", "creatureowner", "creaturesetowner", "setcreatureowner", "creatureownerset", "entityownerset"},
             new Type[] { typeof(ServerBoard), typeof(int), typeof(string) },
             (_, args) =>
             {
@@ -580,8 +616,28 @@ public class Command
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 Entity e = board.GetEntityById((int)args[1])!;
-                e.Image = Convert.FromBase64String((args[2] as string)!);
+                var str = args[2] as string;
+                Span<byte> buffer = new Span<byte>(new byte[str.Length]);
+                e.Display = new Midia(str);
                 return "Image set";
+            }
+        ));
+        RegisterCommand(new Command(
+            "entityrotation",
+            "Sets or reads the rotation of an entity",
+            "<board> <id> [rot]",
+            new string[]{"entitysetrotation", "setentityrotation", "rotationentity", "rotationsetentity"},
+            new Type[] { typeof(ServerBoard), typeof(int), typeof(string) },
+            (_, args) => {
+                ServerBoard board = args[0] as ServerBoard;
+                int id = (Int32)args[1];
+                if (args.Length == 2)
+                {
+                    return "Entity rotation: " + board.GetEntityById(id).Rotation;
+                }
+
+                board.GetEntityById(id).Rotation = (int)args[2];
+                return "Set entity rotation.";
             }
         ));
         RegisterCommand(new Command(
@@ -849,6 +905,55 @@ public class Command
                 };
                 board.AddEntity(e);
                 return "Item spawned";
+            }
+        ));
+        RegisterCommand(new Command(
+            "dooredit",
+            "Edits the properties of a door",
+            "<board> <id> <vision|flip|open|close>",
+            new string[]{"door", "editdoor"},
+            new Type[]{typeof(ServerBoard), typeof(int), typeof(string)},
+            (_, args) => 
+            {
+                var board = args[0] as ServerBoard;
+                var id = ((int)args[1]);
+                var operation = args[2] as string;
+
+                var door = board.GetEntityById(id) as Door;
+
+                switch (operation)
+                {
+                    case "vision":
+                    {
+                        door.BlocksVision = !door.BlocksVision;
+                        Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
+                        return "Door " + door.Id + " is now " + door.BlocksVision;
+                    }
+                    case "flip":
+                    {
+                        var old1 = door.Bounds[1];
+                        door.Bounds[1] = door.Bounds[0];
+                        door.Bounds[0] = old1;
+                        Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
+                        return "Door " + door.Id + " is now flipped";
+                    }
+                    case "open":
+                    {
+                        door.Closed = false;
+                        Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
+                        return "Door " + door.Id + " opened";
+                    }
+                    case "close":
+                    {
+                        door.Closed = true;
+                        Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
+                        return "Door " + door.Id + " closed";
+                    }
+                    default:
+                    {
+                        return "Invalid operation.";
+                    }
+                }
             }
         ));
 

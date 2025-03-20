@@ -101,7 +101,7 @@ public partial class BodyInspector : Control
 					customLabel.Text = Settings.CustomText.Invoke(_current);
 				foreach (var child in _current.Children)
 				{
-					if ((child.IsInternal || child.OverlapsParent) && (Settings.Predicate == null || Settings.Predicate(child)))
+					if ((child.IsInternal || child.OverlapsParent) && (Settings.Predicate == null || Settings.Predicate(child) || child.Children.Count > 0))
 					{
 						var btn = new Button()
 						{
@@ -110,6 +110,8 @@ public partial class BodyInspector : Control
 						};
 						btn.Pressed += () => {
 							Current = child;
+
+							readyBtn.Disabled = Settings.Predicate != null && Settings.Predicate(child);
 						};
 						specificsContainer.AddChild(btn);
 					}

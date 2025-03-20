@@ -18,6 +18,10 @@ public class Body : ISerializable
 {
     public event Action<BodyPart, Injury>? OnInjuryAdded;
     public event Action<BodyPart, Injury>? OnInjuryRemoved;
+    private Dictionary<string, HashSet<BodyPart>> equipmentSlots = new();
+    private Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
+    private Dictionary<string, HashSet<BodyPart>> partsByName = new();
+    public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
     public readonly Creature Owner;
     public readonly BodyType Type;
     private BodyPart root;
@@ -32,7 +36,7 @@ public class Body : ISerializable
         }
     }
 
-    public List<BodyPart> Parts
+    public IEnumerable<BodyPart> Parts
     {
         get
         {
@@ -67,6 +71,16 @@ public class Body : ISerializable
         if (part.Name.Equals(BodyPart.Parts.BRAIN))
             Brain = part;
 
+        foreach (var slot in part.EquipmentSlots)
+        {
+            if (!equipmentSlots.ContainsKey(slot))
+                equipmentSlots[slot] = new HashSet<BodyPart>();
+            equipmentSlots[slot].Add(part);
+        }
+        if (!partsByName.ContainsKey(part.Name))
+            partsByName[part.Name] = new HashSet<BodyPart>();
+        partsByName[part.Name].Add(part);
+        partsCovered[part] = new();
         part.UpdateStatModifiers();
     }
 
@@ -75,7 +89,10 @@ public class Body : ISerializable
     {
         if (part.Name.Equals(BodyPart.Parts.BRAIN))
             Brain = null;
-
+        
+        foreach (var slot in part.EquipmentSlots)
+            equipmentSlots[slot].Remove(part);
+        partsCovered.Remove(part);
         part.RemoveStatModifiers();
     }
 
@@ -99,6 +116,13 @@ public class Body : ISerializable
         return Root.GetChildByPath(path);
     }
 
+    public IEnumerable<BodyPart> GetPartsThatCanEquip(string slot)
+    {
+        if (equipmentSlots.ContainsKey(slot))
+            return equipmentSlots[slot];
+        return Array.Empty<BodyPart>();
+    }
+
     public static Body NewHumanoidBody(Creature owner)
     {
         Body ret = new Body(owner, BodyType.Humanoid);
@@ -115,7 +139,7 @@ public class Body : ISerializable
     }
 }
 
-public class BodyPart : ISerializable, ISkillSource
+public class BodyPart : ISerializable, ISkillSource, IInventoryHolder
 {
     public static class Flag
     {
@@ -228,17 +252,26 @@ public class BodyPart : ISerializable, ISkillSource
         }
     }
     public Skill[] Skills;
-    public BodyPart[] InternalOrgans
+    public IEnumerable<BodyPart> InternalOrgans
     {
         get
         {
-            List<BodyPart> organs = new List<BodyPart>();
             foreach (BodyPart child in Children)
             {
                 if (child.IsInternal)
-                    organs.Add(child);
+                    yield return child;
             }
-            return organs.ToArray();
+        }
+    }
+    public IEnumerable<BodyPart> OverlappingParts
+    {
+        get
+        {
+            foreach (BodyPart child in Children)
+            {
+                if (child.OverlapsParent)
+                    yield return child;
+            }
         }
     }
     private BodyPart? parent = null;
@@ -251,15 +284,18 @@ public class BodyPart : ISerializable, ISkillSource
     public ImmutableArray<Injury> Injuries => injuries.ToImmutableArray();
 
     private List<String> equipmentSlots;
+    public IEnumerable<String> EquipmentSlots => equipmentSlots;
 
     private Body bodyInfo;
     public Body BodyInfo => bodyInfo;
 
 
     /// <summary>
-    /// What stats are provided by this body part. Dynamically updated from the first to the second based on HP(100% to 0%)
+    /// What stats are provided by this body part. Dynamically updated on HP(100% to 0%)
     /// </summary>
     public Dictionary<string, BodyPartStat[]> Stats { get; } = new();
+
+    public List<Item> EquippedItems = new();
 
     public bool IsInternal
     {
@@ -308,7 +344,7 @@ public class BodyPart : ISerializable, ISkillSource
 
     IEnumerable<Skill> ISkillSource.Skills => Skills;
 
-    Creature? ISkillSource.Creature => Owner;
+    public IEnumerable<Item> Items => EquippedItems;
 
     public BodyPart(string name, Body body, int maxHealth, float surfaceArea, Skill[] actions, string[] equipmentSlots, Injury[] conditions, byte flags, params BodyPart[] children)
     {
@@ -407,7 +443,10 @@ public class BodyPart : ISerializable, ISkillSource
         BodyPart? current = this;
         foreach (string part in parts)
         {
-            current = current.GetChild(part);
+            if (part == "..")
+                current = parent;
+            else
+                current = current.GetChild(part);
             if (current == null)
                 return null;
         }
@@ -507,6 +546,38 @@ public class BodyPart : ISerializable, ISkillSource
         OnInjuryRemoved?.Invoke(condition);
     }
 
+    void IInventoryHolder.AddItem(Item item)
+    {
+        var ep = item.GetProperty<EquipmentProperty>();
+        if (ep == null)
+            return;
+        
+        Equip(ep);
+    }
+    void IInventoryHolder.RemoveItem(Item item)
+    {
+        var ep = item.GetProperty<EquipmentProperty>();
+        if (ep == null)
+            return;
+        
+        Unequip(ep);
+    }
+
+    public void Equip(EquipmentProperty ep)
+    {
+        if (ep.EquippedPart != null)
+            ep.EquippedPart.Unequip(ep);
+        
+        EquippedItems.Add(ep.Item);
+        ep.EquippedPart = this;
+        ep.Item.Holder = this;
+    }
+    public void Unequip(EquipmentProperty ep)
+    {
+        EquippedItems.Remove(ep.Item);
+        ep.EquippedPart = null;
+        ep.Item.Holder = null;
+    }
 
     public void ToBytes(Stream stream)
     {
@@ -610,10 +681,10 @@ public class BodyPart : ISerializable, ISkillSource
                     ).Build()
                 ).Build()
             ).Build(),
-            new Builder(body, Parts.SHOULDER_LEFT).Health(30).Size(12).Flags(Flag.Soft, Flag.Hard, Flag.Soft).Equipment(EquipmentSlot.Shoulder)
+            new Builder(body, Parts.SHOULDER_LEFT).Health(30).Size(12).Flags(Flag.Hard, Flag.Soft).Equipment(EquipmentSlot.Shoulder)
             .Stat(CreatureStats.AGILITY, 0, -0.1f, StatModifierType.Percent, true)
             .Children(
-                new Builder(body, Parts.ARM_LEFT).Health(30).Size(150).Flags(Flag.Soft, Flag.Hard, Flag.Soft)
+                new Builder(body, Parts.ARM_LEFT).Health(30).Size(150).Flags(Flag.Hard, Flag.Soft)
                 .Stat(CreatureStats.AGILITY, 0, -0.1f, StatModifierType.Percent, true).Stat(CreatureStats.UTILITY_STRENGTH, 0, 20f, StatModifierType.Flat, true)
                 .Equipment(EquipmentSlot.Arm).Children(
                     new Builder(body, Parts.HAND_LEFT).Health(20).Size(15).Flags(Flag.Soft, Flag.Hard, Flag.Soft).Equipment(EquipmentSlot.Wrist, EquipmentSlot.Hand, EquipmentSlot.Hold)

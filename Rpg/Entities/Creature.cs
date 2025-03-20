@@ -66,6 +66,17 @@ public class Creature : Entity, IInventoryHolder
         }
     }
 
+    public IEnumerable<Item> Items
+    {
+        get
+        {
+            foreach (var bp in Body.PartsWithEquipSlots)
+                foreach (var item in bp.EquippedItems)
+                    yield return item;
+        }
+    }
+
+
     public Dictionary<int, SkillData> ActiveSkills = new();
     public string Owner;
     public string Name;
@@ -145,12 +156,12 @@ public class Creature : Entity, IInventoryHolder
     {
         if (!skill.ValidateArguments(args))
             throw new ArgumentException("Invalid arguments for skill " + skill.GetName());
-        if (!skill.CanBeUsed(from))
+        if (!skill.CanBeUsed(this, from))
             return;
 
         if (!Board.CombatMode)
         {
-            skill.Execute(from, args);
+            skill.Execute(this, from, args);
             return;
         }
         var data = new SkillData(skill, args, Board.CombatTick);

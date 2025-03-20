@@ -12,7 +12,6 @@ public class ClientFloor : Floor
     public Node2D Node {get; protected set;}
     public Sprite2D Sprite {get; protected set;}
     public Node EntitiesNode {get; protected set;}
-    public Node LightsNode {get; protected set;}
     public Node OccludersNode {get; protected set;}
     public StaticBody2D Collision {get; protected set;}
     public CanvasModulate AmbientLightModulate {get; protected set;}
@@ -47,9 +46,6 @@ public class ClientFloor : Floor
         AmbientLightModulate = new CanvasModulate();
         UpdateAmbientModulate();
 
-        LightsNode = new Node();
-        LightsNode.Name = "Lights";
-
         OccludersNode = new Node();
         OccludersNode.Name = "Occluders";
 
@@ -62,30 +58,10 @@ public class ClientFloor : Floor
         Node.AddChild(Sprite);
         Node.AddChild(EntitiesNode);
         Node.AddChild(AmbientLightModulate);
-        Node.AddChild(LightsNode);
         Node.AddChild(OccludersNode);
         Node.AddChild(Collision);
         Node.Ready += () => {
             var tex = GD.Load<Texture2D>("res://assets/light.webp");
-            for (int i = 0; i < Lights.Length; i++)
-            {
-                Light light = Lights[i];
-                byte alpha = (byte)((light.Color >> 24) & 0xFF);
-                byte red = (byte)((light.Color >> 16) & 0xFF);
-                byte green = (byte)((light.Color >> 8) & 0xFF);
-                byte blue = (byte)(light.Color & 0xFF);
-                var lightNode = new PointLight2D
-                {
-                    Name = "Light" + i,
-                    Position = (light.Position * TileSize).ToGodot(),
-                    Texture = tex,
-                    Color = Color.Color8(red, green, blue, alpha),
-                    Energy = light.Intensity,
-                    ShadowEnabled = light.Shadows,
-                    Scale = new Vector2(TileSize.X / tex.GetWidth() * light.Range, TileSize.Y / tex.GetHeight() * light.Range)
-                };
-                LightsNode.AddChild(lightNode);
-            }
             for (int i = 0; i < LineOfSight.Length; i++)
             {
                 var lineOfSightNode = new LightOccluder2D 

@@ -9,8 +9,8 @@ resource_name = "new_animation"
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_dlvdr"]
 _data = {
-"new_animation": SubResource("Animation_c87mw"),
-"test": ExtResource("3_qhhsx")
+&"new_animation": SubResource("Animation_c87mw"),
+&"test": ExtResource("3_qhhsx")
 }
 
 [node name="Entity" type="Node2D"]

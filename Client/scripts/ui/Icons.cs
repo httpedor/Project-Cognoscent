@@ -16,6 +16,7 @@ public static class Icons
     public static readonly Texture2D Kick = GetIcon("kick");
     public static readonly Texture2D Humanoid = GetIcon("humanoid");
     public static readonly Texture2D CloseCircle = GetIcon("close-circle");
+    public static readonly Texture2D Light = GetIcon("light");
 
 
     public static Texture2D GetIcon(string name)

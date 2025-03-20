@@ -12,6 +12,8 @@ public enum ProtocolId{
 	BOARD_ADD,
     BOARD_REMOVE,
     FLOOR_IMAGE,
+    DOOR_UPDATE,
+    DOOR_INTERACT,
     TURN_MODE,
     COMBAT_TICK,
     ENTITY_CREATE,
@@ -167,16 +169,12 @@ public class BoardAddPacket : Packet
                 floor.LineOfSight[j] = new Polygon(stream);
             }
 
-            floor.Lights = new Light[stream.ReadUInt16()];
-            for (int j = 0; j < floor.Lights.Length; j++)
-            {
-                floor.Lights[j] = new Light(stream);
-            }
-
             for (int j = 0; j < floor.Size.X * floor.Size.Y; j++)
             {
                 floor.TileFlags[i] = stream.ReadUInt32();
             }
+
+            floor.DefaultEntitySight = stream.ReadFloat();
             Board.AddFloor(floor);
         }
     }
@@ -207,14 +205,12 @@ public class BoardAddPacket : Packet
             foreach (var vb in floor.LineOfSight)
                 vb.ToBytes(stream);
 
-            stream.WriteUInt16((ushort)floor.Lights.Length);
-            foreach (var light in floor.Lights)
-                light.ToBytes(stream);
-
             for (int j = 0; j < floor.Size.X * floor.Size.Y; j++)
             {
                 stream.WriteUInt32(floor.TileFlags[j]);
             }
+
+            stream.WriteFloat(floor.DefaultEntitySight);
         }
     }
 }
@@ -274,6 +270,57 @@ public class FloorImagePacket : Packet
         stream.WriteUInt32((uint)Data.Length);
         stream.Write(Data);
     }
+}
+
+public class DoorUpdatePacket : Packet
+{
+    public Door Door;
+    public DoorRef @ref;
+
+    public override ProtocolId Id => ProtocolId.DOOR_UPDATE;
+
+    public DoorUpdatePacket(Door door)
+    {
+        Door = door;
+        @ref = new DoorRef(door);
+    }
+    public DoorUpdatePacket(Stream stream)
+    {
+        stream.ReadByte();
+        Door = new Door(stream);
+        @ref = new DoorRef(stream);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Door.ToBytes(stream);
+        @ref.ToBytes(stream);
+    }
+
+}
+
+public class DoorInteractPacket : Packet
+{
+    public DoorRef Door;
+
+    public override ProtocolId Id => ProtocolId.DOOR_INTERACT;
+
+    public DoorInteractPacket(Door door)
+    {
+        Door = new DoorRef(door);
+    }
+    public DoorInteractPacket(Stream stream)
+    {
+        Door = new DoorRef(stream);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Door.ToBytes(stream);
+    }
+
 }
 
 public class TurnModePacket : Packet

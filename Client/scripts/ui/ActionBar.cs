@@ -171,14 +171,7 @@ public static class ActionBar
                     index++;
                 }
 
-                GD.Print("Arguments:");
-                int i = 0;
-                foreach (var arg in arguments)
-                {
-                    GD.Print(i + ": " + arg);
-
-                    i++;
-                }
+                
             }, !skill.CanBeUsed(source));
         }
     }

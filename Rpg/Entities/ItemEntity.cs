@@ -13,13 +13,13 @@ public class ItemEntity : Entity
         set
         {
             _item = value;
-            Size = new Vector3(value.Size, 0.01f);
+            //Size = new Vector3(value.Size, 0.01f);
         }
     }
     public ItemEntity(Item item) : base()
     {
         Item = item;
-        Image = Convert.FromBase64String(B64Images.Box);
+        Display = new Midia(Convert.FromBase64String(B64Images.Box));
     }
 
     public ItemEntity(Stream stream) : base(stream)

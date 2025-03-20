@@ -139,6 +139,12 @@ public partial class NetworkManager : Node
 				floor.SetImage(fip.Data);
 				break;
 			}
+			case ProtocolId.DOOR_UPDATE:
+			{
+				DoorUpdatePacket dup = (DoorUpdatePacket)packet;
+				dup.@ref.Door.CopyFrom(dup.Door);
+				break;
+			}
 			case ProtocolId.ENTITY_CREATE:
 			{
 

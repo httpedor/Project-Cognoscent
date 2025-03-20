@@ -26,7 +26,7 @@ public class ServerBoard : Board, ISerializable
     }
 
     public ServerBoard(string name) : base(){
-        this.Name = name;
+        Name = name;
     }
 
     public ServerBoard(Stream stream)

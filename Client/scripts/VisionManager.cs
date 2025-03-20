@@ -103,7 +103,7 @@ public partial class VisionManager : SubViewport
             else if (point.Entity != null)
             {
                 //TODO: Ambient light-based sight
-                point.Radius = point.Entity.GetStatValueOrDefault(CreatureStats.SIGHT) * 10;
+                point.Radius = point.Entity.GetStatValueOrDefault(CreatureStats.SIGHT) * point.Entity.Floor.DefaultEntitySight;
                 lights[entry.Key].Position = board.GetEntityNode(point.Entity).Position;
                 if (point.Entity.FloorIndex != board.FloorIndex)
                 {

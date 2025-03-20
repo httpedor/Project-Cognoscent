@@ -63,6 +63,7 @@ public struct Light : ISerializable {
 
 public abstract class Floor
 {
+    public event Action<byte[]>? OnImageChanged;
     public enum TileFlag{
         AIR = 0x0,
         FLOOR = 0x1,
@@ -73,8 +74,8 @@ public abstract class Floor
     public UInt32 AmbientLight {get; set;}
     public Polygon[] Walls = Array.Empty<Polygon>();
     public Polygon[] LineOfSight = Array.Empty<Polygon>();
-    public Light[] Lights = Array.Empty<Light>();
     public UInt32[] TileFlags = Array.Empty<UInt32>();
+    public float DefaultEntitySight;
     public byte[] Image { get; protected set;}
 
     private void GenerateTiles(){
@@ -90,6 +91,7 @@ public abstract class Floor
         TileSize = new Vector2(32, 32);
         AmbientLight = 0xFFFFFFFF;
         Image = new byte[0];
+        DefaultEntitySight = MathF.Max(Size.X, Size.Y);
         GenerateTiles();
     }
 
@@ -98,6 +100,7 @@ public abstract class Floor
         TileSize = tileSize;
         AmbientLight = ambientLight;
         Image = new byte[0];
+        DefaultEntitySight = MathF.Max(Size.X, Size.Y);
         GenerateTiles();
     }
 
@@ -144,6 +147,7 @@ public abstract class Floor
     }
 
     public virtual void SetImage(byte[] image){
+        OnImageChanged?.Invoke(image);
         Image = image;
     }
 

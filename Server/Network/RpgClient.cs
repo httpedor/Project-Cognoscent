@@ -87,6 +87,28 @@ public class RpgClient
                 Manager.SendToAll(new ChatPacket(board, $"{Username}: {chatPacket.Message}"));
                 break;
             }
+            case ProtocolId.DOOR_INTERACT:
+            {
+                DoorInteractPacket dip = (DoorInteractPacket)packet;
+                var door = dip.Door.Door;
+                if (door == null)
+                    return;
+                if (!door.Locked)
+                {
+                    door.Closed = !door.Closed;
+                    Manager.SendToBoard(new DoorUpdatePacket(door), door.Board.Name);
+                }
+                break;
+            }
+            case ProtocolId.DOOR_UPDATE:
+            {
+                DoorUpdatePacket dup = (DoorUpdatePacket)packet;
+                if (!IsGm)
+                    return;
+                dup.@ref.Door.CopyFrom(dup.Door);
+                Manager.SendToOthersInBoard(dup, dup.@ref.Board, Username);
+                break;
+            }
             case ProtocolId.ENTITY_REMOVE:
             {
                 EntityRemovePacket edp = (EntityRemovePacket) packet;
@@ -111,7 +133,7 @@ public class RpgClient
 				if (entity == null)
 					break;
                 var targetOBB = new OBB(emp.Position, (entity.Size.XY() / 2f) * 0.8f, entity.Rotation);
-                foreach (var wall in entity.Board.GetFloor(entity.FloorIndex).BroadPhaseOBB(targetOBB))
+                foreach (var wall in entity.Board.GetFloor(entity.FloorIndex).BroadPhaseOBB(targetOBB).Union(entity.Board.GetEntities<Door>().Select((door) => new Line(door.Bounds[0], door.Closed ? door.Bounds[1] : door.OpenBound2))))
                 {
                     if (Geometry.OBBLineIntersection(targetOBB, wall, out var _))
                     {
@@ -158,6 +180,18 @@ public class RpgClient
 					part.RemoveInjury(ebpcp.Injury);
 				else
 					part.AddInjury(ebpcp.Injury);
+                break;
+            }
+            case ProtocolId.ENTITY_CREATE:
+            {
+                EntityCreatePacket ecp = (EntityCreatePacket)packet;
+                if (!IsGm)
+                    return;
+                var board = Game.Game.GetBoard(ecp.BoardName);
+                if (board == null)
+                    return;
+
+                board.AddEntity(ecp.Entity);
                 break;
             }
             default:

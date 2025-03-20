@@ -9,7 +9,11 @@ public enum EntityType : byte
 {
     Creature,
     Item,
-    Projectile
+    Projectile,
+    Door,
+    Container,
+    Light,
+    Prop
 }
 
 public struct EntityRef : ISerializable
@@ -56,11 +60,10 @@ public abstract class Entity : ISerializable
     public int Id { get; private set; }
 
     //First vector is new, second is old
-
     public event Action<Vector3, Vector3>? OnPositionChanged;
     public event Action<float, float>? OnRotationChanged;
     public event Action<Vector3, Vector3>? OnSizeChanged;
-    public event Action<byte[]>? OnImageChanged;
+    public event Action<Midia>? OnDisplayChanged;
 
     protected Vector3 _position;
     public Vector3 Position
@@ -95,6 +98,13 @@ public abstract class Entity : ISerializable
             return (int)Position.Z;
         }
     }
+    public Floor Floor
+    {
+        get
+        {
+            return Board.GetFloor(FloorIndex);
+        }
+    }
     public bool IsGrounded
     {
         get
@@ -115,17 +125,17 @@ public abstract class Entity : ISerializable
             _size = value;
         }
     }
-    protected byte[] _image = new byte[0];
-    public byte[] Image
+    protected Midia _display = new Midia();
+    public Midia Display
     {
         get
         {
-            return _image;
+            return _display;
         }
         set
         {
-            OnImageChanged?.Invoke(value);
-            _image = value;
+            OnDisplayChanged?.Invoke(value);
+            _display = value;
         }
     }
     protected Dictionary<string, Stat> _stats = new Dictionary<string, Stat>();
@@ -170,7 +180,7 @@ public abstract class Entity : ISerializable
             Stat stat = new Stat(stream);
             _stats[stat.Id] = stat;
         }
-        Image = stream.ReadExactly(stream.ReadUInt32());
+        Display = new Midia(stream);
     }
 
     public abstract EntityType GetEntityType();
@@ -186,8 +196,7 @@ public abstract class Entity : ISerializable
         stream.WriteByte((Byte)_stats.Count);
         foreach (var stat in _stats.Values)
             stat.ToBytes(stream);
-        stream.WriteUInt32((uint)Image.Length);
-        stream.Write(Image);
+        Display.ToBytes(stream);
     }
 
     public static Entity FromBytes(Stream stream)
@@ -199,6 +208,12 @@ public abstract class Entity : ISerializable
                 return new Creature(stream);
             case EntityType.Item:
                 return new ItemEntity(stream);
+            case EntityType.Door:
+                return new Door(stream);
+            case EntityType.Light:
+                return new LightEntity(stream);
+            case EntityType.Prop:
+                return new PropEntity(stream);
             default:
                 throw new Exception("Invalid entity type");
         }
@@ -239,7 +254,7 @@ public abstract class Entity : ISerializable
         OnPositionChanged = null;
         OnRotationChanged = null;
         OnSizeChanged = null;
-        OnImageChanged = null;
+        OnDisplayChanged = null;
 
         foreach (var stat in Stats)
         {

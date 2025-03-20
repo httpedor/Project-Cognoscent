@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cj5avp6jaieki"]
 
-[ext_resource type="Script" path="res://scripts/ui/ChatControl.cs" id="1_q5ot5"]
+[ext_resource type="Script" uid="uid://cbbrd5jykscig" path="res://scripts/ui/ChatControl.cs" id="1_q5ot5"]
 
 [node name="Chat" type="Control"]
 custom_minimum_size = Vector2(18, 0)

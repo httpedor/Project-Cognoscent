@@ -13,12 +13,39 @@ public struct BoardIntersectionInfo
     public Vector3 Normal;
 }
 
+public class BoardRef : ISerializable
+{
+    public string BoardName;
+    public Board? Board
+    {
+        get {
+            return SidedLogic.Instance.GetBoard(BoardName);
+        }
+    }
+
+    public BoardRef(Board board)
+    {
+        BoardName = board.Name;
+    }
+    public BoardRef(Stream stream)
+    {
+        BoardName = stream.ReadString();
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteString(BoardName);
+    }
+
+}
+
 public abstract class Board
 {
     public string Name = "";
     protected Floor[] floors = new Floor[0];
     protected List<Entity> entities = new List<Entity>();
     private Dictionary<int, Entity> entityCache = new Dictionary<int, Entity>();
+    private Dictionary<EntityType, List<Entity>> entityCacheByType = new Dictionary<EntityType, List<Entity>>();
     protected List<string> chatHistory = new List<string>();
 
     public bool CombatMode = false;
@@ -26,19 +53,32 @@ public abstract class Board
 
     public Board(){
         floors = new Floor[0];
+        foreach (var type in Enum.GetValues<EntityType>())
+            entityCacheByType[type] = new List<Entity>();
     }
 
     public virtual void AddEntity(Entity entity){
-        if (entity is Creature creature && creature.BodyRoot == null)
-            throw new Exception("Creature must have a body");
         if (entity.Board != null)
             entity.Board.RemoveEntity(entity);
         entities.Add(entity);
         entityCache[entity.Id] = entity;
+        entityCacheByType[entity.GetEntityType()].Add(entity);
         entity.Board = this;
     }
     public List<Entity> GetEntities(){
         return entities;
+    }
+    public List<T> GetEntities<T>() where T : Entity
+    {
+        List<T> ret = new();
+        foreach (var ent in entities)
+        {
+            if (ent is T sub)
+            {
+                ret.Add(sub);
+            }
+        }
+        return ret;
     }
     public Entity? GetEntityById(int id){
         return entityCache.TryGetValue(id, out Entity? entity) ? entity : null;

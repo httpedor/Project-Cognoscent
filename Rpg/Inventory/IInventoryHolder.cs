@@ -2,19 +2,17 @@ namespace Rpg.Inventory;
 
 public interface IInventoryHolder
 {
-    public List<Item> Inventory
+    public virtual void AddItem(Item item)
     {
-        get;
-    }
-
-    public void AddItem(Item item)
-    {
-        Inventory.Add(item);
         item.Holder = this;
     }
-    public void RemoveItem(Item item)
+    public virtual void RemoveItem(Item item)
     {
         item.Holder = null;
-        Inventory.Remove(item);
+    }
+
+    public IEnumerable<Item> Items
+    {
+        get;
     }
 }

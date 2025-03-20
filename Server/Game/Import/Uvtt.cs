@@ -69,15 +69,18 @@ public class Environment
 
     public static ServerBoard? LoadBoardFromUvttJson(string json, string name)
     {
-        Floor? f = LoadFloorFromUvttJson(json);
+        var entities = new List<Entity>();
+        Floor? f = LoadFloorFromUvttJson(json, entities);
         if (f == null)
             return null;
         var b = new ServerBoard(name);
         b.AddFloor(f);
+        foreach (var ent in entities)
+            b.AddEntity(ent);
         return b;
     }
 
-    public static Floor? LoadFloorFromUvttJson(string json, List<Entity[]>? portals = null )
+    public static Floor? LoadFloorFromUvttJson(string json, List<Entity>? entities = null)
     {
         UvttBoard? uvtt = JsonSerializer.Deserialize<UvttBoard>(json);
         if (uvtt == null || uvtt.image == null)
@@ -97,31 +100,52 @@ public class Environment
                     points = points.Select((point) => new Vector2(point.x, point.y)).ToArray()
                 }
             ).ToArray();
+        var los = uvtt.objects_line_of_sight.Select((points) => {
+                return new Polygon()
+                {
+                    points = points.Select((point) => new Vector2(point.x, point.y)).ToArray()
+                };
+        }).ToArray();
+
+        f.LineOfSight = new Polygon[f.Walls.Length + los.Length];
+        for (int i = 0; i < f.Walls.Length; i++)
+        {
+            f.LineOfSight[i] = f.Walls[i];
+        }
+        for (int i = 0; i < los.Length; i++)
+        {
+            f.LineOfSight[i + f.Walls.Length] = los[i];
+        }
         f.LineOfSight = (Polygon[])f.Walls.Clone();
 
-        f.Lights = uvtt.lights.Select((uvttLight) =>{
-            if (!uvttLight.color.StartsWith("0x"))
-                uvttLight.color = "0x" + uvttLight.color.ToUpper();
-
-            return new Light(
-                new Vector2(uvttLight.position.x, uvttLight.position.y),
-                uvttLight.range,
-                uvttLight.intensity,
-                Convert.ToUInt32(uvttLight.color, 16),
-                uvttLight.shadows
-            );
-        }
-        ).ToArray();
-
-        if (portals != null)
+        if (entities != null)
         {
-            foreach (var portal in uvtt.portals)
+            for (int i = 0; i < uvtt.portals.Length; i++)
             {
-                var ent = new Door()
+                var portal = uvtt.portals[i];
+                var door = new Door()
                 {
-                    //Position = new Vector3(portal.position.x, portal.position.y, 0),
+                    Position = new Vector3(portal.position.x, portal.position.y, 0),
+                    Bounds = portal.bounds.Select((b) => new Vector2(b.x, b.y)).ToArray(),
+                    Closed = portal.closed,
+                    Rotation = portal.rotation
                 };
-                //portals.Add(ent);
+                entities.Add(door);
+            }
+            for (int i = 0; i < uvtt.lights.Length; i++)
+            {
+                var uvttLight = uvtt.lights[i];
+                if (!uvttLight.color.StartsWith("0x"))
+                    uvttLight.color = "0x" + uvttLight.color.ToUpper();
+                var light = new LightEntity()
+                {
+                    Position = new Vector3(uvttLight.position.x, uvttLight.position.y, 0),
+                    Range = uvttLight.range,
+                    Intensity = uvttLight.intensity,
+                    Color = Convert.ToUInt32(uvttLight.color, 16),
+                    Shadows = uvttLight.shadows
+                };
+                entities.Add(light);
             }
         }
 

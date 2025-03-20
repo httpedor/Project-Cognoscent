@@ -1,5 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq.Expressions;
+using System.Reflection;
 using Godot;
+using Rpg;
+using Rpg.Entities;
 using TTRpgClient.scripts;
 
 public static class Modal
@@ -100,6 +106,180 @@ public static class Modal
             input.QueueFree();
             dialog.QueueFree();
         };
+
+        GameManager.Instance.AddChild(dialog);
+        dialog.PopupCentered();
+    }
+
+    public static void OpenFormDialog(string title, Action<Dictionary<string, object>?> callback, params (string Key, object Value, Predicate<object>? Predicate)[] inputs)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            Transient = true,
+            Exclusive = true,
+            AlwaysOnTop = true,
+            PopupWindow = true,
+            Size = GameManager.Instance.GetWindow().Size/2
+        };
+        dialog.CloseRequested += () => {
+            dialog.Hide();
+            dialog.QueueFree();
+        };
+        int i = 1;
+        const int height = 40;
+        const int gap = 8;
+        Dictionary<string, object> results = new();
+        foreach (var pair in inputs)
+        {
+            results[pair.Key] = pair.Value;
+            var container = new HBoxContainer()
+            {
+                AnchorLeft = 0,
+                AnchorRight = 1,
+                AnchorBottom = 0,
+                AnchorTop = 0,
+                OffsetTop = (height * (i-1)) + (gap * (i-1)),
+                OffsetBottom = (height * i) + (gap * i),
+                Name = pair.Key,
+            };
+            var label = new Label()
+            {
+                Text = pair.Key + ":"
+            };
+            Control input;
+            if (pair.Value is string s)
+            {
+                string oldText = s;
+                input = new TextEdit()
+                {
+                    Text = s
+                };
+                var te = input as TextEdit;
+                te.TextChanged += () =>
+                {
+                    if (pair.Predicate != null && !pair.Predicate(te.Text))
+                    {
+                        te.Text = oldText;
+                    }
+                    else
+                    {
+                        oldText = te.Text;
+                        results[pair.Key] = oldText;
+                    }
+                };
+            }
+            else if (pair.Value is float f)
+            {
+                input = new SpinBox()
+                {
+                    Value = f
+                };
+                var sb = input as SpinBox;
+                sb.ValueChanged += (val) =>
+                {
+                    results[pair.Key] = val;
+                };
+            }
+            else if (pair.Value is int n)
+            {
+                input = new SpinBox()
+                {
+                    Value = n,
+                    Rounded = true
+                };
+                var sb = input as SpinBox;
+                sb.ValueChanged += (val) =>
+                {
+                    results[pair.Key] = val;
+                };
+            }
+            else if (pair.Value is Entity)
+            {
+                input = new OptionButton()
+                {
+                    AllowReselect = true,
+                };
+                var ob = input as OptionButton;
+                foreach (var board in GameManager.Instance.GetBoards())
+                {
+                    foreach (var entity in board.GetEntities())
+                    {
+                        if (pair.Predicate == null || pair.Predicate(entity))
+                            ob.AddIconItem(board.GetEntityNode(entity).Sprite.Texture, $"{(entity is Creature c ? c.Name + " " : "")}{entity.Id} - {entity.GetEntityType()} at {entity.Position}, board {board.Name}, {entity.Id}");
+                    }
+                }
+                ob.ItemSelected += (id) => {
+                    results[pair.Key] = id;
+                };
+            }
+            else if (pair.Value is BodyType)
+            {
+                input = new OptionButton()
+                {
+                    AllowReselect = true
+                };
+                var ob = input as OptionButton;
+                var values = Enum.GetValues<BodyType>();
+                for (int j = 0; j < values.Length; j++)
+                {
+                    ob.AddItem(values[j].ToString(), j);
+                }
+                ob.ItemSelected += (id) => {
+                    results[pair.Key] = values[id];
+                };
+            }
+            else if (pair.Value is byte[])
+            {
+                var im = new Image();
+                input = new Button()
+                {
+                    Text = "Procurar Arquivo"
+                };
+                (input as Button).Pressed += () => 
+                {
+                    var fileD = new FileDialog()
+                    {
+                        Access = FileDialog.AccessEnum.Filesystem,
+                        FileMode = FileDialog.FileModeEnum.OpenFile,
+                        UseNativeDialog = true
+                    };
+                    fileD.FileSelected += (f) => {
+                        results[pair.Key + "_fName"] = f;
+                        results[pair.Key] = File.ReadAllBytes(f);
+                        (input as Button).Text = f.Substring(f.LastIndexOf('/')+1);
+                        fileD.QueueFree();
+                    };
+                    input.GetTree().Root.AddChild(fileD);
+                    fileD.Popup();
+                };
+            }
+            else
+            {
+                continue;
+            }
+            if (pair.Value.GetType() != typeof(byte[]))
+                input.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+            else
+                input.Size = new Vector2(64, 64);
+
+            container.AddChild(label);
+            container.AddChild(input);
+            dialog.AddChild(container);
+            i++;
+        }
+
+        var okBtn = new Button()
+        {
+            Text = "Ok",
+            GrowVertical = Control.GrowDirection.Begin,
+        };
+        okBtn.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        okBtn.Pressed += () => {
+            callback(results);
+            dialog.QueueFree();
+        };
+        dialog.AddChild(okBtn);
 
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();

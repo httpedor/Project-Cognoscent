@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cncmpok6b32j4"]
 
-[ext_resource type="Script" path="res://scripts/ui/BodyViewer.cs" id="1_hecw8"]
+[ext_resource type="Script" uid="uid://beq0aba3uyypv" path="res://scripts/ui/BodyViewer.cs" id="1_hecw8"]
 
 [node name="BodyViewer" type="Control"]
 layout_mode = 3

@@ -7,6 +7,7 @@ using TTRpgClient.scripts;
 public static class ContextMenu
 {
     private static PopupMenu popupMenu;
+    private static int addedSinceLastSep = 0;
     private static Dictionary<string, Action<Vector2>> callbacks = new();
     private static Vector2 lastPos;
 
@@ -34,10 +35,13 @@ public static class ContextMenu
     public static void AddOption(string title, Action<Vector2> action)
     {
         popupMenu.AddItem(title);
+        addedSinceLastSep++;
         callbacks[title] = action;
     }
     public static void AddSeparator()
     {
+        if (addedSinceLastSep == 0)
+            return;
         popupMenu.AddSeparator();
     }
 
@@ -52,6 +56,7 @@ public static class ContextMenu
             popupMenu.Popup();
         else
             popupMenu.PopupExclusive(GameManager.Instance);
+        addedSinceLastSep = 0;
     }
 
     public static void Hide()

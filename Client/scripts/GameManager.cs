@@ -133,6 +133,11 @@ public partial class GameManager : Node
         return boards.Find(b => b.Name.Equals(name));
     }
 
+    public IEnumerable<ClientBoard> GetBoards()
+    {
+        return boards;
+    }
+
     public void RemoveBoard(ClientBoard? board){
         if (board == null)
             return;
@@ -170,7 +175,7 @@ public partial class GameManager : Node
     }
 
     public void ExecuteCommand(string command){
-        switch (command)
+        switch (command.ToLower())
         {
             case "help":
                 ChatControl.Instance.AddMessage("Commands: /help, /clear, /body, /grid");
@@ -201,6 +206,9 @@ public partial class GameManager : Node
                     ChatControl.Instance.AddMessage(creature.BodyRoot.PrintPretty());
                 else
                     ChatControl.Instance.AddMessage("Selected entity is not a creature");
+                break;
+            case "lighticons":
+                LightNode.ShowLightIcons = !LightNode.ShowLightIcons;
                 break;
         }
     }

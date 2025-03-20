@@ -26,7 +26,7 @@ public abstract class Skill : ISerializable
         
     }
 
-    public Skill(Stream data)
+    protected Skill(Stream data)
     {
         if (data.ReadByte() != 0)
             CustomName = data.ReadString();
@@ -60,36 +60,36 @@ public abstract class Skill : ISerializable
         return GetName().ToLower();
     }
 
-    public virtual void Execute(ISkillSource source, List<SkillArgument> arguments)
+    public virtual void Execute(Creature executor, ISkillSource source, List<SkillArgument> arguments)
     {
 
     }
 
-    public virtual void Start(ISkillSource source, List<SkillArgument> arguments)
+    public virtual void Start(Creature executor, ISkillSource source, List<SkillArgument> arguments)
     {
 
     }
 
-    public virtual void Cancel(ISkillSource source, List<SkillArgument> arguments, bool interrupted = false)
+    public virtual void Cancel(Creature executor, ISkillSource source, List<SkillArgument> arguments, bool interrupted = false)
     {
 
     }
 
-    public virtual bool CanBeUsed(ISkillSource source)
+    public virtual bool CanBeUsed(Creature executor, ISkillSource source)
     {
         return true;
     }
 
-    public virtual int GetDelay(ISkillSource source, List<SkillArgument> arguments)
+    public virtual int GetDelay(Creature executor, ISkillSource source, List<SkillArgument> arguments)
     {
         return 0;
     }
-    public virtual int GetCooldown(ISkillSource source, List<SkillArgument> arguments)
+    public virtual int GetCooldown(Creature executor, ISkillSource source, List<SkillArgument> arguments)
     {
         return 0;
     }
 
-    public virtual void CanCancel(ISkillSource source, List<SkillArgument> arguments)
+    public virtual void CanCancel(Creature executor, ISkillSource source, List<SkillArgument> arguments)
     {
 
     }
@@ -120,7 +120,7 @@ public abstract class Skill : ISerializable
         return true;
     }
 
-    public virtual bool CanUseArgument(ISkillSource source, int index, SkillArgument arg)
+    public virtual bool CanUseArgument(Creature executor, ISkillSource source, int index, SkillArgument arg)
     {
         return true;
     }

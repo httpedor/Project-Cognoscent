@@ -9,21 +9,13 @@ public class Item : ISerializable, ISkillSource
     public readonly int Id;
     public string Name;
     public string Description;
-    public Vector2 Size;
-    public Dictionary<string, StatModifier[]> EquippedModifiers;
-    public List<string> Slots;
-    public List<Skill> Skills;
-    public List<ItemProperty> Properties;
+
+    public List<Skill> Skills = new();
+    public Dictionary<string, StatModifier> StatModifiers = new();
+    private Dictionary<string, ItemProperty> Properties = new();
 
     String ISkillSource.Name => Name;
 
-    Creature? ISkillSource.Creature {
-        get {
-            if (Holder is Creature c)
-                return c;
-            return null;
-        }
-    }
     IEnumerable<Skill> ISkillSource.Skills => Skills;
 
     public Item(string icon, string name, string description)
@@ -31,8 +23,6 @@ public class Item : ISerializable, ISkillSource
         Icon = icon;
         Name = name;
         Description = description;
-        Size = new Vector2(1, 1);
-        EquippedModifiers = new Dictionary<string, StatModifier[]>();
     }
 
     public Item(Stream stream)
@@ -41,25 +31,14 @@ public class Item : ISerializable, ISkillSource
         Icon = stream.ReadLongString();
         Name = stream.ReadString();
         Description = stream.ReadLongString();
-        Size = stream.ReadVec2();
-        byte count = (Byte)stream.ReadByte();
-        EquippedModifiers = new Dictionary<string, StatModifier[]>();
-        for (int i = 0; i < count; i++)
-        {
-            string key = stream.ReadString();
-            byte modCount = (Byte)stream.ReadByte();
-            EquippedModifiers[key] = new StatModifier[modCount];
-            for (int j = 0; j < modCount; j++)
-            {
-                StatModifier mod = new StatModifier(stream);
-                EquippedModifiers[key][j] = mod;
-            }
-        }
-        Slots = new List<string>();
 
-        count = (Byte)stream.ReadByte();
-        for (int i = 0; i < count; i++)
-            Slots.Add(stream.ReadString());
+        var len = stream.ReadByte();
+        Properties = new();
+        for (int i = 0; i < len; i++)
+        {
+            var prop = ItemProperty.FromBytes(stream);
+            Properties[ItemProperty.GetId(prop.GetType())] = prop;
+        }
     }
 
     public virtual void ToBytes(Stream stream)
@@ -68,48 +47,24 @@ public class Item : ISerializable, ISkillSource
         stream.WriteLongString(Icon);
         stream.WriteString(Name);
         stream.WriteLongString(Description);
-        stream.WriteVec2(Size);
-        stream.WriteByte((byte)EquippedModifiers.Count);
-        foreach (var modArr in EquippedModifiers.Values)
-        {
-            stream.WriteByte((Byte)modArr.Length);
-            foreach (var mod in modArr)
-                mod.ToBytes(stream);
-        }
 
-        stream.WriteByte((byte)Slots.Count);
-        foreach (var slot in Slots)
-            stream.WriteString(slot);
+        stream.WriteByte((Byte)Properties.Count);
+        foreach (var prop in Properties)
+            prop.Value.ToBytes(stream);
     }
 
-    public static Item FromBytes(Stream stream)
+    public T? GetProperty<T>() where T : ItemProperty
     {
-        var path = stream.ReadString();
-        Type? type = Type.GetType(path);
-
-        if (type == null)
-            throw new Exception("Failed to get item type: " + path);
-        
-        if (type.GetConstructor(new Type[] { typeof(Stream) }) == null)
-            throw new Exception("Failed to get item constructor: " + path);
-        
-        return (Item)Activator.CreateInstance(type, stream);
+        return (T?)Properties[ItemProperty.GetId<T>()];
     }
 
-    float ISkillSource.GetStat(string id, float defaultValue)
+    public bool HasProperty<T>() where T : ItemProperty
     {
-        if (EquippedModifiers.ContainsKey(id))
-        {
-            float sum = 0;
-            foreach (var mod in EquippedModifiers[id])
-            {
-                if (mod.Type == StatModifierType.Flat)
-                    sum += mod.Value;
-            }
-            return sum;
-        }
-        else
-            return defaultValue;
+        return Properties.ContainsKey(ItemProperty.GetId<T>());
+    }
+    public bool HasProperty(Type t)
+    {
+        return Properties.ContainsKey(ItemProperty.GetId(t));
     }
 }
 

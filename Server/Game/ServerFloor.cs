@@ -121,10 +121,6 @@ public class ServerFloor : Floor, ISerializable
         for (int i = 0; i < LineOfSight.Length; i++)
             LineOfSight[i] = new Polygon(stream);
         
-        Lights = new Light[stream.ReadUInt16()];
-        for (int i = 0; i < Lights.Length; i++)
-            Lights[i] = new Light(stream);
-
         Triggers = new AreaTrigger[stream.ReadUInt16()];
         for (int i = 0; i < Triggers.Length; i++)
             Triggers[i] = new AreaTrigger(stream);
@@ -150,10 +146,6 @@ public class ServerFloor : Floor, ISerializable
         foreach (var vb in LineOfSight)
             vb.ToBytes(stream);
         
-        stream.Write(BitConverter.GetBytes((UInt16)Lights.Length));
-        foreach (var light in Lights)
-            light.ToBytes(stream);
-
         stream.WriteUInt16((UInt16)Triggers.Length);
         foreach (var trigger in Triggers)
             trigger.ToBytes(stream);
@@ -295,6 +287,14 @@ public class ServerFloor : Floor, ISerializable
                 }
             }
         }
+
+        /*foreach (var door in Doors)
+        {
+            if (door.Closed)
+                yield return new Line(door.Bounds[0], door.Bounds[1]);
+            else
+                yield return new Line(door.Bounds[0], door.OpenBound2);
+        }*/
     }
 
     public IEnumerable<AreaTrigger> PossibleTriggersAt(Vector2 position)

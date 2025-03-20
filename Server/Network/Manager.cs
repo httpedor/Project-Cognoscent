@@ -60,6 +60,18 @@ public static class Manager
                 client.Send(packet);
         }
     }
+    public static void SendToOthersInBoard(Packet packet, string boardname, string username)
+    {
+        foreach (var client in Clients.Values)
+        {
+            if (client.LoadedBoards.Contains(boardname) && client.Username != username)
+                client.Send(packet);
+        }
+    }
+    public static void SendToOthersInBoard(Packet packet, Board board, RpgClient client)
+    {
+        SendToOthersInBoard(packet, board.Name, client.Username);
+    }
     public static void SendToBoard(Packet packer, ServerBoard board){
         SendToBoard(packer, board.Name);
     }
