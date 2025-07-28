@@ -1,9 +1,6 @@
 using System;
-using System.IO;
-using System.Linq;
 using Godot;
 using Rpg;
-using Rpg.Entities;
 using TTRpgClient.scripts.RpgImpl;
 
 namespace TTRpgClient.scripts;
@@ -11,28 +8,79 @@ namespace TTRpgClient.scripts;
 public partial class EntityNode : Node2D
 {
     private static ShaderMaterial MATERIAL = GD.Load<ShaderMaterial>("res://materials/entity.material");
-    public ClientBoard Board {get; protected set;}
-    public Entity Entity {get; protected set;}
-    public VideoStreamPlayer VideoPlayer {get; protected set;}
-    public Sprite2D Sprite {get; protected set;}
+    public ClientBoard Board { get; }
+    public Entity Entity { get; }
+    public MidiaNode Display { get; protected set; }
     public Area2D Hitbox {get; protected set;}
+    protected Label label;
+    public string? Label
+    {
+        get => label.Visible ? label.Text : null;
+        set
+        {
+            label.Text = value;
+            label.Visible = string.IsNullOrEmpty(value);
+        }
+    }
+
+    private ColorRect loadBarBgColorRect;
+    private ColorRect loadBarColorRect;
+    private Label loadBarLabel;
+    private Container loadBar;
+    [Export]
+    public float LoadBarFilling
+    {
+        get => loadBarColorRect.Size.X / loadBar.Size.X;
+        set
+        {
+            if (value > 1)
+                value = 1;
+            var result = new Vector2(value * loadBar.Size.X, loadBarColorRect.Size.Y);
+            if (result.X < 0)
+            {
+                loadBarColorRect.Visible = false;
+                loadBarBgColorRect.Visible = false;
+            }
+            else
+            {
+                loadBarColorRect.Size = result;
+                loadBarColorRect.Visible = true;
+                loadBarBgColorRect.Visible = true;
+            }
+        }
+    }
+
+    [Export]
+    public string? LoadBarLabel
+    {
+        get => loadBarLabel.Visible ? loadBarLabel.Text : null;
+        set
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                loadBarLabel.Visible = false;
+                return;
+            }
+            loadBarLabel.Text = value;
+            loadBarLabel.Visible = true;
+        }
+    }
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
     public Color Outline
     {
 
-        get => (Sprite.Material as ShaderMaterial).GetShaderParameter("color").As<Color>();
-
-        set => (Sprite.Material as ShaderMaterial).SetShaderParameter("color", value);
+        get => (Display.Sprite.Material as ShaderMaterial).GetShaderParameter("color").As<Color>();
+        set => (Display.Sprite.Material as ShaderMaterial).SetShaderParameter("color", value);
     }
     public Color SpriteModulate
     {
-        get => (Sprite.Material as ShaderMaterial).GetShaderParameter("modulate").As<Color>();
-        set => (Sprite.Material as ShaderMaterial).SetShaderParameter("modulate", value);
+        get => (Display.Sprite.Material as ShaderMaterial).GetShaderParameter("modulate").As<Color>();
+        set => (Display.Sprite.Material as ShaderMaterial).SetShaderParameter("modulate", value);
     }
     public bool CircleMask
     {
-        get => (Sprite.Material as ShaderMaterial).GetShaderParameter("mask_circle").As<bool>();
-        set => (Sprite.Material as ShaderMaterial).SetShaderParameter("mask_circle", value);
+        get => (Display.Sprite.Material as ShaderMaterial).GetShaderParameter("mask_circle").As<bool>();
+        set => (Display.Sprite.Material as ShaderMaterial).SetShaderParameter("mask_circle", value);
     }
 #pragma warning restore CS8602 // Dereference of a possibly null reference.
     public EntityNode(Entity ent, ClientBoard board)
@@ -41,22 +89,64 @@ public partial class EntityNode : Node2D
         Board = board;
         Entity = ent;
         Name = ent.Id.ToString();
-        Sprite = new Sprite2D
+        Display = new MidiaNode
         {
-            Material = (Material)MATERIAL.Duplicate(),
-            Centered = true,
+            Midia = ent.Display
         };
-        AddChild(Sprite);
+        Display.Sprite.Centered = true;
+        Display.Sprite.Material = (Material)MATERIAL.Duplicate();
+        AddChild(Display);
 
-        VideoPlayer = new VideoStreamPlayer()
+        label = new Label
         {
-            Loop = true,
-            Visible = false
+            Text = "",
+            Size = new Vector2(ent.PixelSize.X, ent.PixelSize.Y/8),
+            Visible = false,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        AddChild(VideoPlayer);
+        label.Position = new Vector2(-ent.PixelSize.X / 2, (ent.PixelSize.Y / 2) - label.Size.Y);
+        AddChild(label);
+        
+        var loadBarSize = new Vector2(ent.PixelSize.X, ent.PixelSize.Y / 8);
+
+        loadBar = new Container
+        {
+            Size = loadBarSize
+        };
+        loadBar.Position = new Vector2(-loadBarSize.X / 2, -(ent.PixelSize.Y/2) - loadBarSize.Y);
+        loadBarLabel = new Label
+        {
+            Size = loadBar.Size,
+            Visible = false,
+            ZIndex = 1,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Position = new Vector2(0, -loadBarSize.Y/4)
+        };
+        loadBar.AddChild(loadBarLabel);
+        loadBarColorRect = new ColorRect
+        {
+
+            Size = loadBar.Size,
+            Color = Colors.DarkGray,
+            Visible = false,
+        };
+        loadBarBgColorRect = new ColorRect()
+        {
+            Size = loadBar.Size,
+            Color = Colors.DimGray,
+            Visible = false,
+            ZIndex = -1
+        };
+        loadBar.AddChild(loadBarBgColorRect);
+        loadBar.AddChild(loadBarColorRect);
+        
+        AddChild(loadBar);
+        
 
         Outline = new Color(1, 0, 0, 0);
-
+        
         Hitbox = new Area2D
         {
             Monitorable = false,
@@ -67,7 +157,7 @@ public partial class EntityNode : Node2D
         var collision = new CollisionShape2D();
         var shape = new CircleShape2D
         {
-            Radius = (float)(board.GetFloor(ent.FloorIndex).TileSize.X / 2)
+            Radius = ent.Floor.TileSize.X / 2
         };
         collision.Shape = shape;
         Hitbox.AddChild(collision);
@@ -84,17 +174,12 @@ public partial class EntityNode : Node2D
             }
             MouseEntered();
         };
-        Hitbox.MouseExited += () => {
-            MouseExited();
-        };
+        Hitbox.MouseExited += MouseExited;
 
         AddChild(Hitbox);
 
-        ent.OnDisplayChanged += (Midia data) => {
-            if (!data.IsVideo)
-                SetImage(data.Bytes);
-            else
-                SetVideo(data.Bytes);
+        ent.OnDisplayChanged += _ => {
+            CircleMask = !ent.Display.IsVideo;
         };
         ent.OnPositionChanged += OnMove;
 
@@ -108,67 +193,34 @@ public partial class EntityNode : Node2D
             };
         }
 
-        if (!ent.Display.IsVideo)
-            SetImage(ent.Display.Bytes);
-        else
-            SetVideo(ent.Display.Bytes);
+        CircleMask = !ent.Display.IsVideo;
     }
 
-    protected void SetImage(byte[] data){
-        if (Sprite.Texture != null && !(Sprite.Texture is CompressedTexture2D))
-            Sprite.Texture.Free();
-        if (VideoPlayer.Stream != null)
-            VideoPlayer.Stream.Free();
-        if (data == null || data.Length == 0)
-            return;
-
-        Image img = new Image();
-        img.LoadPngFromBuffer(data);
-        if (!img.IsEmpty())
-            Sprite.Texture = ImageTexture.CreateFromImage(img);
-
-        CircleMask = true;
-    }
-    protected void SetVideo(byte[] data)
+    protected void OnMove(System.Numerics.Vector3 newPos, System.Numerics.Vector3 oldPos)
     {
-        if (Sprite.Texture != null && !(Sprite.Texture is CompressedTexture2D))
-            Sprite.Texture.Free();
-        if (VideoPlayer.Stream != null)
-            VideoPlayer.Stream.Free();
-        if (data == null || data.Length == 0)
-            return;
+        if (Math.Abs(newPos.Z - oldPos.Z) < 0.0001) return;
         
-        string filePath = Path.Combine(OS.GetCacheDir(), "Temp", "entity_" + Entity.Id);
-        using (var file = Godot.FileAccess.Open(filePath, Godot.FileAccess.ModeFlags.Write))
-        {
-            file.StoreBuffer(data);
-        }
-
-        var videoStream = ResourceLoader.Load<VideoStream>("res://assets/ffmpeg.tres");
-        videoStream.File = filePath;
-        VideoPlayer.Stream = videoStream;
-
-        Sprite.Texture = VideoPlayer.GetVideoTexture();
-        CircleMask = false;
-    }
-
-    protected void OnMove(System.Numerics.Vector3 newPos, System.Numerics.Vector3 oldPos){
-        if (newPos.Z != oldPos.Z){
-            Board.GetFloor((int)oldPos.Z).EntitiesNode.RemoveChild(this);
-            Board.GetFloor((int)newPos.Z).EntitiesNode.AddChild(this);
-        }
+        Board.GetFloor((int)oldPos.Z).EntitiesNode.RemoveChild(this);
+        Board.GetFloor((int)newPos.Z).EntitiesNode.AddChild(this);
     }
 
     public override void _Process(double delta)
     {
         base._Process(delta);
-        if (!VideoPlayer.IsPlaying())
-            VideoPlayer.Play();
+
+        var loadBarSize = new Vector2(Mathf.Max(Entity.PixelSize.X, loadBarLabel.Size.X), Entity.PixelSize.Y / 8);
+        loadBar.Size = loadBarSize;
+        loadBarLabel.Size = loadBarSize;
+        loadBarColorRect.Size = loadBarSize;
+        loadBarBgColorRect.Size = loadBarSize;
+        loadBar.Position = new Vector2(-loadBarSize.X / 2, -(Entity.PixelSize.Y/2) - loadBarSize.Y);
+                
+        
         ClientFloor floor = Board.GetFloor((int)Entity.Position.Z);
         Position = Position.Lerp(new Vector2(floor.TileSize.X * Entity.Position.X, floor.TileSize.Y * Entity.Position.Y), (float)delta * 10);
-        if (Sprite.Texture != null)
-            Sprite.Scale = Sprite.Scale.Lerp(new Vector2(floor.TileSize.X / Sprite.Texture.GetSize().X * Entity.Size.X, floor.TileSize.Y / Sprite.Texture.GetSize().Y * Entity.Size.Y), (float)delta * 10);
-        Rotation = Mathf.LerpAngle(Rotation, Entity.Rotation - (MathF.PI/2 * (Entity is Creature ? 1 : 0)), (float)delta * 10);
+        Display.Scale = Display.Scale.Lerp(new Vector2(floor.TileSize.X / Display.Sprite.Texture.GetSize().X * Entity.Size.X, floor.TileSize.Y / Display.Sprite.Texture.GetSize().Y * Entity.Size.Y), (float)delta * 10);
+        var rot = Mathf.LerpAngle(Display.Rotation, Entity.Rotation - (MathF.PI/2 * (Entity is Creature ? 1 : 0)), (float)delta * 10);
+        Display.Rotation = rot;
         if (Board.FloorIndex > Entity.Position.Z + Entity.Size.Z)
         {
             Modulate = Modulate with {A = 1/MathF.Pow(2, Board.FloorIndex - (Entity.Position.Z + Entity.Size.Z)) + 0.3f};
@@ -186,7 +238,7 @@ public partial class EntityNode : Node2D
 
         Modulate = Modulate.Lerp(new Color(1, 1, 1, Modulate.A), (float)delta * 5f);
         
-        ZIndex = (Int32)(MathF.Round(Entity.Position.Z * 100) + 15);
+        ZIndex = (int)(MathF.Round(Entity.Position.Z * 100) + 15);
     }
 
     protected virtual void MouseEntered()
@@ -220,66 +272,18 @@ public partial class EntityNode : Node2D
                 }, "Sim", "Não");
             else
                 NetworkManager.Instance.SendPacket(new EntityRemovePacket(Entity));
-            ContextMenu.Hide();
         });
-        if (Entity is Creature hoveringCreature)
-        {
-            ContextMenu.AddOption("Renomear", (_) => {
-                Modal.OpenStringDialog("Renomear Entidade", (name) => {
-                    if (name == null)
-                        return;
-                    
-                    hoveringCreature.Name = name;
-                }, true);
-            });
-
-            ContextMenu.AddOption("Danificar Parte", (_) => {
-                BodyInspector.Instance.Show(hoveringCreature.Body,
-                    new BodyInspector.BodyInspectorSettings(BodyInspector.BodyInspectorSettings.HEALTH)
-                    {
-                        OnPick = (bp) => {
-                            Modal.OpenOptionsDialog("Tipo de Ferida", "Selecione o tipo de ferida que deseja aplicar", InjuryType.GetInjuryTypes().Select((i) => i.Translation).ToArray(), (typeTranslation) => {
-                                if (typeTranslation == null)
-                                    return;
-                                InjuryType type = InjuryType.GetTypeByTranslation(typeTranslation);
-                                Modal.OpenStringDialog("Severidade da Ferida", (sevStr) => {
-                                    float severity;
-                                    if (Single.TryParse(sevStr, out severity))
-                                    {
-                                        NetworkManager.Instance.SendPacket(new EntityBodyPartInjuryPacket(bp, new Injury(type, severity)));
-                                    }
-                                });
-                            });
-                        }
-                    }
-                );
-                ContextMenu.Hide();
-            });
-            ContextMenu.AddOption("Curar Ferida", (_) => {
-                BodyInspector.Instance.Show(hoveringCreature.Body, new BodyInspector.BodyInspectorSettings(BodyInspector.BodyInspectorSettings.HEALTH)
-                {
-                    OnPick = (bp) => {
-                        Modal.OpenOptionsDialog("Ferida", "Selecione a ferida que deseja curar", bp.Injuries.Select((inj) => {return inj.Type.Translation + " - " + inj.Severity;}).ToArray(), (selected) => {
-                            if (selected == null)
-                                return;
-                            var splitted = selected.Split(" - ");
-                            InjuryType it = InjuryType.GetTypeByTranslation(splitted[0]);
-                            float severity;
-                            if (Single.TryParse(splitted[1], out severity))
-                                NetworkManager.Instance.SendPacket(new EntityBodyPartInjuryPacket(bp, new Injury(it, severity), true));
-                        });
-                    }
-                });
-                ContextMenu.Hide();
-            });
-        }
+        ContextMenu.AddOption("Copiar ID", (_) => {
+            DisplayServer.ClipboardSet(Entity.Id.ToString());
+        });
     }
     public virtual void AddContextMenuOptions()
     {
     }
 
-    public override void _Ready()
+    public virtual void HideLoadBar()
     {
-        base._Ready();
+        LoadBarFilling = -1;
+        LoadBarLabel = null;
     }
 }

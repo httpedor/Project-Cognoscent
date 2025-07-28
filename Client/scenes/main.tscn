@@ -1,26 +1,75 @@
-[gd_scene load_steps=8 format=3 uid="uid://17lhshdvgq0d"]
+[gd_scene load_steps=13 format=3 uid="uid://17lhshdvgq0d"]
 
 [ext_resource type="PackedScene" uid="uid://b3s8mwohy3e8u" path="res://scenes/radial_menu.tscn" id="1_iwaoh"]
+[ext_resource type="Script" uid="uid://bxe2xym1ryqyy" path="res://scripts/ui/SideBar.cs" id="2_85g3d"]
 [ext_resource type="PackedScene" uid="uid://cj5avp6jaieki" path="res://scenes/chat.tscn" id="2_fwvon"]
+[ext_resource type="Script" uid="uid://dy5guj2b132b" path="res://scripts/ui/CompendiumControl.cs" id="2_tipki"]
 [ext_resource type="Script" uid="uid://cxjelplhsajsx" path="res://scripts/GameManager.cs" id="2_xbo6v"]
 [ext_resource type="Script" uid="uid://dghix885enr74" path="res://scripts/NetworkManager.cs" id="3_cpse8"]
 [ext_resource type="PackedScene" uid="uid://c5lqpor5uufqj" path="res://scenes/menu.tscn" id="4_vvtgy"]
 [ext_resource type="PackedScene" uid="uid://cncmpok6b32j4" path="res://scenes/body_viewer.tscn" id="5_q5wrq"]
 [ext_resource type="PackedScene" uid="uid://c66ybu14g4y0d" path="res://scenes/body_part_selector.tscn" id="5_sknmr"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choun"]
+bg_color = Color(0.370364, 0.370364, 0.370364, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_85g3d"]
+bg_color = Color(0.180392, 0.180392, 0.180392, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ya4ey"]
+bg_color = Color(0.180392, 0.180392, 0.180392, 1)
+
 [node name="main" type="Node"]
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 2
 
-[node name="RadialMenu" parent="UILayer" instance=ExtResource("1_iwaoh")]
-visible = false
-
 [node name="Menu" parent="UILayer" node_paths=PackedStringArray("network_manager", "game_manager") instance=ExtResource("4_vvtgy")]
 network_manager = NodePath("../../NetworkManager")
 game_manager = NodePath("../../GameManager")
 
-[node name="Chat" parent="UILayer" instance=ExtResource("2_fwvon")]
+[node name="Sidebar" type="Control" parent="UILayer"]
+layout_mode = 3
+anchor_left = 0.85
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("2_85g3d")
+
+[node name="VisionBtn" type="Button" parent="UILayer/Sidebar"]
+layout_mode = 2
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -22.0
+offset_top = -15.5
+offset_bottom = 15.5
+grow_vertical = 2
+theme_override_styles/hover = SubResource("StyleBoxFlat_choun")
+theme_override_styles/normal = SubResource("StyleBoxFlat_85g3d")
+text = ">"
+
+[node name="TabContainer" type="TabContainer" parent="UILayer/Sidebar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_ya4ey")
+current_tab = 0
+drag_to_rearrange_enabled = true
+
+[node name="Chat" parent="UILayer/Sidebar/TabContainer" instance=ExtResource("2_fwvon")]
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="Compendium" type="VBoxContainer" parent="UILayer/Sidebar/TabContainer"]
+visible = false
+layout_mode = 2
+script = ExtResource("2_tipki")
+metadata/_tab_index = 1
+
+[node name="RadialMenu" parent="UILayer" instance=ExtResource("1_iwaoh")]
+visible = false
 
 [node name="BodyViewer" parent="UILayer" instance=ExtResource("5_q5wrq")]
 visible = false

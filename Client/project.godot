@@ -140,7 +140,7 @@ radial_menu={
 
 [physics]
 
-common/physics_ticks_per_second=100
+common/physics_ticks_per_second=50
 
 [rendering]
 

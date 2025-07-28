@@ -7,36 +7,33 @@ namespace Server.Network;
 
 public static class Manager
 {
-    public static readonly Dictionary<String, RpgClient> Clients = new();
+    public static readonly Dictionary<string, RpgClient> Clients = new();
 
-    public static void Disconnect(String username, bool sendDisconnect = true){
-        if (username != null && Clients.ContainsKey(username)){
-            RpgClient client = Clients[username];
-            if (client.socket.Connected){
-                if (sendDisconnect){
-                    try {
-                        client.Send(new DisconnectPacket());
-                    } catch (Exception) {}
-                }
-                client.socket.Disconnect(false);
-                client.socket.Shutdown(SocketShutdown.Both);
-                client.socket.Close();
+    public static void Disconnect(string username, bool sendDisconnect = true)
+    {
+        if (!Clients.TryGetValue(username, out RpgClient? client)) return;
+        
+        if (client.socket.Connected){
+            if (sendDisconnect){
+                try {
+                    client.Send(new DisconnectPacket());
+                } catch (Exception) {}
             }
-            Clients.Remove(username);
-            Console.WriteLine(username + " disconnected");
+            client.socket.Disconnect(false);
+            client.socket.Shutdown(SocketShutdown.Both);
+            client.socket.Close();
         }
+        Clients.Remove(username);
+        Console.WriteLine(username + " disconnected");
     }
 
-    public static RpgClient? GetClient(String username){
-        if (Clients.TryGetValue(username, out RpgClient? value))
-        {
-            return value;
-        }
-        return null;
+    public static RpgClient? GetClient(string username)
+    {
+        return Clients.GetValueOrDefault(username);
     }
 
     public static void SendToAll(Packet packet){
-        foreach (var client in Clients.Values)
+        foreach (RpgClient? client in Clients.Values)
         {
             client.Send(packet);
         }
@@ -47,14 +44,14 @@ public static class Manager
     }
 
     public static void SendToSome(Packet packet, Func<RpgClient, bool> predicate){
-        foreach (var client in Clients.Values)
+        foreach (RpgClient? client in Clients.Values)
         {
             if (predicate(client))
                 client.Send(packet);
         }
     }
     public static void SendToBoard(Packet packet, string boardName){
-        foreach (var client in Clients.Values)
+        foreach (RpgClient? client in Clients.Values)
         {
             if (client.LoadedBoards.Contains(boardName))
                 client.Send(packet);
@@ -62,7 +59,7 @@ public static class Manager
     }
     public static void SendToOthersInBoard(Packet packet, string boardname, string username)
     {
-        foreach (var client in Clients.Values)
+        foreach (RpgClient? client in Clients.Values)
         {
             if (client.LoadedBoards.Contains(boardname) && client.Username != username)
                 client.Send(packet);
@@ -77,7 +74,7 @@ public static class Manager
     }
 
     public static void SendToOthers(Packet packet, string username){
-        foreach (var client in Clients.Values)
+        foreach (RpgClient? client in Clients.Values)
         {
             if (client.Username != username)
                 client.Send(packet);
@@ -110,7 +107,7 @@ public static class Manager
                     while ((expectedBufferLength != 0 && socketStream.Length >= expectedBufferLength) || (expectedBufferLength == 0 && socketStream.Length >= 5)){
                         if (expectedBufferLength == 0){
                             socketStream.Seek(0, SeekOrigin.Begin);
-                            UInt32 length = socketStream.ReadUInt32();
+                            uint length = socketStream.ReadUInt32();
                             byte id = (byte)socketStream.ReadByte();
                             expectedBufferLength = length;
                         }

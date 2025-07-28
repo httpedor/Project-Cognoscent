@@ -1,5 +1,6 @@
 using System.Numerics;
-using Rpg.Entities;
+using Rpg;
+using Rpg.Inventory;
 
 namespace Rpg;
 
@@ -23,14 +24,14 @@ public abstract class SkillArgument : ISerializable
 }
 public class PositionSkillArgument : SkillArgument
 {
-    Vector3 Position;
-    public PositionSkillArgument(Vector3 pos)
+    public Vector3 Position;
+
+    public PositionSkillArgument(Vector3 position)
     {
-        Position = pos;
+        Position = position;
     }
-    public PositionSkillArgument(Stream stream)
+    public PositionSkillArgument(Stream stream) : this(stream.ReadVec3())
     {
-        Position = stream.ReadVec3();
     }
 
     public override void ToBytes(Stream stream)
@@ -39,37 +40,11 @@ public class PositionSkillArgument : SkillArgument
         stream.WriteVec3(Position);
     }
 }
-public class CreatureSkillArgument : SkillArgument
-{
-    protected CreatureRef cRef;
-    public Creature? Creature {
-        get {
-            return cRef.Creature;
-        }
-    }
-    public CreatureSkillArgument(Creature creature)
-    {
-        cRef = new CreatureRef(creature);
-    }
-    public CreatureSkillArgument(Stream stream)
-    {
-        cRef = new CreatureRef(stream);
-    }
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        cRef.ToBytes(stream);
-    }
-}
 public class BodyPartSkillArgument : SkillArgument
 {
-    BodyPartRef bpRef;
-    public BodyPart? Part
-    {
-        get {
-            return bpRef.BodyPart;
-        }
-    }
+    private readonly BodyPartRef bpRef;
+    public BodyPart? Part => bpRef.BodyPart;
+
     public BodyPartSkillArgument(BodyPart part)
     {
         bpRef = new BodyPartRef(part);
@@ -86,29 +61,22 @@ public class BodyPartSkillArgument : SkillArgument
     }
 }
 
-public class BooleanSkillArgument : SkillArgument
+public class BooleanSkillArgument(bool value) : SkillArgument
 {
-    bool Value;
-    public BooleanSkillArgument(bool value)
+    public BooleanSkillArgument(Stream stream) : this(stream.ReadByte() != 0)
     {
-        Value = value;
-    }
-
-    public BooleanSkillArgument(Stream stream)
-    {
-        Value = stream.ReadByte() != 0;
     }
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteByte((Byte)(Value ? 1 : 0));
+        stream.WriteByte((byte)(value ? 1 : 0));
     }
 }
 
 public class EntitySkillArgument : SkillArgument
 {
-    EntityRef entity;
+    private readonly EntityRef entity;
     public Entity? Entity => entity.Entity;
     public EntitySkillArgument(Entity entity)
     {
@@ -122,5 +90,27 @@ public class EntitySkillArgument : SkillArgument
     {
         base.ToBytes(stream);
         entity.ToBytes(stream);
+    }
+}
+
+public class ItemSkillArgument : SkillArgument
+{
+    private ItemRef item;
+    public Item? Item => item.Item;
+
+    public ItemSkillArgument(Item item)
+    {
+        this.item = new ItemRef(item);
+    }
+    
+    public ItemSkillArgument(Stream stream)
+    {
+        item = new ItemRef(stream);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        item.ToBytes(stream);
     }
 }

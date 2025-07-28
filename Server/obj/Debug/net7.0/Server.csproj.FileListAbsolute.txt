@@ -21,3 +21,4 @@ C:\Users\theco\Documents\TTRpg\Server\bin\Debug\net7.0\System.Drawing.Common.dll
 C:\Users\theco\Documents\TTRpg\Server\bin\Debug\net7.0\runtimes\win\lib\net7.0\Microsoft.Win32.SystemEvents.dll
 C:\Users\theco\Documents\TTRpg\Server\obj\Debug\net7.0\Server.csproj.Up2Date
 C:\Users\theco\Documents\TTRpg\Server\obj\Debug\net7.0\Server.sourcelink.json
+C:\Users\theco\Documents\TTRpg\Server\bin\Debug\net7.0\Lua.dll

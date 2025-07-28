@@ -9,12 +9,12 @@ namespace TTRpgClient.scripts.RpgImpl;
 
 public class ClientFloor : Floor
 {
-    public Node2D Node {get; protected set;}
-    public Sprite2D Sprite {get; protected set;}
-    public Node EntitiesNode {get; protected set;}
-    public Node OccludersNode {get; protected set;}
-    public StaticBody2D Collision {get; protected set;}
-    public CanvasModulate AmbientLightModulate {get; protected set;}
+    public Node2D Node {get; }
+    public MidiaNode DisplayNode {get; }
+    public Node EntitiesNode {get; }
+    public Node OccludersNode {get; }
+    public StaticBody2D Collision {get; }
+    public CanvasModulate AmbientLightModulate {get; }
 
     public Vector2 SizePixels => new Vector2(Size.X * TileSize.X, Size.Y * TileSize.Y);
     public Color AmbientLightColor {
@@ -29,15 +29,16 @@ public class ClientFloor : Floor
     }
 
     public ClientFloor(Vector2 size, Vector2 tileSize, uint ambientLight) : base(size.ToNumerics(), tileSize.ToNumerics(), ambientLight){
-        Node = new Node2D()
+        Node = new Node2D
         {
             Visible = false
         };
 
-        Sprite = new Sprite2D()
+        DisplayNode = new MidiaNode
         {
-            Name = "Image",
-            Centered = false
+            Name = "Midia",
+            Midia = Display,
+            Position = new Vector2(Size.X * TileSize.X / 2, Size.Y * TileSize.Y / 2)
         };
 
         EntitiesNode = new Node();
@@ -49,13 +50,13 @@ public class ClientFloor : Floor
         OccludersNode = new Node();
         OccludersNode.Name = "Occluders";
 
-        Collision = new StaticBody2D()
+        Collision = new StaticBody2D
         {
             Name = "Collision",
             CollisionMask = 2
         };
 
-        Node.AddChild(Sprite);
+        Node.AddChild(DisplayNode);
         Node.AddChild(EntitiesNode);
         Node.AddChild(AmbientLightModulate);
         Node.AddChild(OccludersNode);
@@ -100,32 +101,19 @@ public class ClientFloor : Floor
     }
 
     public void SetOcclusion(bool occlusion){
-        if (OccludersNode == null)
-            return;
         foreach (LightOccluder2D occluder in OccludersNode.GetChildren())
             occluder.Visible = occlusion;
     }
 
     public void SetCollision(bool collision){
-        if (Collision == null)
-            return;
         Collision.ProcessMode = collision ? Godot.Node.ProcessModeEnum.Inherit : Godot.Node.ProcessModeEnum.Disabled;
     }
 
-    public override void SetImage(byte[] image)
+    public override void SetMidia(Midia midia)
     {
-        base.SetImage(image);
+        base.SetMidia(midia);
 
-        if (Sprite.Texture != null)
-            Sprite.Texture.Free();
-
-        if (image.Length == 0)
-            return;
-
-        Image img = new Image();
-        img.LoadPngFromBuffer(image);
-        if (!img.IsEmpty())
-            Sprite.Texture = ImageTexture.CreateFromImage(img);
+        DisplayNode.Midia = midia;
     }
 
     public override System.Numerics.Vector2? GetIntersection(System.Numerics.Vector2 start, System.Numerics.Vector2 end, out System.Numerics.Vector2? normal)
@@ -170,16 +158,14 @@ public class ClientFloor : Floor
     public System.Numerics.Vector2? GetCircleIntersection(System.Numerics.Vector2 pos, Single radius)
     {
         var godot = GetCircleIntersection(pos.ToGodot(), radius);
-        if (godot == null)
-            return null;
-        return ((Vector2)godot).ToNumerics();
+        return godot?.ToNumerics();
     }
 
     public Vector2? GetCircleIntersection(Vector2 pos, float radius){
         var spaceState = Node.GetWorld2D().DirectSpaceState;
-        var query = new PhysicsShapeQueryParameters2D()
+        var query = new PhysicsShapeQueryParameters2D
         {
-            Shape = new CircleShape2D()
+            Shape = new CircleShape2D
             {
                 Radius = radius
             },
@@ -196,9 +182,9 @@ public class ClientFloor : Floor
     }
 
     public bool IsTransparent(Vector2 pixel){
-        if (Sprite.Texture == null)
+        if (DisplayNode.Sprite.Texture == null)
             return true;
-        return Sprite.Texture.GetImage().GetPixel((int)pixel.X, (int)pixel.Y).A == 0;
+        return DisplayNode.Sprite.Texture.GetImage().GetPixel((int)pixel.X, (int)pixel.Y).A == 0;
     }
 
     public override IEnumerable<Line> PossibleOBBIntersections(OBB obb)

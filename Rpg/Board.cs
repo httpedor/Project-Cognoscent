@@ -1,8 +1,6 @@
-using System.Diagnostics.Contracts;
-using System.Drawing;
-using System.IO.Compression;
 using System.Numerics;
-using Rpg.Entities;
+using Rpg;
+using Rpg.Inventory;
 
 namespace Rpg;
 
@@ -16,12 +14,7 @@ public struct BoardIntersectionInfo
 public class BoardRef : ISerializable
 {
     public string BoardName;
-    public Board? Board
-    {
-        get {
-            return SidedLogic.Instance.GetBoard(BoardName);
-        }
-    }
+    public Board? Board => SidedLogic.Instance.GetBoard(BoardName);
 
     public BoardRef(Board board)
     {
@@ -42,19 +35,27 @@ public class BoardRef : ISerializable
 public abstract class Board
 {
     public string Name = "";
-    protected Floor[] floors = new Floor[0];
-    protected List<Entity> entities = new List<Entity>();
-    private Dictionary<int, Entity> entityCache = new Dictionary<int, Entity>();
-    private Dictionary<EntityType, List<Entity>> entityCacheByType = new Dictionary<EntityType, List<Entity>>();
-    protected List<string> chatHistory = new List<string>();
+    protected Floor[] floors = Array.Empty<Floor>();
+    protected List<Entity> entities = new();
+    private readonly Dictionary<int, Entity> entityCache = new();
+    private readonly Dictionary<EntityType, List<Entity>> entityCacheByType = new();
+    private readonly Dictionary<int, Item> itemCache = new();
+    protected List<string> chatHistory = new();
+    private readonly Dictionary<int, (uint Tick, Action Action)> queuedActions = new();
 
-    public bool CombatMode = false;
-    public int CombatTick = -1;
+    protected uint pauseTick = uint.MaxValue;
+    public bool TurnMode = false;
+    public uint CurrentTick = 0;
 
-    public Board(){
-        floors = new Floor[0];
-        foreach (var type in Enum.GetValues<EntityType>())
+    protected Board(){
+        foreach (EntityType type in Enum.GetValues<EntityType>())
             entityCacheByType[type] = new List<Entity>();
+
+
+        foreach (Entity ent in GetEntitiesByType(EntityType.Creature))
+        {
+            RemoveEntity(ent);
+        }
     }
 
     public virtual void AddEntity(Entity entity){
@@ -64,14 +65,54 @@ public abstract class Board
         entityCache[entity.Id] = entity;
         entityCacheByType[entity.GetEntityType()].Add(entity);
         entity.Board = this;
+
+        if (entity is IItemHolder ih)
+        {
+            CacheItems(ih);
+        }
+        return;
+
+        void CacheItems(IItemHolder holder)
+        {
+            foreach (Item item in holder.Items)
+            {
+                itemCache[item.Id] = item;
+                var ihp = item.GetProperty<ItemHolderProperty>();
+                if (ihp != null)
+                    CacheItems(ihp);
+            }
+        }
     }
+    
+    public uint GetWhenToPause()
+    {
+        return pauseTick;
+    }
+    public virtual void PauseAt(uint tick)
+    {
+        pauseTick = tick;
+    }
+    public void PauseIn(uint tick)
+    {
+        PauseAt(CurrentTick + tick);
+    }
+    public void CancelPause()
+    {
+        PauseAt(uint.MaxValue);
+    }
+
     public List<Entity> GetEntities(){
         return entities;
+    }
+
+    public IEnumerable<Entity> GetEntitiesByType(EntityType type)
+    {
+        return entityCacheByType[type];
     }
     public List<T> GetEntities<T>() where T : Entity
     {
         List<T> ret = new();
-        foreach (var ent in entities)
+        foreach (Entity ent in entities)
         {
             if (ent is T sub)
             {
@@ -83,10 +124,19 @@ public abstract class Board
     public Entity? GetEntityById(int id){
         return entityCache.TryGetValue(id, out Entity? entity) ? entity : null;
     }
+
+    public T? GetEntityById<T>(int id) where T : Entity
+    {
+        return GetEntityById(id) as T;
+    }
+    public Item? GetItemById(int id)
+    {
+        return itemCache.TryGetValue(id, out Item? item) ? item : null;
+    }
     public virtual List<Creature> GetCreaturesByOwner(string owner)
     {
-        List<Creature> creatures = new List<Creature>();
-        foreach (var entity in entities)
+        var creatures = new List<Creature>();
+        foreach (Entity entity in entities)
         {
             if (entity is Creature creature && creature.Owner.Equals(owner))
                 creatures.Add(creature);
@@ -98,6 +148,20 @@ public abstract class Board
             return;
         entities.Remove(entity);
         entity.Board = null;
+        if (entity is IItemHolder ih)
+            UncacheItems(ih);
+        return;
+
+        void UncacheItems(IItemHolder holder)
+        {
+            foreach (Item item in holder.Items)
+            {
+                itemCache.Remove(item.Id);
+                var ihp = item.GetProperty<ItemHolderProperty>();
+                if (ihp != null)
+                    UncacheItems(ihp);
+            }
+        }
     }
     public void RemoveEntity(int id){
         RemoveEntity(entities.Find(e => e.Id == id));
@@ -142,18 +206,69 @@ public abstract class Board
         chatHistory.Add(message);
     }
     public abstract void BroadcastMessage(string message);
+    
+    public void Log(string message)
+    {
+        if (SidedLogic.Instance.IsClient())
+            AddChatMessage(message);
+        else
+            BroadcastMessage(message);
+    }
+
+    // Technically this is the end of the current tick, or start of the next tick(depending on if the code is before or after the CurrentTick++)
+    public virtual void Tick()
+    {
+        CurrentTick++;
+        
+        if (CurrentTick == pauseTick)
+        {
+            StartTurnMode();
+        }
+
+        foreach (var pair in queuedActions.ToArray())
+        {
+            if (pair.Value.Tick <= CurrentTick)
+                pair.Value.Action();
+            queuedActions.Remove(pair.Key);
+        }
+    }
+    public virtual void StartTurnMode()
+    {
+        TurnMode = true;
+    }
+    public virtual void EndTurnMode()
+    {
+        TurnMode = false;
+    }
+
+    public int RunTaskLater(Action task, uint delay)
+    {
+        return RunTask(task, CurrentTick + delay);
+    }
+
+    public int RunTask(Action task, uint targetTick)
+    {
+        int id = new Random().Next();
+        var ret = (targetTick, task);
+        queuedActions[id] = ret;
+        return id;
+    }
+    public void CancelTask(int id)
+    {
+        queuedActions.Remove(id);
+    }
 
     public float? GetVerticalIntersection(Vector3 position, float zChange)
     {
-        var floor = (int)MathF.Floor(position.Z);
+        int floor = (int)MathF.Floor(position.Z);
 
         if (floor < 0 || floor >= floors.Length)
             return null;
 
-        var currentFloor = floors[floor];
+        Floor currentFloor = floors[floor];
         while (zChange != 0)
         {
-            var diff = zChange;
+            float diff = zChange;
             if (diff > 1)
                 diff = 1;
             if (diff < -1)
@@ -161,7 +276,7 @@ public abstract class Board
 
             zChange -= diff;
 
-            var nextZ = position.Z + diff;
+            float nextZ = position.Z + diff;
 
             if ((int)nextZ >= floors.Length)
                 return null;
@@ -174,8 +289,8 @@ public abstract class Board
                 return null;
             }
 
-            var nextPosition = new Vector3(position.X, position.Y, position.Z + diff);
-            var nextFloor = floors[(Int32)MathF.Floor(nextZ)];
+            Vector3 nextPosition = position with { Z = position.Z + diff };
+            Floor nextFloor = floors[(int)MathF.Floor(nextZ)];
 
             if (currentFloor == nextFloor)
                 return null;
@@ -203,34 +318,32 @@ public abstract class Board
         if (start.Z < 0 || start.Z >= floors.Length || end.Z < 0 || end.Z >= floors.Length)
             return null;
 
-        var startFloor = (int)start.Z;
-        var endFloor = (int)end.Z;
+        int startFloor = (int)start.Z;
+        int endFloor = (int)end.Z;
         if (startFloor == endFloor)
         {
-            Vector2? normal;
-            var floorIntersect = floors[startFloor].GetIntersection(new Vector2(start.X, start.Y), new Vector2(end.X, end.Y), out normal);
+            var floorIntersect = floors[startFloor].GetIntersection(new Vector2(start.X, start.Y), new Vector2(end.X, end.Y), out var normal);
             if (floorIntersect != null)
             {
-                return new BoardIntersectionInfo { IsCeiling = false, Position = new Vector3((Vector2)floorIntersect, startFloor), Normal = new Vector3((Vector2)normal, 0) };
+                return new BoardIntersectionInfo { IsCeiling = false, Position = new Vector3((Vector2)floorIntersect, startFloor), Normal = new Vector3(normal!.Value, 0) };
             }
 
             return null;
         }
         
-        var vector = end - start;
+        Vector3 vector = end - start;
         var projection = new Vector2(vector.X, vector.Y);
 
-        var currentFloor = startFloor;
-        var currentStart = start;
+        int currentFloor = startFloor;
+        Vector3 currentStart = start;
         while (currentFloor <= endFloor){
 
-            var heightLeft = (currentFloor + 1) - currentStart.Z;
-            var projectionInCurrentFloor = (projection * heightLeft) / vector.Z;
+            float heightLeft = (currentFloor + 1) - currentStart.Z;
+            Vector2 projectionInCurrentFloor = (projection * heightLeft) / vector.Z;
             var currentEnd = new Vector2(currentStart.X + projectionInCurrentFloor.X, currentStart.Y + projectionInCurrentFloor.Y);
-            Vector2? normal;
-            var intersection = floors[currentFloor].GetIntersection(new Vector2(currentStart.X, currentStart.Y), currentEnd, out normal);
+            var intersection = floors[currentFloor].GetIntersection(new Vector2(currentStart.X, currentStart.Y), currentEnd, out var normal);
             if (intersection != null)
-                return new BoardIntersectionInfo { IsCeiling = false, Position = new Vector3((Vector2)intersection, currentFloor+1), Normal = new Vector3((Vector2)normal, 0) };
+                return new BoardIntersectionInfo { IsCeiling = false, Position = new Vector3((Vector2)intersection, currentFloor+1), Normal = new Vector3(normal!.Value, 0) };
 
             currentStart += new Vector3(projectionInCurrentFloor.X, projectionInCurrentFloor.Y, heightLeft);
             currentFloor++;

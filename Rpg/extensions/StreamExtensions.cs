@@ -50,6 +50,19 @@ public static class StreamExtensions
         stream.WriteUInt16((ushort)str.Length);
         stream.Write(str.ToBytes());
     }
+    
+    public static void WriteBoolean(this Stream stream, bool value)
+    {
+        stream.WriteByte(value ? (byte)1 : (byte)0);
+    }
+
+    public static bool ReadBoolean(this Stream stream)
+    {
+        byte value = (byte)stream.ReadByte();
+        if (value > 1)
+            throw new Exception("Invalid boolean value");
+        return value == 1;
+    }
 
     public static string ReadString(this Stream stream)
     {
@@ -86,27 +99,27 @@ public static class StreamExtensions
     {
         return BitConverter.ToDouble(stream.ReadExactly(8));
     }
-    public static UInt16 ReadUInt16(this Stream stream)
+    public static ushort ReadUInt16(this Stream stream)
     {
         return BitConverter.ToUInt16(stream.ReadExactly(2));
     }
-    public static Int16 ReadInt16(this Stream stream)
+    public static short ReadInt16(this Stream stream)
     {
         return BitConverter.ToInt16(stream.ReadExactly(2));
     }
-    public static UInt32 ReadUInt32(this Stream stream)
+    public static uint ReadUInt32(this Stream stream)
     {
         return BitConverter.ToUInt32(stream.ReadExactly(4));
     }
-    public static Int32 ReadInt32(this Stream stream)
+    public static int ReadInt32(this Stream stream)
     {
         return BitConverter.ToInt32(stream.ReadExactly(4));
     }
-    public static UInt64 ReadUInt64(this Stream stream)
+    public static ulong ReadUInt64(this Stream stream)
     {
         return BitConverter.ToUInt64(stream.ReadExactly(8));
     }
-    public static Int64 ReadInt64(this Stream stream)
+    public static long ReadInt64(this Stream stream)
     {
         return BitConverter.ToInt64(stream.ReadExactly(8));
     }
@@ -142,27 +155,27 @@ public static class StreamExtensions
     {
         stream.Write(BitConverter.GetBytes(value));
     }
-    public static void WriteUInt16(this Stream stream, UInt16 value)
+    public static void WriteUInt16(this Stream stream, ushort value)
     {
         stream.Write(BitConverter.GetBytes(value));
     }
-    public static void WriteInt16(this Stream stream, Int16 value)
+    public static void WriteInt16(this Stream stream, short value)
     {
         stream.Write(BitConverter.GetBytes(value));
     }
-    public static void WriteUInt32(this Stream stream, UInt32 value)
+    public static void WriteUInt32(this Stream stream, uint value)
     {
         stream.Write(BitConverter.GetBytes(value));
     }
-    public static void WriteInt32(this Stream stream, Int32 value)
+    public static void WriteInt32(this Stream stream, int value)
     {
         stream.Write(BitConverter.GetBytes(value));
     }
-    public static void WriteUInt64(this Stream stream, UInt64 value)
+    public static void WriteUInt64(this Stream stream, ulong value)
     {
         stream.Write(BitConverter.GetBytes(value));
     }
-    public static void WriteInt64(this Stream stream, Int64 value)
+    public static void WriteInt64(this Stream stream, long value)
     {
         stream.Write(BitConverter.GetBytes(value));
     }

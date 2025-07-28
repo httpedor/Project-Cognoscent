@@ -5,7 +5,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Godot;
 using Rpg;
-using Rpg.Entities;
 using TTRpgClient.scripts;
 
 public static class Modal
@@ -71,10 +70,10 @@ public static class Modal
         };
 
         dialog.GetOkButton().QueueFree();
-        foreach (var option in options)
+        foreach (string option in options)
             dialog.AddButton(option, true, option);
 
-        dialog.CustomAction += (name) => {
+        dialog.CustomAction += name => {
             onSelect(name);
             dialog.QueueFree();
         };
@@ -111,7 +110,7 @@ public static class Modal
         dialog.PopupCentered();
     }
 
-    public static void OpenFormDialog(string title, Action<Dictionary<string, object>?> callback, params (string Key, object Value, Predicate<object>? Predicate)[] inputs)
+    public static void OpenFormDialog(string title, Action<Dictionary<string, object>> callback, params (string Key, object Value, Predicate<object>? Predicate)[] inputs)
     {
         var dialog = new Window
         {
@@ -133,7 +132,7 @@ public static class Modal
         foreach (var pair in inputs)
         {
             results[pair.Key] = pair.Value;
-            var container = new HBoxContainer()
+            var container = new HBoxContainer
             {
                 AnchorLeft = 0,
                 AnchorRight = 1,
@@ -143,7 +142,7 @@ public static class Modal
                 OffsetBottom = (height * i) + (gap * i),
                 Name = pair.Key,
             };
-            var label = new Label()
+            var label = new Label
             {
                 Text = pair.Key + ":"
             };
@@ -151,7 +150,7 @@ public static class Modal
             if (pair.Value is string s)
             {
                 string oldText = s;
-                input = new TextEdit()
+                input = new TextEdit
                 {
                     Text = s
                 };
@@ -169,34 +168,50 @@ public static class Modal
                     }
                 };
             }
+            else if (pair.Value is string[] strings)
+            {
+                input = new OptionButton
+                {
+                    AllowReselect = true
+                };
+                var ob = (OptionButton)input;
+                for (int j = 0; j < strings.Length; j++)
+                {
+                    ob.AddItem(strings[j], j);
+                }
+                ob.ItemSelected += id => {
+                    results[pair.Key] = strings[id];
+                };
+                results[pair.Key] = strings[0];
+            }
             else if (pair.Value is float f)
             {
-                input = new SpinBox()
+                input = new SpinBox
                 {
                     Value = f
                 };
                 var sb = input as SpinBox;
-                sb.ValueChanged += (val) =>
+                sb.ValueChanged += val =>
                 {
                     results[pair.Key] = val;
                 };
             }
             else if (pair.Value is int n)
             {
-                input = new SpinBox()
+                input = new SpinBox
                 {
                     Value = n,
                     Rounded = true
                 };
                 var sb = input as SpinBox;
-                sb.ValueChanged += (val) =>
+                sb.ValueChanged += val =>
                 {
                     results[pair.Key] = val;
                 };
             }
             else if (pair.Value is Entity)
             {
-                input = new OptionButton()
+                input = new OptionButton
                 {
                     AllowReselect = true,
                 };
@@ -206,48 +221,46 @@ public static class Modal
                     foreach (var entity in board.GetEntities())
                     {
                         if (pair.Predicate == null || pair.Predicate(entity))
-                            ob.AddIconItem(board.GetEntityNode(entity).Sprite.Texture, $"{(entity is Creature c ? c.Name + " " : "")}{entity.Id} - {entity.GetEntityType()} at {entity.Position}, board {board.Name}, {entity.Id}");
+                            ob.AddIconItem(board.GetEntityNode(entity).Display.Texture, $"{(entity is Creature c ? c.Name + " " : "")}{entity.Id} - {entity.GetEntityType()} at {entity.Position}, board {board.Name}, {entity.Id}");
                     }
                 }
-                ob.ItemSelected += (id) => {
+                ob.ItemSelected += id => {
                     results[pair.Key] = id;
                 };
             }
-            else if (pair.Value is BodyType)
+            else if (pair.Value is Enum e)
             {
-                input = new OptionButton()
+                input = new OptionButton
                 {
                     AllowReselect = true
                 };
                 var ob = input as OptionButton;
-                var values = Enum.GetValues<BodyType>();
+                var values = Enum.GetValues(e.GetType());
                 for (int j = 0; j < values.Length; j++)
                 {
-                    ob.AddItem(values[j].ToString(), j);
+                    ob.AddItem(values.GetValue(j).ToString(), j);
                 }
-                ob.ItemSelected += (id) => {
-                    results[pair.Key] = values[id];
+                ob.ItemSelected += id => {
+                    results[pair.Key] = values.GetValue(id);
                 };
             }
-            else if (pair.Value is byte[])
+            else if (pair.Value is Midia)
             {
-                var im = new Image();
-                input = new Button()
+                input = new Button
                 {
                     Text = "Procurar Arquivo"
                 };
                 (input as Button).Pressed += () => 
                 {
-                    var fileD = new FileDialog()
+                    var fileD = new FileDialog
                     {
                         Access = FileDialog.AccessEnum.Filesystem,
                         FileMode = FileDialog.FileModeEnum.OpenFile,
                         UseNativeDialog = true
                     };
-                    fileD.FileSelected += (f) => {
-                        results[pair.Key + "_fName"] = f;
-                        results[pair.Key] = File.ReadAllBytes(f);
-                        (input as Button).Text = f.Substring(f.LastIndexOf('/')+1);
+                    fileD.FileSelected += f => {
+                        results[pair.Key] = new Midia(File.ReadAllBytes(f), f);
+                        (input as Button)!.Text = f[(f.LastIndexOf('/')+1)..];
                         fileD.QueueFree();
                     };
                     input.GetTree().Root.AddChild(fileD);
@@ -269,7 +282,7 @@ public static class Modal
             i++;
         }
 
-        var okBtn = new Button()
+        var okBtn = new Button
         {
             Text = "Ok",
             GrowVertical = Control.GrowDirection.Begin,
@@ -281,6 +294,53 @@ public static class Modal
         };
         dialog.AddChild(okBtn);
 
+        GameManager.Instance.AddChild(dialog);
+        dialog.PopupCentered();
+    }
+
+    public static void OpenMedia(Midia midia, string? title = null, string? desc = null)
+    {
+        var dialog = new Window
+        {
+            Title = title == null ? "" : title,
+            Transient = true,
+            Exclusive = true,
+            AlwaysOnTop = true,
+            PopupWindow = true,
+            Size = GameManager.Instance.GetWindow().Size/2
+        };
+            
+        Control control;
+        if (midia.IsVideo)
+        {
+            control = new VideoStreamPlayer();
+            string filePath = Path.Combine(OS.GetCacheDir(), "Temp", "modal_midia");
+            using (var file = Godot.FileAccess.Open(filePath, Godot.FileAccess.ModeFlags.Write))
+            {
+                file.StoreBuffer(midia.Bytes);
+            }
+
+            var videoStream = ResourceLoader.Load<VideoStream>("res://assets/ffmpeg.tres");
+            videoStream.File = filePath;
+            (control as VideoStreamPlayer).Stream = videoStream;
+        }
+        else
+        {
+            var img = new Image();
+            img.LoadPngFromBuffer(midia.Bytes);
+            control = new TextureRect
+            {
+                Texture = ImageTexture.CreateFromImage(img)
+            };
+        }
+        control.AnchorLeft = 0.1f;
+        control.AnchorRight = 0.9f;
+        control.AnchorBottom = 0.9f;
+        control.AnchorTop = 0.1f;
+        
+        //TODO: Title and description
+
+        dialog.AddChild(control);
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();
     }

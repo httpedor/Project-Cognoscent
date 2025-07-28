@@ -1,9 +1,6 @@
-
-using System.Collections;
-using System.Diagnostics.Contracts;
 using System.Numerics;
 
-namespace Rpg.Entities;
+namespace Rpg;
 
 public enum EntityType : byte
 {
@@ -16,36 +13,24 @@ public enum EntityType : byte
     Prop
 }
 
-public struct EntityRef : ISerializable
+public readonly struct EntityRef(string board, int id) : ISerializable
 {
-    public string Board;
-    public int Id;
+    public readonly string Board = board;
+    public readonly int Id = id;
     public Entity? Entity
     {
         get
         {
-            var board = SidedLogic.Instance.GetBoard(Board);
-            if (board == null)
-                return null;
-            
-            return board.GetEntityById(Id);
+            Board? board = SidedLogic.Instance.GetBoard(Board);
+            return board?.GetEntityById(Id);
         }
     }
-    public EntityRef(Entity target)
+    public EntityRef(Entity target) : this(target.Board.Name, target.Id)
     {
-        Board = target.Board.Name;
-        Id = target.Id;
     }
-    public EntityRef(string board, int id)
+
+    public EntityRef(Stream stream) : this(stream.ReadString(), stream.ReadInt32())
     {
-        Board = board;
-        Id = id;
-    }
-    
-    public EntityRef(Stream stream)
-    {
-        Board = stream.ReadString();
-        Id = stream.ReadInt32();
     }
     
     public void ToBytes(Stream stream)
@@ -55,113 +40,97 @@ public struct EntityRef : ISerializable
     }
 }
 
-public abstract class Entity : ISerializable
+public abstract class Entity : ISerializable, IFeatureSource
 {
-    public int Id { get; private set; }
+    public int Id { get; }
 
     //First vector is new, second is old
     public event Action<Vector3, Vector3>? OnPositionChanged;
+    public event Action<string, string>? OnNameChange;
     public event Action<float, float>? OnRotationChanged;
     public event Action<Vector3, Vector3>? OnSizeChanged;
     public event Action<Midia>? OnDisplayChanged;
+    public event Action<Stat>? OnStatCreated;
+    public event Action<Feature>? OnFeatureAdded;
+    public event Action<Feature>? OnFeatureRemoved;
+    public event Action<Feature>? OnFeatureEnabled;
+    public event Action<Feature>? OnFeatureDisabled;
 
-    protected Vector3 _position;
+    public string Name
+    {
+        get;
+        set
+        {
+            OnNameChange?.Invoke(value, field);
+            field = value;
+        }
+    }
+    // ReSharper disable once InconsistentNaming
+    public string BBLink => "[url=gotoent " + Id + "]" + Name + "[/url]";
+
     public Vector3 Position
     {
-        get
-        {
-            return _position;
-        }
+        get;
         set
         {
-            OnPositionChanged?.Invoke(value, _position);
-            _position = value;
+            OnPositionChanged?.Invoke(value, field);
+            field = value;
         }
     }
-    protected float _rotation;
+
     public virtual float Rotation
     {
-        get
-        {
-            return _rotation;
-        }
+        get;
         set
         {
-            OnRotationChanged?.Invoke(value, _rotation);
-            _rotation = value;
+            OnRotationChanged?.Invoke(value, field);
+            field = value;
         }
     }
-    public int FloorIndex
-    {
-        get
-        {
-            return (int)Position.Z;
-        }
-    }
-    public Floor Floor
-    {
-        get
-        {
-            return Board.GetFloor(FloorIndex);
-        }
-    }
-    public bool IsGrounded
-    {
-        get
-        {
-            return (Position.Z % 1) == 0;
-        }
-    }
-    protected Vector3 _size;
+
+    public int FloorIndex => (int)Position.Z;
+    public Floor Floor => Board.GetFloor(FloorIndex);
+    public bool IsGrounded => Position.Z % 1 == 0;
+
     public Vector3 Size
     {
-        get
-        {
-            return _size;
-        }
+        get;
         set
         {
-            OnSizeChanged?.Invoke(value, _size);
-            _size = value;
+            OnSizeChanged?.Invoke(value, field);
+            field = value;
         }
     }
-    protected Midia _display = new Midia();
+    public Vector2 PixelSize => new(Floor.TileSize.X * Size.X, Floor.TileSize.Y * Size.Y);
+    
+
     public Midia Display
     {
-        get
-        {
-            return _display;
-        }
+        get;
         set
         {
             OnDisplayChanged?.Invoke(value);
-            _display = value;
+            field = value;
         }
-    }
-    protected Dictionary<string, Stat> _stats = new Dictionary<string, Stat>();
-    public List<Stat> Stats
-    {
-        get
-        {
-            return _stats.Values.ToList();
-        }
-    }
+    } = new();
 
-    public OBB Hitbox
-    {
-        get
-        {
-            return new OBB(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
-        }
-    }
+    protected Dictionary<string, Stat> stats = new();
 
-    Int64 features = 0;
+    protected Dictionary<string, (Feature feature, bool enabled)> features = new();
+    public Dictionary<string, (Feature feature, bool enabled)> FeaturesDict => features;
+    public IEnumerable<Stat> Stats => stats.Values;
+    public IEnumerable<Feature> Features => FeaturesDict.Values.Select(t => t.feature);
+    public IEnumerable<Feature> EnabledFeatures => FeaturesDict.Values.Where(t => t.enabled).Select(t => t.feature);
+    protected Dictionary<string, byte[]> customData = new();
 
-    public Board Board;
+    public OBB Hitbox => new(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
 
-    public Entity()
+    public Board Board { get; set; }
+
+    protected Entity()
     {
         Id = new Random().Next();
+        Name = "Entity" + Id;
         Position = new Vector3(0);
         Size = new Vector3(1, 1, 0.56f);
         Rotation = 0;
@@ -170,17 +139,39 @@ public abstract class Entity : ISerializable
     protected Entity(Stream stream)
     {
         Id = stream.ReadInt32();
+        Name = stream.ReadString();
         Position = stream.ReadVec3();
         Size = stream.ReadVec3();
         Rotation = stream.ReadFloat();
-        features = stream.ReadInt64();
-        byte count = (Byte)stream.ReadByte();
+        byte count = (byte)stream.ReadByte();
         for (int i = 0; i < count; i++)
         {
-            Stat stat = new Stat(stream);
-            _stats[stat.Id] = stat;
+            string name = stream.ReadString();
+            byte[] data = new byte[stream.ReadUInt32()];
+            stream.ReadExactly(data);
+            customData[name] = data;
+        }
+        count = (byte)stream.ReadByte();
+        for (int i = 0; i < count; i++)
+        {
+            bool enabled = stream.ReadByte() == 1;
+            Feature feature = Feature.FromBytes(stream);
+            features[feature.GetId()] = (feature, enabled);
+        }
+
+        count = (byte)stream.ReadByte();
+        for (int i = 0; i < count; i++)
+        {
+            var stat = new Stat(stream);
+            stats[stat.Id] = stat;
         }
         Display = new Midia(stream);
+    }
+
+    public virtual void Tick()
+    {
+        foreach (var feature in EnabledFeatures)
+            feature.OnTick(this);
     }
 
     public abstract EntityType GetEntityType();
@@ -189,64 +180,100 @@ public abstract class Entity : ISerializable
     {
         stream.WriteByte((byte)GetEntityType());
         stream.WriteInt32(Id);
+        stream.WriteString(Name);
         stream.WriteVec3(Position);
         stream.WriteVec3(Size);
         stream.WriteFloat(Rotation);
-        stream.WriteInt64(features);
-        stream.WriteByte((Byte)_stats.Count);
-        foreach (var stat in _stats.Values)
+        stream.WriteByte((byte)customData.Count);
+        foreach (var pair in customData)
+        {
+            stream.WriteString(pair.Key);
+            stream.WriteUInt32((uint)pair.Value.Length);
+            stream.Write(pair.Value);
+        }
+        stream.WriteByte((byte)features.Count);
+        foreach (var feature in features)
+        {
+            stream.WriteByte((byte)(feature.Value.enabled ? 1 : 0));
+            feature.Value.feature.ToBytes(stream);
+        }
+        stream.WriteByte((byte)stats.Count);
+        foreach (Stat stat in stats.Values)
             stat.ToBytes(stream);
         Display.ToBytes(stream);
     }
 
-    public static Entity FromBytes(Stream stream)
-    {
-        EntityType type = (EntityType)stream.ReadByte();
-        switch (type)
-        {
-            case EntityType.Creature:
-                return new Creature(stream);
-            case EntityType.Item:
-                return new ItemEntity(stream);
-            case EntityType.Door:
-                return new Door(stream);
-            case EntityType.Light:
-                return new LightEntity(stream);
-            case EntityType.Prop:
-                return new PropEntity(stream);
-            default:
-                throw new Exception("Invalid entity type");
-        }
-    }
-
     public Stat? GetStat(string id)
     {
-        return _stats[id];
+        return stats.GetValueOrDefault(id);
     }
 
-    public Stat GetOrCreateStat(string id, float defaultValue = 0)
+    public float GetStatValue(string id, float defaultValue = 0)
     {
-        if (!_stats.ContainsKey(id))
-            return CreateStat(id, defaultValue);
-        return _stats[id];
-    }
-
-    public float GetStatValueOrDefault(string id, float defaultValue = 0)
-    {
-        if (_stats.ContainsKey(id))
-            return GetStat(id).FinalValue;
+        if (stats.TryGetValue(id, out Stat? stat))
+            return stat.FinalValue;
         return defaultValue;
     }
+    public float this[string id, float defaultValue=0] => GetStatValue(id, defaultValue);
 
-    public Stat CreateStat(string id, float defaultValue = 0)
+    public Stat CreateStat(Stat stat)
     {
-        _stats[id] = new Stat(id, defaultValue);
-        return _stats[id];
+        var id = stat.Id;
+        stats[id] = stat;
+        OnStatCreated?.Invoke(stats[id]);
+        return stats[id];
     }
 
-    public virtual bool HasFeature(long feature)
+    public void AddFeature(Feature feature)
     {
-        return (features & feature) != 0;
+        ((IFeatureSource)this).AddFeature(feature);
+        OnFeatureAdded?.Invoke(feature);
+    }
+
+    public Feature? RemoveFeature(string id)
+    {
+        var removed = ((IFeatureSource)this).RemoveFeature(id);
+        if (removed != null)
+            OnFeatureRemoved?.Invoke(removed);
+        
+        return removed;
+    }
+
+    public Feature? RemoveFeature(Feature feature)
+    {
+        return RemoveFeature(feature.GetId());
+    }
+    
+    public void EnableFeature(string id)
+    {
+        if (((IFeatureSource)this).EnableFeature(id))
+            OnFeatureEnabled?.Invoke(features[id].feature);
+    }
+
+    public void DisableFeature(string id)
+    {
+        if (((IFeatureSource)this).DisableFeature(id))
+            OnFeatureDisabled?.Invoke(features[id].feature);
+    }
+
+    public Stream? GetCustomDataStream(string id)
+    {
+        if (customData.TryGetValue(id, out byte[]? data))
+            return new MemoryStream(data);
+        return null;
+    }
+
+    public byte[]? GetCustomData(string id)
+    {
+        return customData.GetValueOrDefault(id);
+    }
+
+    public void SetCustomData(string id, byte[]? data)
+    {
+        if (data == null)
+            customData.Remove(id);
+        else
+            customData[id] = data;
     }
 
     public virtual void ClearEvents()
@@ -256,9 +283,23 @@ public abstract class Entity : ISerializable
         OnSizeChanged = null;
         OnDisplayChanged = null;
 
-        foreach (var stat in Stats)
+        foreach (Stat stat in Stats)
         {
             stat.ClearEvents();
         }
+    }
+
+    public static Entity FromBytes(Stream stream)
+    {
+        var type = (EntityType)stream.ReadByte();
+        return type switch
+        {
+            EntityType.Creature => new Creature(stream),
+            EntityType.Item => new ItemEntity(stream),
+            EntityType.Door => new DoorEntity(stream),
+            EntityType.Light => new LightEntity(stream),
+            EntityType.Prop => new PropEntity(stream),
+            _ => throw new Exception("Invalid entity type: " + type)
+        };
     }
 }

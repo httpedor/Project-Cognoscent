@@ -1,14 +1,19 @@
 {
   "version": 2,
-  "dgSpecHash": "IsEsI0dh69A=",
+  "dgSpecHash": "ZancI1tKvK0=",
   "success": true,
-  "projectFilePath": "C:\\Users\\theco\\Documents\\TTRpg\\Rpg\\Rpg.csproj",
+  "projectFilePath": "C:\\Users\\theco\\OneDrive\\Documentos\\Programas\\Godot\\TTRpg\\Rpg\\Rpg.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.11.0\\microsoft.codeanalysis.analyzers.3.11.0.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.codeanalysis.common\\4.14.0\\microsoft.codeanalysis.common.4.14.0.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.codeanalysis.csharp\\4.14.0\\microsoft.codeanalysis.csharp.4.14.0.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.codeanalysis.csharp.scripting\\4.14.0\\microsoft.codeanalysis.csharp.scripting.4.14.0.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.codeanalysis.scripting.common\\4.14.0\\microsoft.codeanalysis.scripting.common.4.14.0.nupkg.sha512",
     "C:\\Users\\theco\\.nuget\\packages\\microsoft.win32.systemevents\\8.0.0\\microsoft.win32.systemevents.8.0.0.nupkg.sha512",
     "C:\\Users\\theco\\.nuget\\packages\\system.drawing.common\\8.0.3\\system.drawing.common.8.0.3.nupkg.sha512",
-    "C:\\Users\\theco\\.nuget\\packages\\microsoft.netcore.app.ref\\6.0.35\\microsoft.netcore.app.ref.6.0.35.nupkg.sha512",
-    "C:\\Users\\theco\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\6.0.35\\microsoft.windowsdesktop.app.ref.6.0.35.nupkg.sha512",
-    "C:\\Users\\theco\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\6.0.35\\microsoft.aspnetcore.app.ref.6.0.35.nupkg.sha512"
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.netcore.app.ref\\9.0.5\\microsoft.netcore.app.ref.9.0.5.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\9.0.5\\microsoft.windowsdesktop.app.ref.9.0.5.nupkg.sha512",
+    "C:\\Users\\theco\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\9.0.5\\microsoft.aspnetcore.app.ref.9.0.5.nupkg.sha512"
   ],
   "logs": []
 }

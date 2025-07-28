@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using Godot;
 using Rpg;
-using Rpg.Entities;
+using Rpg.Inventory;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
+using Exception = System.Exception;
 
 namespace TTRpgClient.scripts;
 
@@ -16,11 +18,8 @@ namespace TTRpgClient.scripts;
 public partial class NetworkManager : Node
 {
 	private static NetworkManager instance;
-	public static NetworkManager Instance{
-		get{
-			return instance;
-		}
-	}
+	public static NetworkManager Instance => instance;
+
 	public NetworkManager(){
 		instance = this;
 	}
@@ -44,8 +43,8 @@ public partial class NetworkManager : Node
 				SendPacket(new DisconnectPacket());
 			} catch (Exception) { }
 		}
-		if (stream != null)
-			stream.DisconnectFromHost();
+
+		stream?.DisconnectFromHost();
 	}
 
     public override void _Ready()
@@ -66,6 +65,7 @@ public partial class NetworkManager : Node
 			stream = null;
 			buffer.SetLength(0);
 			shouldHandshake = true;
+			Compendium.Clear();
 			GameManager.Instance.ClearBoards();
 			GameManager.Instance.ShowMenu();
 			return;
@@ -73,7 +73,7 @@ public partial class NetworkManager : Node
 
 		int available = stream.GetAvailableBytes();
 		if (available > 0){
-			var data = stream.GetData(available);
+			Godot.Collections.Array? data = stream.GetData(available);
 			ProcessBytes(data[1].As<Godot.Collections.Array<byte>>().ToArray());
 		}
 	}
@@ -102,8 +102,8 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.CHAT:
 			{
-				ChatPacket chatPacket = (ChatPacket)packet;
-				var board = GameManager.Instance.GetBoard(chatPacket.BoardName);
+				var chatPacket = (ChatPacket)packet;
+				ClientBoard? board = GameManager.Instance.GetBoard(chatPacket.BoardName);
 				if (board == null)
 					break;
 				board.AddChatMessage(chatPacket.Message);
@@ -113,57 +113,53 @@ public partial class NetworkManager : Node
 			}
             case ProtocolId.BOARD_ADD:
 			{
-                BoardAddPacket boardState = (BoardAddPacket)packet;
-                ClientBoard board = boardState.Board as ClientBoard;
+                var boardState = (BoardAddPacket)packet;
+                var board = boardState.Board as ClientBoard;
                 GD.Print("Received board with name " + board.Name + ", " + board.GetFloorCount() + " floors, " + board.GetEntities().Count + " entities");
 				GameManager.Instance.AddBoard(board);
 				break;
 			}
 			case ProtocolId.BOARD_REMOVE:
 			{
-				BoardRemovePacket brp = (BoardRemovePacket)packet;
+				var brp = (BoardRemovePacket)packet;
 				GD.Print("Removing board with name: " + brp.Name);
 				GameManager.Instance.RemoveBoard(brp.Name);
 				break;
 			}
 			case ProtocolId.FLOOR_IMAGE:
 			{
-				FloorImagePacket fip = (FloorImagePacket)packet;
+				var fip = (FloorImagePacket)packet;
 				GD.Print("Received floor image for " + fip.BoardName + " floor " + fip.FloorIndex + " with " + fip.Data.Length + " bytes");
-				var board = GameManager.Instance.GetBoard(fip.BoardName);
+				ClientBoard? board = GameManager.Instance.GetBoard(fip.BoardName);
 				if (board == null){
 					GD.PrintErr("Board not found for floor image packet");
 					break;
 				}
-				var floor = board.GetFloor(fip.FloorIndex);
-				floor.SetImage(fip.Data);
+				ClientFloor floor = board.GetFloor(fip.FloorIndex);
+				floor.SetMidia(new Midia(fip.Data));
 				break;
 			}
 			case ProtocolId.DOOR_UPDATE:
 			{
-				DoorUpdatePacket dup = (DoorUpdatePacket)packet;
+				var dup = (DoorUpdatePacket)packet;
 				dup.@ref.Door.CopyFrom(dup.Door);
 				break;
 			}
 			case ProtocolId.ENTITY_CREATE:
 			{
 
-				EntityCreatePacket ecp = (EntityCreatePacket)packet;
+				var ecp = (EntityCreatePacket)packet;
 				GD.Print("Received entity packet for " + ecp.BoardName + " with id " + ecp.Entity.Id);
-				var board = GameManager.Instance.GetBoard(ecp.BoardName);
-				if (board == null)
-					break;
-				board.AddEntity(ecp.Entity);
+				ClientBoard? board = GameManager.Instance.GetBoard(ecp.BoardName);
+				board?.AddEntity(ecp.Entity);
 				break;
 			}
 			case ProtocolId.ENTITY_REMOVE:
 			{
-				EntityRemovePacket edp = (EntityRemovePacket)packet;
-				var entRef = edp.Ref;
-				var board = GameManager.Instance.GetBoard(entRef.Board);
-				if (board == null)
-					break;
-				var entity = board.GetEntityById(entRef.Id);
+				var edp = (EntityRemovePacket)packet;
+				EntityRef entRef = edp.Ref;
+				ClientBoard? board = GameManager.Instance.GetBoard(entRef.Board);
+				Entity? entity = board?.GetEntityById(entRef.Id);
 				if (entity == null)
 					break;
 				board.RemoveEntity(entity);
@@ -171,8 +167,8 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.ENTITY_POSITION:
 			{
-				EntityPositionPacket epp = (EntityPositionPacket)packet;
-				var entity = epp.EntityRef.Entity;
+				var epp = (EntityPositionPacket)packet;
+				Entity? entity = epp.EntityRef.Entity;
 				if (entity == null)
 					break;
 				entity.Position = epp.Position;
@@ -180,31 +176,37 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.ENTITY_ROTATION:
 			{
-				EntityRotationPacket erp = (EntityRotationPacket)packet;
-				var entity = erp.EntityRef.Entity;
+				var erp = (EntityRotationPacket)packet;
+				Entity? entity = erp.EntityRef.Entity;
 				if (entity == null)
 					break;
 				entity.Rotation = erp.Rotation;
 				break;
 			}
-			case ProtocolId.TURN_MODE:
+			case ProtocolId.COMBAT_MODE:
 			{
-				TurnModePacket turnModePacket = (TurnModePacket)packet;
-				var board = GameManager.Instance.GetBoard(turnModePacket.BoardName);
+				var turnModePacket = (CombatModePacket)packet;
+				ClientBoard? board = GameManager.Instance.GetBoard(turnModePacket.BoardName);
 				if (board == null)
 					break;
-				board.CombatMode = turnModePacket.TurnMode;
+				board.TurnMode = turnModePacket.CombatMode;
+				int diff = (int)board.CurrentTick - (int)turnModePacket.Tick;
+				if (Math.Abs(diff) > 50)
+					GD.PushWarning("Client was " + diff + " ticks desynced to server");
+				board.CurrentTick = turnModePacket.Tick;
 				break;
 			}
 			case ProtocolId.ENTITY_BODY_PART:
 			{
-				EntityBodyPartPacket ebpp = (EntityBodyPartPacket)packet;
-				var entity = ebpp.CreatureRef.Creature;
+				var ebpp = (EntityBodyPartPacket)packet;
+				Creature? entity = ebpp.CreatureRef.Creature;
 				if (entity == null)
 					break;
 
-				var part = ebpp.Part;
-				var parent = entity.BodyRoot.GetChildByPath(ebpp.Path[..ebpp.Path.LastIndexOf('/')]);
+				BodyPart? part = ebpp.Part;
+				int lastSlash = ebpp.Path.LastIndexOf('/');
+				string path = lastSlash != -1 ? ebpp.Path[..lastSlash] : ebpp.Path;
+				BodyPart? parent = entity.BodyRoot.GetChildByPath(path);
 				if (parent == null)
 					return;
 
@@ -215,12 +217,10 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.ENTITY_BODY_PART_INJURY:
 			{
-				EntityBodyPartInjuryPacket ebpcp = (EntityBodyPartInjuryPacket)packet;
-				var entity = ebpcp.CreatureRef.Creature;
-				if (entity == null)
-					break;
+				var ebpcp = (EntityBodyPartInjuryPacket)packet;
+				Creature? entity = ebpcp.CreatureRef.Creature;
 
-				var part = entity.BodyRoot.GetChildByPath(ebpcp.Path);
+				BodyPart? part = entity?.BodyRoot.GetChildByPath(ebpcp.Path);
 				if (part == null)
 					break;
 
@@ -230,13 +230,20 @@ public partial class NetworkManager : Node
 					part.AddInjury(ebpcp.Injury);
 				break;
 			}
-			case ProtocolId.ENTITY_STAT_BASE:
+			case ProtocolId.ENTITY_STAT_CREATE:
 			{
-				EntityStatBasePacket esup = (EntityStatBasePacket)packet;
-				var entity = esup.EntityRef.Entity;
+				var escp = (EntityStatCreatePacket)packet;
+				Entity? entity = escp.EntityRef.Entity;
 				if (entity == null)
 					break;
-				var stat = entity.GetStat(esup.StatId);
+				entity.CreateStat(escp.Stat);
+				break;
+			}
+			case ProtocolId.ENTITY_STAT_BASE:
+			{
+				var esup = (EntityStatBasePacket)packet;
+				Entity? entity = esup.EntityRef.Entity;
+				Stat? stat = entity?.GetStat(esup.StatId);
 				if (stat == null)
 					break;
 
@@ -245,24 +252,129 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.ENTITY_STAT_MODIFIER_UPDATE:
 			{
-				EntityStatModifierPacket esmp = (EntityStatModifierPacket)packet;
-				var entity = esmp.EntityRef.Entity;
-				if (entity == null)
-					break;
+				var esmp = (EntityStatModifierPacket)packet;
+				Entity? entity = esmp.EntityRef.Entity;
 
-				entity.GetStat(esmp.StatId)?.SetModifier(esmp.Modifier);
+				entity?.GetStat(esmp.StatId)?.SetModifier(esmp.Modifier);
 				break;
 			}
 			case ProtocolId.ENTITY_STAT_MODIFIER_REMOVE:
 			{
-				EntityStatModifierRemovePacket esmrp = (EntityStatModifierRemovePacket)packet;
-				var entity = esmrp.EntityRef.Entity;
-				if (entity == null)
-					break;
-				
-				entity.GetStat(esmrp.StatId)?.RemoveModifier(esmrp.ModifierId);
+				var esmrp = (EntityStatModifierRemovePacket)packet;
+				Entity? entity = esmrp.EntityRef.Entity;
+
+				entity?.GetStat(esmrp.StatId)?.RemoveModifier(esmrp.ModifierId);
 				break;
 			}
+			case ProtocolId.FEATURE_UPDATE:
+			{
+				var efu = (FeatureUpdatePacket)packet;
+				IFeatureSource? source = efu.SourceRef.FeatureSource;
+				if (source == null)
+					break;
+
+				switch (efu.UpdateType)
+				{
+					case FeatureUpdatePacket.FeatureUpdateType.ADD:
+					{
+						if (efu.Feature == null)
+							throw new Exception("Feature is null");
+						source.AddFeature(efu.Feature);
+						break;
+					}
+					case FeatureUpdatePacket.FeatureUpdateType.REMOVE:
+					{
+						source.RemoveFeature(efu.FeatureId!);
+						break;
+					}
+					case FeatureUpdatePacket.FeatureUpdateType.ENABLE:
+					{
+						source.EnableFeature(efu.FeatureId!);
+						break;
+					}
+					case FeatureUpdatePacket.FeatureUpdateType.DISABLE:
+					{
+						source.DisableFeature(efu.FeatureId!);
+						break;
+					}
+					default:
+						throw new ArgumentOutOfRangeException();
+				}
+				break;
+			}
+            case ProtocolId.CREATURE_EQUIP_ITEM:
+            {
+                var cei = (CreatureEquipItemPacket)packet;
+                BodyPart? bp = cei.BPRef.BodyPart;
+                if (bp == null)
+                    return;
+                Item? item = cei.ItemRef.Item;
+                if (item == null || !item.HasProperty<EquipmentProperty>())
+                    return;
+                if (cei.Equipped)
+                    bp.Equip(item, cei.Slot!);
+                else
+                    bp.RemoveItem(item);
+                break;
+            }
+			case ProtocolId.CREATURE_SKILL_UPDATE:
+			{
+				var csu = (CreatureSkillUpdatePacket)packet;
+				Creature? creature = csu.CreatureRef.Creature;
+				if (creature == null)
+					break;
+				creature.ActiveSkills[csu.Data.Id] = csu.Data;
+				break;
+			}
+			case ProtocolId.CREATURE_SKILL_REMOVE:
+			{
+				var csr = (CreatureSkillRemovePacket)packet;
+				Creature? creature = csr.CreatureRef.Creature;
+				creature?.CancelSkill(csr.SkillId);
+				break;
+			}
+			case ProtocolId.CREATURE_ACTION_LAYER_UPDATE:
+			{
+				var calup = (ActionLayerUpdatePacket)packet;
+				Creature? creature = calup.CreatureRef.Creature;
+				if (creature == null)
+					break;
+				if (creature.GetActionLayer(calup.Layer.Name) != null)
+					creature.UpdateActionLayer(calup.Layer);
+				else
+					creature.TriggerActionLayer(calup.Layer);
+				break;
+			}
+			case ProtocolId.CREATURE_ACTION_LAYER_REMOVE:
+			{
+				var calrp = (ActionLayerRemovePacket)packet;
+				Creature? creature = calrp.CreatureRef.Creature;
+				creature?.CancelActionLayer(calrp.LayerId);
+				break;
+			}
+			case ProtocolId.EXECUTE_COMMAND:
+			{
+				var ecp = (ExecuteCommandPacket)packet;
+				foreach (string cmd in ecp.Commands)
+					GameManager.Instance.ExecuteCommand(cmd);
+				break;
+			}
+            case ProtocolId.COMPENDIUM_UPDATE:
+            {
+                var drp = (CompendiumUpdatePacket)packet;
+                string type = drp.RegistryName;
+                string name = drp.DataName;
+                var data = drp.Json;
+                if (drp.Remove)
+                    Compendium.RemoveEntry(type, name);
+                else
+                {
+	                Compendium.RegisterEntry(type, name, data);
+	                GD.Print("Registered " + type + "/" + name);
+                }
+                
+                break;
+            }
             default:
                 GD.Print("Unknown packet with id " + packet.Id);
                 break;
@@ -275,7 +387,7 @@ public partial class NetworkManager : Node
 		while ((expectedBufferLength != 0 && buffer.Length >= expectedBufferLength) || (expectedBufferLength == 0 && buffer.Length >= 5)){
 			if (expectedBufferLength == 0){
 				buffer.Seek(0, SeekOrigin.Begin);
-				UInt32 length = buffer.ReadUInt32();
+				uint length = buffer.ReadUInt32();
 				byte id = (byte)buffer.ReadByte();
 				expectedBufferLength = length;
 			}

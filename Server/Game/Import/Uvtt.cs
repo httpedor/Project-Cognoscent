@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Text.Json;
 using Rpg;
-using Rpg.Entities;
 
 namespace Server.Game.Import;
 
@@ -77,6 +76,7 @@ public class Environment
         b.AddFloor(f);
         foreach (var ent in entities)
             b.AddEntity(ent);
+        
         return b;
     }
 
@@ -95,13 +95,13 @@ public class Environment
             Convert.ToUInt32(uvtt.environment.ambient_light, 16)
         );
         f.Walls = uvtt.line_of_sight.Select((points) =>
-                new Polygon()
+                new Polygon
                 {
                     points = points.Select((point) => new Vector2(point.x, point.y)).ToArray()
                 }
             ).ToArray();
         var los = uvtt.objects_line_of_sight.Select((points) => {
-                return new Polygon()
+                return new Polygon
                 {
                     points = points.Select((point) => new Vector2(point.x, point.y)).ToArray()
                 };
@@ -123,7 +123,7 @@ public class Environment
             for (int i = 0; i < uvtt.portals.Length; i++)
             {
                 var portal = uvtt.portals[i];
-                var door = new Door()
+                var door = new DoorEntity
                 {
                     Position = new Vector3(portal.position.x, portal.position.y, 0),
                     Bounds = portal.bounds.Select((b) => new Vector2(b.x, b.y)).ToArray(),
@@ -137,7 +137,7 @@ public class Environment
                 var uvttLight = uvtt.lights[i];
                 if (!uvttLight.color.StartsWith("0x"))
                     uvttLight.color = "0x" + uvttLight.color.ToUpper();
-                var light = new LightEntity()
+                var light = new LightEntity
                 {
                     Position = new Vector3(uvttLight.position.x, uvttLight.position.y, 0),
                     Range = uvttLight.range,
@@ -149,7 +149,7 @@ public class Environment
             }
         }
 
-        f.SetImage(Convert.FromBase64String(uvtt.image));
+        f.SetMidia(new Midia(Convert.FromBase64String(uvtt.image), false));
         f.UpdateTilesFromImage();
         f.UpdateCollisionGrid();
         return f;

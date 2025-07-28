@@ -1,8 +1,9 @@
 
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Godot;
 using Rpg;
-using Rpg.Entities;
 using TTRpgClient.scripts;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
@@ -11,34 +12,34 @@ using TTRpgClient.scripts.ui;
 public partial class GameManager : Node
 {
 
-	private List<ClientBoard> boards = new List<ClientBoard>();
+	private List<ClientBoard> boards = new();
     private Color defaultClearColor;
-    private ClientBoard? _currentBoard;
-    public ClientBoard? CurrentBoard{
-        get{
-            return _currentBoard;
-        }
-        set {
+
+    public ClientBoard? CurrentBoard
+    {
+        get;
+        set
+        {
             VisionManager.ClearVisionPoints();
-            if (_currentBoard != null){
-                _currentBoard.Node.Visible = false;
+            if (field != null){
+                field.Node.Visible = false;
             }
-            _currentBoard = value;
-            if (_currentBoard != null){
-                _currentBoard.Node.Visible = true;
-                ChatControl.Instance.SetMessageHistory(_currentBoard.GetChatHistory());
-                if (!IsGm){
-                    RenderingServer.SetDefaultClearColor(new Color(0, 0, 0));
-                    var creatures = _currentBoard.GetCreaturesByOwner(Username);
-                    foreach (var creature in creatures)
-                        VisionManager.AddVisionPoint(new VisionPoint(creature));
-                    if (creatures.Count == 0)
+            field = value;
+            if (field != null){
+                field.Node.Visible = true;
+                ChatControl.Instance.SetMessageHistory(field.GetChatHistory());
+                if (IsGm) return;
+                
+                RenderingServer.SetDefaultClearColor(new Color(0, 0, 0));
+                var creatures = field.GetCreaturesByOwner(Username);
+                foreach (Creature creature in creatures)
+                    VisionManager.AddVisionPoint(new VisionPoint(creature));
+                if (creatures.Count == 0)
+                {
+                    foreach (var entity in field.GetEntities())
                     {
-                        foreach (var entity in _currentBoard.GetEntities())
-                        {
-                            if (entity is Creature creature && creature.HasOwner())
-                                VisionManager.AddVisionPoint(new VisionPoint(creature));
-                        }
+                        if (entity is Creature creature && creature.HasOwner())
+                            VisionManager.AddVisionPoint(new VisionPoint(creature));
                     }
                 }
             }
@@ -51,6 +52,7 @@ public partial class GameManager : Node
             }
         }
     }
+
     public string Username = "";
     public InputManager InputManager
     {
@@ -86,24 +88,24 @@ public partial class GameManager : Node
     public GameManager(){
         defaultClearColor = RenderingServer.GetDefaultClearColor();
         Instance = this;
-        WorldViewport = new SubViewport()
+        WorldViewport = new SubViewport
         {
             CanvasCullMask = 1,
             Name = "BoardViewport",
             PhysicsObjectPicking = true,
         };
 
-        UINode = new Node2D()
+        UINode = new Node2D
         {
             Name = "UINode",
-            Material = new CanvasItemMaterial()
+            Material = new CanvasItemMaterial
             {
                 LightMode = CanvasItemMaterial.LightModeEnum.Unshaded
             },
             ZIndex = 20
         };
 
-        BoardsNode = new Node2D()
+        BoardsNode = new Node2D
         {
             Name = "BoardsNode"
         };
@@ -161,6 +163,16 @@ public partial class GameManager : Node
         CurrentBoard = null;
     }
 
+    public override void _PhysicsProcess(double delta)
+    {
+        base._PhysicsProcess(delta);
+
+        foreach (var board in boards)
+        {
+            Task.Run(async () => board.Tick());
+        }
+    }
+
     public void ShowMenu(){
         var menu = GD.Load<PackedScene>("res://scenes/menu.tscn").Instantiate();
         menu.Set("network_manager", NetworkManager.Instance);
@@ -174,8 +186,15 @@ public partial class GameManager : Node
         RadialMenu.Instance.Hide();
     }
 
-    public void ExecuteCommand(string command){
-        switch (command.ToLower())
+    public void HideMenu()
+    {
+        GetParent().FindChild("UILayer").FindChild("Menu")?.QueueFree();
+    }
+
+    public void ExecuteCommand(string command)
+    {
+        string[] args = command.Split(" ")[1..];
+        switch (command.Split(" ")[0].ToLower())
         {
             case "help":
                 ChatControl.Instance.AddMessage("Commands: /help, /clear, /body, /grid");
@@ -197,19 +216,62 @@ public partial class GameManager : Node
                     ChatControl.Instance.AddMessage("No board selected");
                     return;
                 }
-                if (CurrentBoard.SelectedEntity == null)
+                switch (CurrentBoard.SelectedEntity)
                 {
-                    ChatControl.Instance.AddMessage("No entity selected");
-                    return;
+                    case null:
+                        ChatControl.Instance.AddMessage("No entity selected");
+                        return;
+                    case Creature creature:
+                        ChatControl.Instance.AddMessage(creature.BodyRoot.PrintPretty());
+                        break;
+                    default:
+                        ChatControl.Instance.AddMessage("Selected entity is not a creature");
+                        break;
                 }
-                if (CurrentBoard.SelectedEntity is Creature creature)
-                    ChatControl.Instance.AddMessage(creature.BodyRoot.PrintPretty());
-                else
-                    ChatControl.Instance.AddMessage("Selected entity is not a creature");
+
                 break;
             case "lighticons":
                 LightNode.ShowLightIcons = !LightNode.ShowLightIcons;
                 break;
+            case "gotoent":
+            {
+                if (CurrentBoard == null)
+                {
+                    ChatControl.Instance.AddMessage("No board selected");
+                    break;
+                }
+                int id = int.Parse(args[0]);
+                Entity? entity = CurrentBoard.GetEntityById(id);
+                if (entity == null)
+                    break;
+                CurrentBoard.CenterOn(entity);
+                break;
+            }
+            case "entanim":
+            {
+                if (CurrentBoard == null)
+                {
+                    ChatControl.Instance.AddMessage("No board selected");
+                    break;
+                }
+                int id = int.Parse(args[0]);
+                Entity? entity = CurrentBoard.GetEntityById(id);
+                if (entity == null)
+                    break;
+                var entityNode = CurrentBoard.GetEntityNode(entity);
+                switch (args[1])
+                {
+                    case "attack":
+                    {
+                        string[] pos = args[2].Split(",");
+                        var target = new Vector2(float.Parse(pos[0]), float.Parse(pos[1]));
+                        //TODO: Tween
+                        break;
+                    }
+                }
+
+                break;
+            }
         }
     }
 }

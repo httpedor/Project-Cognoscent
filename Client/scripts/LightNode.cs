@@ -1,6 +1,5 @@
 using Godot;
 using Rpg;
-using Rpg.Entities;
 using TTRpgClient.scripts.RpgImpl;
 
 namespace TTRpgClient.scripts;
@@ -28,11 +27,11 @@ public partial class LightNode : EntityNode
 
         if (GameManager.IsGm)
         {
-            Sprite.Texture = Icons.Light;
+            Display.SetImage(Icons.Light);
         }
     }
 
-    public override void _Process(System.Double delta)
+    public override void _Process(double delta)
     {
         base._Process(delta);
         var TileSize = Light.Floor.TileSize;
@@ -42,12 +41,12 @@ public partial class LightNode : EntityNode
         pointLight.Scale = new Vector2(TileSize.X / tex.GetWidth() * Light.Range, TileSize.Y / tex.GetHeight() * Light.Range);
     
         if (GameManager.Instance.CurrentBoard != null && GameManager.Instance.CurrentBoard.SelectedEntity is Creature)
-            Sprite.Visible = false;
+            Display.Visible = false;
         else 
             if (ShowLightIcons)
-                Sprite.Visible = true;
+                Display.Visible = true;
             else
-                Sprite.Visible = false;
+                Display.Visible = false;
     }
 
     protected override void MouseEntered()

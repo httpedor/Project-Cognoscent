@@ -2,37 +2,26 @@ using System.Data.Common;
 using System.Numerics;
 using Rpg.Inventory;
 
-namespace Rpg.Entities;
+namespace Rpg;
 
-public struct CreatureRef
+public readonly struct CreatureRef(string board, int id)
 {
-    public string Board;
-    public int Id;
+    public readonly string Board = board;
+    public readonly int Id = id;
     public Creature? Creature
     {
         get
         {
-            var board = SidedLogic.Instance.GetBoard(Board);
-            if (board == null)
-                return null;
-            
-            return board.GetEntityById(Id) as Creature;
+            Board? board = SidedLogic.Instance.GetBoard(Board);
+            return board?.GetEntityById(Id) as Creature;
         }
     }
-    public CreatureRef(string board, int id)
+
+    public CreatureRef(Creature target) : this(target.Board.Name, target.Id)
     {
-        Board = board;
-        Id = id;
     }
-    public CreatureRef(Creature target)
+    public CreatureRef(Stream stream) : this(stream.ReadString(), stream.ReadInt32())
     {
-        Board = target.Board.Name;
-        Id = target.Id;
-    }
-    public CreatureRef(Stream stream)
-    {
-        Board = stream.ReadString();
-        Id = stream.ReadInt32();
     }
     public void ToBytes(Stream stream)
     {
@@ -41,25 +30,81 @@ public struct CreatureRef
     }
 }
 
-public class Creature : Entity, IInventoryHolder
+public class ActionLayer(string name, string id, uint startTick, uint delay, uint duration, uint cooldown, bool cancelable = true) : ISerializable
+{
+    public string Name = name;
+    public string Id = id;
+    public uint StartTick = startTick;
+    public uint Delay = delay;
+    public uint Duration = duration;
+    public uint Cooldown = cooldown;
+    public bool Cancelable = cancelable;
+    
+    public uint ExecutionStartTick => StartTick + Delay + 1;
+    public uint ExecutionEndTick => ExecutionStartTick + Duration;
+    public uint EndTick => StartTick + Delay + Duration + Cooldown;
+    
+    public ActionLayer(Stream stream) : this(
+        stream.ReadString(),
+        stream.ReadString(),
+        stream.ReadUInt32(),
+        stream.ReadUInt32(),
+        stream.ReadUInt32(),
+        stream.ReadUInt32(),
+        stream.ReadByte() != 0
+        )
+    {
+        
+    }
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteString(Name);
+        stream.WriteString(Id);
+        stream.WriteUInt32(StartTick);
+        stream.WriteUInt32(Delay);
+        stream.WriteUInt32(Duration);
+        stream.WriteUInt32(Cooldown);
+        stream.WriteByte((byte)(Cancelable ? 1 : 0));
+    }
+}
+
+public class Creature : Entity, IItemHolder, IDamageable
 {
     /// <summary>
     /// Called the exact tick an action is added to the activeActions.
     /// </summary>
-    public event Action<Skill>? OnSkillStart;
-    public event Action<Skill>? OnSkillCancel;
+    public event Action<SkillData>? OnSkillStart;
+    public event Action<SkillData>? OnSkillCancel;
+    public event Action<ActionLayer>? ActionLayerChanged;
+    public event Action<string>? ActionLayerRemoved;
 
     public BodyPart BodyRoot => Body.Root;
-    public Body Body;
-    public List<Item> Inventory => throw new NotImplementedException();
+
+    public Body Body
+    {
+        get => field;
+        set
+        {
+            if (field != null)
+                field.Owner = null;
+            field = value;
+            field.Owner = this;
+        }
+    }
     public List<Tuple<ISkillSource, Skill>> AvailableSkills {
         get {
             List<Tuple<ISkillSource, Skill>> ret = new();
-            foreach (var bp in Body.Parts)
+            foreach (BodyPart bp in Body.Parts)
             {
-                foreach (var action in bp.Skills)
+                ret.AddRange(bp.Skills.Select(skill => new Tuple<ISkillSource, Skill>(bp, skill)));
+
+                foreach (Item item in bp.Items)
                 {
-                    ret.Add(new Tuple<ISkillSource, Skill>(bp, action));
+                    ret.AddRange(item.Skills.Select(skill => new Tuple<ISkillSource, Skill>(item, skill)));
+
+                    var ep = item.GetProperty<EquipmentProperty>();
+                    if (ep != null)
+                        ret.AddRange(ep.Skills.Select(skill => new Tuple<ISkillSource, Skill>(ep, skill)));
                 }
             }
             return ret;
@@ -70,56 +115,110 @@ public class Creature : Entity, IInventoryHolder
     {
         get
         {
-            foreach (var bp in Body.PartsWithEquipSlots)
-                foreach (var item in bp.EquippedItems)
+            foreach (BodyPart bp in Body.PartsWithEquipSlots)
+                foreach (Item item in bp.Items)
                     yield return item;
         }
     }
 
+    Board? IItemHolder.Board => Board;
 
-    public Dictionary<int, SkillData> ActiveSkills = new();
+
+    private readonly Dictionary<string, ActionLayer> actionLayers = new();
+    public IEnumerable<string> ActiveActionLayers => actionLayers.Keys;
+    public readonly Dictionary<int, SkillData> ActiveSkills = new();
     public string Owner;
-    public string Name;
 
-    public Creature() : base()
+    public Creature(Body body)
     {
         Owner = "";
-        Name = "";
-    
-        if (!SidedLogic.Instance.IsClient())
-            SetupDefaultStats();
+        body.Owner = this;
+        Body = body;
     }
 
     public Creature(Stream stream) : base(stream)
     {
         Owner = stream.ReadString();
-        Body = new Body(stream, this);
+        Body = new Body(stream)
+        {
+            Owner = this
+        };
         Name = stream.ReadString();
+
+        int count = stream.ReadInt32();
+        for (int i = 0; i < count; i++)
+        {
+            var al = new ActionLayer(stream);
+            actionLayers[al.Name] = al;
+        }
+
+        count = stream.ReadInt32();
+        for (int i = 0; i < count; i++)
+        {
+            var sd = new SkillData(stream);
+            ActiveSkills[sd.Id] = sd;
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+        foreach (var part in Body.Parts)
+        {
+            foreach (var feature in part.EnabledFeatures)
+            {
+                feature.OnTick(part);
+            }
+        }
+        var processed = new HashSet<int>();
+        foreach (ActionLayer layer in actionLayers.Values.ToList())
+        {
+            bool cancelled = false;
+            if (layer.ExecutionStartTick > Board.CurrentTick) continue;
+            uint relativeTicks = Board.CurrentTick - layer.ExecutionStartTick;
+            int skillId = int.Parse(layer.Id);
+            if (!processed.Contains(skillId) && ActiveSkills.TryGetValue(skillId, out SkillData? data))
+            {
+                processed.Add(skillId);
+                
+                if (data.Source.SkillSource == null)
+                {
+                    CancelSkill(data.Id, true);
+                    cancelled = true;
+                    continue;
+                }
+                ISkillSource source = data.Source.SkillSource;
+
+                uint oldDur = layer.Duration;
+                layer.Duration = data.Skill.GetDuration(this, data.Arguments, source);
+                if (oldDur != layer.Duration)
+                    ActionLayerChanged?.Invoke(layer);
+                if (layer.ExecutionEndTick > Board.CurrentTick)
+                    data.Skill.Execute(this, data.Arguments, relativeTicks, source);
+
+                if (layer.EndTick <= Board.CurrentTick)
+                {
+                    CancelSkill(data.Id, false);
+                    cancelled = true;
+                }
+            }
+
+            if (!cancelled && layer.EndTick < Board.CurrentTick)
+            {
+                CancelActionLayer(layer.Id);
+            }
+        }
     }
     private void SetVital(string id)
     {
-        GetStat(id).ValueChanged += (old, newVal) => {
-            if (newVal <= 0)
+        Stat? stat = GetStat(id);
+        if (stat == null) return;
+        stat.ValueChanged += (_, newVal) => {
+            if (newVal <= 0 && Body.IsReady)
             {
                 Kill();
             }
         };
-    }
-    private void SetupDefaultStats()
-    {
-        foreach (var stat in CreatureStats.GetAllStats())
-        {
-            CreateStat(stat);
-        }
-    
-        GetStat(CreatureStats.CONSCIOUSNESS).AddDependents((GetStat(CreatureStats.DEXTERITY), 1), (GetStat(CreatureStats.UTILITY_STRENGTH), 1), (GetStat(CreatureStats.MOVEMENT_STRENGTH), 1), (GetStat(CreatureStats.INTELLIGENCE), 1), (GetStat(CreatureStats.PERCEPTION), 0.5f), (GetStat(CreatureStats.SIGHT), 0.5f));
-        GetStat(CreatureStats.BLOOD_FLOW).AddDependents((GetStat(CreatureStats.CONSCIOUSNESS), 0.2f), (GetStat(CreatureStats.MOVEMENT_STRENGTH), 0.2f));
-        GetStat(CreatureStats.RESPIRATION).AddDependents((GetStat(CreatureStats.CONSCIOUSNESS), 0.2f), (GetStat(CreatureStats.MOVEMENT_STRENGTH), 0.2f));
-        GetStat(CreatureStats.PERCEPTION).AddDependency(GetStat(CreatureStats.SIGHT), 0.8f);
-
-        SetVital(CreatureStats.CONSCIOUSNESS);
-        SetVital(CreatureStats.BLOOD_FLOW);
-        SetVital(CreatureStats.RESPIRATION);
     }
 
     public bool HasOwner()
@@ -137,41 +236,138 @@ public class Creature : Entity, IInventoryHolder
         return BodyRoot.GetChildByPath(path);
     }
     
-    public IEnumerable<BodyPart> GetAllBodyParts()
+    public bool CanAddItem(Item item)
     {
-        Stack<BodyPart> s = new Stack<BodyPart>();
-        s.Push(BodyRoot);
+        var ep = item.GetProperty<EquipmentProperty>();
+        if (ep == null)
+            return false;
+        
+        foreach (var bp in Body.GetPartsThatCanEquip(ep.Slot))
+            if (bp.CanAddItem(item))
+                return true;
+        return false;
+    }
+    public void AddItem(Item item)
+    {
+        var ep = item.GetProperty<EquipmentProperty>();
 
-        while (s.Count > 0)
-        {
-            BodyPart top = s.Pop();
-            foreach (BodyPart child in top.Children)
-                s.Push(child);
-            
-            yield return top;
-        }
+        foreach (var bp in Body.GetPartsThatCanEquip(ep.Slot))
+            if (bp.GetEquippedItem(ep.Slot) == null)
+                bp.AddItem(item);
+    }
+    public void RemoveItem(Item item)
+    {
+        var ep = item.GetProperty<EquipmentProperty>();
+
+        foreach (var bp in Body.GetPartsThatCanEquip(ep.Slot))
+            if (bp.GetEquippedItem(ep.Slot) == null)
+                bp.RemoveItem(item);
     }
 
-    public void ExecuteSkill(Skill skill, ISkillSource from, List<SkillArgument> args)
+    public ActionLayer? GetActionLayer(string layer)
+    {
+        return actionLayers!.GetValueOrDefault(layer, null);
+    }
+
+    public bool CanUseActionLayer(string layer)
+    {
+        ActionLayer? al = GetActionLayer(layer);
+        if (al != null && al.EndTick >= Board.CurrentTick)
+            return false;
+        return true;
+    }
+
+    public void TriggerActionLayer(ActionLayer layer)
+    {
+        if (!CanUseActionLayer(layer.Name))
+            return;
+        actionLayers[layer.Name] = layer;
+        ActionLayerChanged?.Invoke(layer);
+    }
+    
+    public void CancelActionLayer(string layer)
+    {
+        if (!actionLayers.Remove(layer, out ActionLayer? al))
+            return;
+        ActionLayerRemoved?.Invoke(layer);
+    }
+
+    public void UpdateActionLayer(ActionLayer layer)
+    {
+        if (GetActionLayer(layer.Name) == null)
+            return;
+        actionLayers[layer.Name] = layer;
+    }
+
+    public bool CanExecuteSkill(Skill skill, ISkillSource source)
+    {
+        if (!skill.CanBeUsed(this, source))
+            return false;
+        foreach (string layer in skill.GetLayers(this, source))
+            if (!CanUseActionLayer(layer))
+                return false;
+        return true;
+    }
+
+    public void ExecuteSkill(Skill skill, List<SkillArgument> args, ISkillSource source)
     {
         if (!skill.ValidateArguments(args))
             throw new ArgumentException("Invalid arguments for skill " + skill.GetName());
-        if (!skill.CanBeUsed(this, from))
+        if (!CanExecuteSkill(skill, source))
             return;
-
-        if (!Board.CombatMode)
+        foreach (Feature feature in Features)
         {
-            skill.Execute(this, from, args);
+            (bool, string?) result = feature.DoesExecuteSkill(this, skill, args);
+            if (result.Item1) continue;
+            
+            if (result.Item2 != null)
+                Log("Não é possível executar" + skill.BBHint + " porquê " + result.Item2);
             return;
         }
-        var data = new SkillData(skill, args, Board.CombatTick);
-        ActiveSkills[data.Id] = data;
+
+        if (!Board.TurnMode && skill.IsCombatSkill(this, args, source))
+        {
+            Board.StartTurnMode();
+        }
+        var data = new SkillData(skill, args, source, skill.GetLayers(this, source));
+
+        foreach (string layer in data.Layers)
+        {
+            ActiveSkills[data.Id] = data;
+            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, skill.GetDelay(this, args, source), skill.GetDuration(this, args, source), skill.GetCooldown(this, args, source), skill.CanCancel(this, args, source)));
+        }
+        skill.Start(this, args, source);
+        OnSkillStart?.Invoke(data);
     }
-    public void CancelSkill(int id)
+    public void CancelSkill(int id, bool interrupted = false)
     {
-        if (!ActiveSkills.ContainsKey(id))
+        if (!ActiveSkills.Remove(id, out SkillData? skill))
             return;
-        ActiveSkills.Remove(id);
+        skill.Skill.Cancel(this, skill.Arguments, skill.Source.SkillSource!, interrupted);
+        OnSkillCancel?.Invoke(skill);
+        
+        foreach (string layer in skill.Layers)
+        {
+            CancelActionLayer(layer);
+        }
+    }
+    public void CancelSkill(string layer, bool interrupted = false)
+    {
+        foreach (var kvp in ActiveSkills)
+        {
+            if (!kvp.Value.Layers.Contains(layer)) continue;
+            
+            CancelSkill(kvp.Key, interrupted);
+            return;
+        }
+    }
+
+    public void Log(string message)
+    {
+        if (SidedLogic.Instance.IsClient())
+            Board.AddChatMessage(message);
+        else
+            Board.BroadcastMessage(message);
     }
 
     public override void ToBytes(Stream stream)
@@ -180,6 +376,19 @@ public class Creature : Entity, IInventoryHolder
         stream.WriteString(Owner);
         Body.ToBytes(stream);
         stream.WriteString(Name);
+
+        stream.WriteInt32(actionLayers.Count);
+        foreach (var kvp in actionLayers)
+        {
+            stream.WriteString(kvp.Key);
+            kvp.Value.ToBytes(stream);
+        }
+
+        stream.WriteInt32(ActiveSkills.Count);
+        foreach (var kvp in ActiveSkills)
+        {
+            kvp.Value.ToBytes(stream);
+        }
     }
 
     public override void ClearEvents()
@@ -193,5 +402,18 @@ public class Creature : Entity, IInventoryHolder
     public void Kill()
     {
         Console.WriteLine(Id + "(" + Name + ") died.");
+    }
+
+    public double Damage(DamageSource source, double damage)
+    {
+        var part = Body.Parts.ElementAt(new Random().Next(Body.Parts.Count()));
+        return part.Damage(source, damage);
+    }
+    public double Damage(DamageSource source, double damage, string partPath)
+    {
+        var bp = GetBodyPart(partPath);
+        if (bp != null)
+            return bp.Damage(source, damage);
+        return 0;
     }
 }

@@ -1,5 +1,5 @@
 using Godot;
-using Rpg.Entities;
+using Rpg;
 using System;
 using System.Linq;
 using System.Net.WebSockets;

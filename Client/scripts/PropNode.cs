@@ -1,5 +1,5 @@
 using Godot;
-using Rpg.Entities;
+using Rpg;
 using TTRpgClient.scripts.RpgImpl;
 
 namespace TTRpgClient.scripts;
@@ -17,7 +17,7 @@ public partial class PropNode : EntityNode
     {
         if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || !(GameManager.Instance.CurrentBoard.SelectedEntity is Creature)))
             base.MouseEntered();
-        else if (Prop.MidiaToShow != null && Prop.MidiaToShow.Length > 0)
+        else if (Prop.ShownMidia.HasValue && Prop.ShownMidia.Value.Bytes.Length > 0)
         {
             Input.SetDefaultCursorShape(Input.CursorShape.PointingHand);
             InputManager.RequestPriority(this);
@@ -27,7 +27,7 @@ public partial class PropNode : EntityNode
     {
         if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || !(GameManager.Instance.CurrentBoard.SelectedEntity is Creature)))
             base.MouseExited();
-        else if (Prop.MidiaToShow != null && Prop.MidiaToShow.Length > 0)
+        else if (Prop.ShownMidia != null && Prop.ShownMidia.Value.Bytes.Length > 0)
         {
             Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
             InputManager.ReleasePriority(this);
@@ -38,9 +38,9 @@ public partial class PropNode : EntityNode
     {
         if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || !(GameManager.Instance.CurrentBoard.SelectedEntity is Creature)))
             base.OnClick();
-        else if (Prop.MidiaToShow != null && Prop.MidiaToShow.Length > 0)
+        else if (Prop.ShownMidia.HasValue && Prop.ShownMidia.Value.Bytes.Length > 0)
         {
-            //TODO: Show midia in a popup
+            Modal.OpenMedia(Prop.ShownMidia.Value);
         }
     }
 }

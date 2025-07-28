@@ -1,26 +1,45 @@
 using System.Diagnostics;
-using MoonSharp.Interpreter;
 using Rpg;
-using Rpg.Entities;
 
 namespace Server.Game;
 
 public static class Game
 {
-    private static Dictionary<String, ServerBoard> _boards = new Dictionary<String, ServerBoard>();
+    private static readonly Dictionary<string, ServerBoard> _boards = new();
     public static void Init()
     {
-        UserData.RegisterType<Entity>();
-        UserData.RegisterType<Creature>();
-        UserData.RegisterType<ServerBoard>();
-        UserData.RegisterType<ServerFloor>();
+        Compendium.OnEntryRegistered += (folder, name, obj) =>
+        {
+            Network.Manager.SendToAll(CompendiumUpdatePacket.AddEntry(folder, name, obj));
+        };
+        Compendium.OnEntryRemoved += (folder, name) =>
+        {
+            Network.Manager.SendToAll(CompendiumUpdatePacket.RemoveEntry(folder, name));
+        };
+        Compendium.RegisterDefaults();
+        foreach (Feature feat in Features.All)
+        {
+            Compendium.RegisterEntry<Feature>(feat.GetId(), null!);
+        }
+
+        foreach (var skillInfo in Skills.All)
+        {
+            Compendium.RegisterEntry<Skill>(skillInfo.id, null!);
+        }
+        foreach (string folder in Compendium.Folders)
+        {
+            foreach (var pair in Compendium.GetFiles(folder))
+            {
+                Compendium.RegisterEntry(folder, pair.fName, pair.obj);
+            }
+            
+            Console.WriteLine("Registered " + Compendium.GetEntryCount(folder) + " " + folder + " entries.");
+        }
     }
 
     public static ServerBoard? GetBoard(string name)
     {
-        if (_boards.TryGetValue(name, out var board))
-            return board;
-        return null;
+        return _boards.GetValueOrDefault(name);
     }
 
     public static List<ServerBoard> GetBoards()
@@ -37,6 +56,28 @@ public static class Game
             if (client.IsGm || client.LoadedBoards.Contains(board.Name) || _boards.Count == 1)
                 client.SendBoard(board);
         }
+        
+        const int timePerTick = (int)(1f/50 * 1000); // 20 ms, this means 50tps
+        Task.Run(async () => {
+            var sw = new Stopwatch();
+            while (_boards.ContainsKey(board.Name))
+            {
+                if (board.TurnMode)
+                    continue;
+
+                sw.Start();
+                board.Tick();
+                sw.Stop();
+                long elapsed = sw.ElapsedMilliseconds;
+                sw.Reset();
+
+                if (elapsed > timePerTick)
+                    Console.WriteLine("Tick took " + elapsed + "ms");
+
+                if (elapsed < timePerTick)
+                    await Task.Delay(timePerTick - (int)elapsed);
+            }
+        });
     }
 
     public static void AddBoard(ServerBoard b, string name)

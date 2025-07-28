@@ -1,24 +1,22 @@
 using System.Numerics;
-using Rpg.Entities;
+using Rpg;
 
 namespace Rpg;
 
 public class DoorRef : ISerializable
 {
-    public string Board;
-    public int Id;
-    public Door? Door
+    public readonly string Board;
+    public readonly int Id;
+    public DoorEntity? Door
     {
         get
         {
-            var board = SidedLogic.Instance.GetBoard(Board);
-            if (board == null)
-                return null;
+            Board? board = SidedLogic.Instance.GetBoard(Board);
 
-            return board.GetEntityById(Id) as Door;
+            return board?.GetEntityById(Id) as DoorEntity;
         }
     }
-    public DoorRef(Door door)
+    public DoorRef(DoorEntity door)
     {
         Board = door.Board.Name;
         Id = door.Id;
@@ -34,7 +32,7 @@ public class DoorRef : ISerializable
         stream.WriteInt32(Id);
     }
 }
-public class Door : Entity, ISerializable
+public class DoorEntity : Entity, IDamageable
 {
     public Vector2[] Bounds;
     public Vector2 OpenBound2 {
@@ -50,9 +48,9 @@ public class Door : Entity, ISerializable
     public bool Locked;
     public bool Slide;
 
-    public Door() : base()
+    public DoorEntity()
     {
-        Bounds = new Vector2[0];
+        Bounds = Array.Empty<Vector2>();
         Rotation = 0;
         Closed = true;
         BlocksVision = true;
@@ -60,9 +58,9 @@ public class Door : Entity, ISerializable
         Slide = false;
     }
 
-    public Door(Stream stream) : base(stream)
+    public DoorEntity(Stream stream) : base(stream)
     {
-        var len = stream.ReadByte();
+        int len = stream.ReadByte();
         Bounds = new Vector2[len];
         for (int i = 0; i < len; i++)
         {
@@ -79,16 +77,16 @@ public class Door : Entity, ISerializable
     {
         base.ToBytes(stream);
 
-        stream.WriteByte((Byte)Bounds.Length);
-        foreach (var bound in Bounds)
+        stream.WriteByte((byte)Bounds.Length);
+        foreach (Vector2 bound in Bounds)
         {
             stream.WriteVec2(bound);
         }
 
-        stream.WriteByte((Byte)(Closed ? 1 : 0));
-        stream.WriteByte((Byte)(BlocksVision ? 1 : 0));
-        stream.WriteByte((Byte)(Locked ? 1 : 0));
-        stream.WriteByte((Byte)(Slide ? 1 : 0));
+        stream.WriteByte((byte)(Closed ? 1 : 0));
+        stream.WriteByte((byte)(BlocksVision ? 1 : 0));
+        stream.WriteByte((byte)(Locked ? 1 : 0));
+        stream.WriteByte((byte)(Slide ? 1 : 0));
     }
 
     public bool CanBeOpenedBy(Creature creature)
@@ -102,16 +100,23 @@ public class Door : Entity, ISerializable
     }
 
 
-    public void CopyFrom(Door door)
+    public void CopyFrom(DoorEntity door)
     {
         Bounds = door.Bounds;
         Closed = door.Closed;
         Position = door.Position;
         Rotation = door.Rotation;
         Size = door.Size;
-        _stats = door._stats;
+        stats = door.stats;
         BlocksVision = door.BlocksVision;
         Slide = door.Slide;
         Locked = door.Locked;
     }
+
+    public double Damage(DamageSource source, double damage)
+    {
+        throw new NotImplementedException();
+    }
+
+    public string BBLink { get; }
 }

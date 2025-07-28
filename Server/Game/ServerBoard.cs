@@ -1,31 +1,18 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Rpg;
-using Rpg.Entities;
+using Rpg.Inventory;
+using Server.Network;
 
 namespace Server.Game;
 
 public class ServerBoard : Board, ISerializable
 {
-    private void onBodyPartChildAdd(BodyPart child)
+    private readonly LinkedList<(Creature executor, ActionLayer layer)> actionQueue = [];
+
+    public ServerBoard(string name)
     {
-        Network.Manager.SendToBoard(new EntityBodyPartPacket(child), Name);
-        child.OnChildAdded += onBodyPartChildAdd;
-
-        child.OnChildRemoved += (BodyPart child) => {
-            Network.Manager.SendToBoard(new EntityBodyPartPacket(child.Owner, child.Path), Name);
-            child.ClearEvents();
-        };
-
-        child.OnInjuryAdded += (Injury condition) => {
-            Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(child, condition), Name);
-        };
-        child.OnInjuryRemoved += (Injury condition) => {
-            Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(child, condition, true), Name);
-        };
-    }
-
-    public ServerBoard(string name) : base(){
         Name = name;
     }
 
@@ -51,51 +38,141 @@ public class ServerBoard : Board, ISerializable
         }
     }
 
+    public override void PauseAt(uint tick)
+    {
+        base.PauseAt(tick);
+        
+        Manager.SendToBoard(new CombatModePacket(this), this);
+    }
+
+    public override void Tick()
+    {
+        foreach (Entity entity in entities)
+        {
+            entity.Tick();
+        }
+        if (TurnMode || CurrentTick % 50 == 0)
+            Manager.SendToBoard(new CombatModePacket(this), this);
+        if (actionQueue.Count > 0)
+        {
+            uint firstInQueue = actionQueue.First!.Value.layer.EndTick;
+            if (pauseTick > firstInQueue)
+                PauseAt(firstInQueue);
+            if (firstInQueue <= CurrentTick)
+                actionQueue.RemoveFirst();
+            
+        }
+        base.Tick();
+    }
+
+    [SuppressMessage("ReSharper", "RedundantNameQualifier")]
     public override void AddEntity(Entity entity)
     {
         base.AddEntity(entity);
         Network.Manager.SendToBoard(new EntityCreatePacket(this, entity), Name);
-        entity.OnRotationChanged += (float newRot, float oldRot) => {
-            Network.Manager.SendToBoard(new EntityRotationPacket(entity, newRot), Name);
+        entity.OnPositionChanged += (pos, _) => Manager.SendToBoard(new EntityPositionPacket(entity, pos), entity.Board.Name);
+        entity.OnRotationChanged += (newRot, _) => Network.Manager.SendToBoard(new EntityRotationPacket(entity, newRot), Name);
+        entity.OnFeatureAdded += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Add(entity, feat), Name);
+        entity.OnFeatureRemoved += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Remove(entity, feat), Name);
+        entity.OnFeatureEnabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Enable(entity, feat), Name);
+        entity.OnFeatureDisabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Disable(entity, feat), Name);
+        
+        void addStatEvents(Stat stat)
+        {
+            stat.BaseValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue), Name);
+            stat.ModifierUpdated += modifier => Network.Manager.SendToBoard(new EntityStatModifierPacket(entity, stat.Id, modifier), Name);
+            stat.ModifierRemoved += modifier => Network.Manager.SendToBoard(new EntityStatModifierRemovePacket(entity, stat.Id, modifier.Id), Name);
+        }
+        foreach (Stat stat in entity.Stats)
+        {
+            addStatEvents(stat);
+        }
+        entity.OnStatCreated += stat => {
+            addStatEvents(stat);
+            Network.Manager.SendToBoard(new EntityStatCreatePacket(entity, stat), this);
         };
+        
         if (entity is Creature creature)
         {
-            /*creature.OnSkillStart += (Rpg.Skill action) => {
-                Network.Manager.SendToBoard(new CreatureActionExecutePacket(action, creature), Name);
+            creature.OnSkillStart += skill => {
+                Network.Manager.SendToBoard(new CreatureSkillUpdatePacket(creature, skill), Name);
             };
-            creature.OnSkillCancel += (Rpg.Skill action) => {
-                Network.Manager.SendToBoard(new CreatureActionCancelPacket(creature, action), Name);
-            };*/
+            creature.OnSkillCancel += skill => {
+                Network.Manager.SendToBoard(new CreatureSkillRemovePacket(creature, skill.Id), Name);
+            };
 
+            creature.ActionLayerChanged += layer =>
+            {
+                Network.Manager.SendToBoard(new ActionLayerUpdatePacket(creature, layer), Name);
+                if (!TurnMode)
+                    return;
+                
+                bool foundOld = false;
+                
+                LinkedListNode<(Creature executor, ActionLayer layer)>? chosenPrev = null;
+                var node = actionQueue.First;
+                while (node != null)
+                {
+                    var tuple = node.Value;
+                    if (!foundOld && tuple.layer.Name == layer.Name && tuple.executor == creature)
+                    {
+                        actionQueue.Remove(tuple);
+                        foundOld = true;
+                        continue;
+                    }
+
+                    if (chosenPrev == null && tuple.layer.StartTick > layer.StartTick)
+                        chosenPrev = node;
+                    
+                    if (foundOld && chosenPrev != null)
+                        break;
+                    
+                    node = node.Next;
+                }
+                if (chosenPrev == null)
+                    actionQueue.AddLast(new LinkedListNode<(Creature executor, ActionLayer layer)>((creature, layer)));
+                else
+                    actionQueue.AddBefore(chosenPrev, new LinkedListNode<(Creature executor, ActionLayer layer)>((creature, layer)));
+                
+            };
+            creature.ActionLayerRemoved += layer =>
+            {
+                Network.Manager.SendToBoard(new ActionLayerRemovePacket(creature, layer), Name);
+            };
+
+            void OnBodyPartChildAdd(BodyPart child)
+            {
+                Network.Manager.SendToBoard(new EntityBodyPartPacket(child), Name);
+                child.OnChildAdded += OnBodyPartChildAdd;
+
+                child.OnChildRemoved += grandChild => {
+                    Network.Manager.SendToBoard(new EntityBodyPartPacket(grandChild.Owner, grandChild.Path), Name);
+                    grandChild.ClearEvents();
+                };
+
+                child.OnInjuryAdded += condition => {
+                    Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(child, condition), Name);
+                };
+                child.OnInjuryRemoved += condition => {
+                    Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(child, condition, true), Name);
+                };
+                child.OnEquipped += (equipment, slot) => {
+                    Network.Manager.SendToBoard(new CreatureEquipItemPacket(child, slot, equipment.Item), this);
+                };
+                child.OnUnequipped += equipment => {
+                    Network.Manager.SendToBoard(new CreatureEquipItemPacket(equipment.Item), this);
+                };
+                child.OnFeatureAdded += feature =>
+                {
+                
+                };
+            }
             foreach (BodyPart part in creature.Body.Parts)
             {
-                part.OnChildAdded += onBodyPartChildAdd;
-                part.OnChildRemoved += (BodyPart child) => {
-                    Network.Manager.SendToBoard(new EntityBodyPartPacket(creature, child.Path), Name);
-                    part.ClearEvents();
-                };
-
-                part.OnInjuryAdded += (Injury condition) => {
-                    Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(part, condition), Name);
-                };
-                part.OnInjuryRemoved += (Injury condition) => {
-                    Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(part, condition, true), Name);
-                };
+                OnBodyPartChildAdd(part);
             }
         }
 
-        foreach (Stat stat in entity.Stats)
-        {
-            stat.BaseValueChanged += (float newValue, float oldValue) => {
-                Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue), Name);
-            };
-            stat.ModifierUpdated += (StatModifier modifier) => {
-                Network.Manager.SendToBoard(new EntityStatModifierPacket(entity, stat.Id, modifier), Name);
-            };
-            stat.ModifierRemoved += (StatModifier modifier) => {
-                Network.Manager.SendToBoard(new EntityStatModifierRemovePacket(entity, stat.Id, modifier.Id), Name);
-            };
-        }
     }
 
     public override void RemoveEntity(Entity? entity)
@@ -113,6 +190,18 @@ public class ServerBoard : Board, ISerializable
     {
         Network.Manager.SendToBoard(new ChatPacket(this, message), this);
         AddChatMessage(message);
+    }
+
+    public override void StartTurnMode()
+    {
+        Network.Manager.SendToBoard(new CombatModePacket(this), this);
+        BroadcastMessage("Entrando em modo de turnos");
+        base.StartTurnMode();
+    }
+    public override void EndTurnMode()
+    {
+        base.EndTurnMode();
+        Network.Manager.SendToBoard(new CombatModePacket(this), this);
     }
 
     public void ToBytes(Stream stream){

@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace Rpg.Inventory;
 
 public abstract class ItemProperty : ISerializable
@@ -23,24 +25,35 @@ public abstract class ItemProperty : ISerializable
 
     protected ItemProperty(Stream stream)
     {
-
+    
     }
 
     public static ItemProperty FromBytes(Stream stream)
     {
-        var path = stream.ReadString();
-        Type? type = Type.GetType(path);
+        string id = stream.ReadString();
+        Type? type = propsById[id];
 
         if (type == null)
-            throw new Exception("Failed to get ItemProperty: " + path);
-        if (type.GetConstructor(new Type[] { typeof(Stream) }) == null)
-            throw new Exception("Failed to get ItemProperty constructor: " + path);
+            throw new Exception("Failed to get ItemProperty: " + id);
+        if (type.GetConstructor(new[] { typeof(Stream) }) == null)
+            throw new Exception("Failed to get ItemProperty constructor: " + id);
         return (ItemProperty)Activator.CreateInstance(type, stream);
     }
 
-    public void ToBytes(Stream stream)
+    public static ItemProperty FromJson(JsonObject json)
     {
-        stream.WriteString(GetType().FullName);
+        string id = json["id"]!.GetValue<string>();
+        Type? type = propsById[id];
+        if (type == null)
+            throw new Exception("Failed to get ItemProperty: " + id);
+        if (type.GetConstructor(new[] { typeof(JsonObject) }) == null)
+            throw new Exception("Failed to get ItemProperty JSON constructor: " + id);
+        return (ItemProperty)Activator.CreateInstance(type, json);
+    }
+
+    public virtual void ToBytes(Stream stream)
+    {
+        stream.WriteString(GetId(GetType()));
     }
 
     public static Type GetType(string id)

@@ -2,27 +2,25 @@
 
 using System.Collections.Generic;
 using Godot;
-using Rpg.Entities;
+using Rpg;
 using TTRpgClient.scripts.RpgImpl;
 public struct VisionPoint{
     public VisionPoint(Vector2 position, float radius){
         Position = position;
         Radius = radius;
-        Entity = null;
     }
     public VisionPoint(Creature entity){
-        Entity = entity;
-        Position = null;
-        Radius = entity.GetStatValueOrDefault(CreatureStats.SIGHT);
+        Position = entity;
+        Radius = entity.GetStatValue(CreatureStats.SIGHT);
     }
-    public Vector2? Position;
-    public Creature? Entity;
+
+    public Either<Vector2, Creature> Position;
     public float Radius;
 }
 public partial class VisionManager : SubViewport
 {
-    private Dictionary<string, VisionPoint> visionPoints = new Dictionary<string, VisionPoint>();
-    private Dictionary<string, Light2D> lights = new Dictionary<string, Light2D>();
+    private Dictionary<string, VisionPoint> visionPoints = new();
+    private Dictionary<string, Light2D> lights = new();
     private Sprite2D renderer;
     public int VisionPointCount => visionPoints.Count;
     public static VisionManager Instance
@@ -54,13 +52,13 @@ public partial class VisionManager : SubViewport
         
         AddChild(visionBackground);
 
-        renderer = new Sprite2D()
+        renderer = new Sprite2D
         {
             Name = "VisionRenderer",
             Visible = false,
             Texture = GetTexture(),
             Centered = false,
-            Material = new ShaderMaterial()
+            Material = new ShaderMaterial
             {
                 Shader = GD.Load<Shader>("res://scripts/shaders/vision.gdshader"),
                 ResourceLocalToScene = true
@@ -98,19 +96,19 @@ public partial class VisionManager : SubViewport
         {
             lights[entry.Key].Visible = true;
             var point = entry.Value;
-            if (point.Position != null)
-                lights[entry.Key].Position = (Vector2)point.Position;
-            else if (point.Entity != null)
+            if (point.Position.IsLeft)
+                lights[entry.Key].Position = point.Position.Left;
+            else
             {
-                //TODO: Ambient light-based sight
-                point.Radius = point.Entity.GetStatValueOrDefault(CreatureStats.SIGHT) * point.Entity.Floor.DefaultEntitySight;
-                lights[entry.Key].Position = board.GetEntityNode(point.Entity).Position;
-                if (point.Entity.FloorIndex != board.FloorIndex)
+                var creature = point.Position.Right!;
+                point.Radius = Mathf.Max(creature.GetStatValue(CreatureStats.SIGHT) * creature.Floor.DefaultEntitySight, 0.75f);
+                lights[entry.Key].Position = board.GetEntityNode(creature).Position;
+                if (creature.FloorIndex != board.FloorIndex)
                 {
-                    for (int i = board.FloorIndex; i > point.Entity.FloorIndex; i--)
+                    for (int i = board.FloorIndex; i > creature.FloorIndex; i--)
                     {
                         var floor = board.GetFloor(i);
-                        var pos = new Vector2(point.Entity.Position.X * floor.TileSize.X, point.Entity.Position.Y * floor.TileSize.Y);
+                        var pos = new Vector2(creature.Position.X * floor.TileSize.X, creature.Position.Y * floor.TileSize.Y);
                         if (!board.GetFloor(i).IsTransparent(pos))
                         {
                             lights[entry.Key].Visible = false;
@@ -132,10 +130,10 @@ public partial class VisionManager : SubViewport
 
         var TileSize = board.CurrentFloor.TileSize;
         visionPoints[id] = point;
-        var light = new PointLight2D()
+        var light = new PointLight2D
         {
             Texture = TEX,
-            Position = point.Position == null ? board.GetEntityNode(point.Entity).Position : (Vector2)point.Position,
+            Position = point.Position.IsLeft ? point.Position.Left : board.GetEntityNode(point.Position.Right!).Position,
             Color = new Color(1, 1, 1, 1),
             ShadowEnabled = true,
             Scale = new Vector2(TileSize.X / TEX.GetWidth() * point.Radius * 2, TileSize.Y / TEX.GetHeight() * point.Radius * 2),
@@ -149,12 +147,10 @@ public partial class VisionManager : SubViewport
     }
     public void AddVisionPoint(VisionPoint point)
     {
-        if (point.Entity != null)
-            AddVisionPoint(point.Entity.Id.ToString(), point);
-        else if (point.Position != null)
-            AddVisionPoint(point.Position.ToString(), point);
+        if (point.Position.IsRight)
+            AddVisionPoint(point.Position.Right!.Id.ToString(), point);
         else
-            throw new System.Exception("Invalid vision point");
+            AddVisionPoint(point.Position.Left.ToString(), point);
     }
     public VisionPoint GetVisionPoint(string id){
         return visionPoints[id];

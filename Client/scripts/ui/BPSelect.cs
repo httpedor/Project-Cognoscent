@@ -1,5 +1,5 @@
 using Godot;
-using Rpg.Entities;
+using Rpg;
 using System;
 using System.Linq;
 
@@ -15,12 +15,12 @@ public partial class BPSelect : ColorRect
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
-		Color = new Color(Color, 0.4f);
+		Color = new Color(Color, 0.6f);
 		MouseEntered += () => {
-			Color = new Color(Color, 0.75f);
+			Color = new Color(Color, 0.8f);
 		};
 		MouseExited += () => {
-			Color = new Color(Color, 0.4f);
+			Color = new Color(Color, 0.6f);
 		};
 	
 		BodyInspector.Instance.BodyChanged += (old, @new) => {
@@ -35,12 +35,27 @@ public partial class BPSelect : ColorRect
 			else
 			{
 				Visible = true;
+				if (settings.BackgroundColor != null)
+					Color = new Color(settings.BackgroundColor(BodyPart), 0.6f);
+				if (settings.Icon != null)
+				{
+					AddChild(new TextureRect
+					{
+						Texture = settings.Icon(BodyPart),
+						ExpandMode = TextureRect.ExpandModeEnum.FitWidthProportional,
+						StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+						AnchorBottom = 1,
+						AnchorTop = 0,
+						AnchorLeft = 0,
+						AnchorRight = 1
+					});
+				}
 				if (settings.InText != null)
 				{
-					AddChild(new Label()
+					AddChild(new Label
 					{
 						Text = settings.InText(BodyPart),
-						LabelSettings = new LabelSettings()
+						LabelSettings = new LabelSettings
 						{
 							FontSize = 15,
 							FontColor = Colors.Black,
@@ -71,9 +86,11 @@ public partial class BPSelect : ColorRect
 			return;
 
 		AcceptEvent();
-		if (@event is InputEventMouseButton iemb && iemb.Pressed)
+		if (@event is InputEventMouseButton e && e.IsPressed())
 		{
 			BodyInspector.Instance.Current = BodyPart;
+			if (e.IsDoubleClick())
+				BodyInspector.Instance.SelectCurrent();
 		}
     }
 }

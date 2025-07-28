@@ -9,36 +9,13 @@ public partial class ChatControl : Control
 		get;
 		private set;
 	}
-	public bool IsMouseIn
-	{
-		get
-		{
-			return GetGlobalRect().HasPoint(GetGlobalMousePosition());
-		}
-	}
-	public bool IsInputFocused
-	{
-		get
-		{
-			return Input.HasFocus();
-		}
-	}
-	private ColorRect BG;
-	private Button VisionButton;
+	public bool IsMouseIn => GetGlobalRect().HasPoint(GetGlobalMousePosition());
+
+	public bool IsInputFocused => Input.HasFocus();
 	private LineEdit Input;
 	private VBoxContainer vBox;
 	private ScrollContainer scrollContainer;
-	public Color BackgroundColor
-	{
-		get
-		{
-			return BG.Color;
-		}
-		set
-		{
-			BG.Color = value;
-		}
-	}
+	public int MsgIndex = -1;
 
 	public ChatControl()
 	{
@@ -48,49 +25,25 @@ public partial class ChatControl : Control
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
-		VisionButton = GetNode<Button>("VisionBtn");
-		BG = GetNode<ColorRect>("BG");
 		Input = GetNode<LineEdit>("Input");
-		Input.TextSubmitted += (string text) =>
+		Input.TextSubmitted += text =>
 		{
 			if (text.Length > 0)
 			{
-				if (Input.Text.StartsWith("/"))
+				if (Input.Text.StartsWith('/'))
 				{
-					var command = Input.Text.Substring(1);
+					string command = Input.Text[1..];
 					GameManager.Instance.ExecuteCommand(command);
 					Input.Text = "";
 					return;
 				}
 				var board = GameManager.Instance.CurrentBoard;
-				if (board != null)
-					board.BroadcastMessage(text);
+				board?.BroadcastMessage(text);
 				Input.Text = "";
 			}
 		};
 		scrollContainer = GetNode<ScrollContainer>("ScrollContainer");
 		vBox = scrollContainer.GetNode<VBoxContainer>("VBoxContainer");
-		VisionButton.Pressed += () =>
-		{
-			if (AnchorLeft < 1)
-			{
-				// Should close
-				Tween tween = GetTree().CreateTween()
-					.SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Bounce);
-				tween.TweenProperty(this, "anchor_left", 1, .8);
-				VisionButton.Text = "<";
-				Input.Visible = false;
-			}
-			else
-			{
-				// Should open
-				Tween tween = GetTree().CreateTween()
-					.SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Elastic);
-				tween.TweenProperty(this, "anchor_left", .85, .8);
-				VisionButton.Text = ">";
-				Input.Visible = true;
-			}
-		};
 
 		GetWindow().SizeChanged += () =>
 		{
@@ -104,13 +57,20 @@ public partial class ChatControl : Control
 
 	public void AddMessage(string message)
 	{
-		vBox.AddChild(new RichTextLabel()
+		var rtl = new RichTextLabel
 		{
 			Text = message,
 			FitContent = true,
 			ScrollActive = false,
 			CustomMinimumSize = new Vector2(Size.X, 0),
-		});
+			BbcodeEnabled = true
+		};
+		rtl.MetaClicked += (Variant metaVar) =>
+		{
+			string meta = metaVar.AsString();
+			GameManager.Instance.ExecuteCommand(meta);
+		};
+		vBox.AddChild(rtl);
 
 		scrollContainer.SetDeferred("scroll_vertical", (int)Math.Ceiling(scrollContainer.GetVScrollBar().MaxValue));
 	}
@@ -126,4 +86,22 @@ public partial class ChatControl : Control
 			AddMessage(message);
 		}
 	}
+
+    public override void _GuiInput(InputEvent @event)
+    {
+        base._GuiInput(@event);
+		if (@event is InputEventKey keyEvent && IsInputFocused)
+		{
+			if (keyEvent.Pressed && keyEvent.Keycode == Key.Up)
+			{
+				AcceptEvent();
+				MsgIndex = Math.Min(MsgIndex + 1, vBox.GetChildCount() - 1);
+			}
+			else if (keyEvent.Pressed && keyEvent.Keycode == Key.Down)
+			{
+				MsgIndex = Math.Max(MsgIndex - 1, -1);
+			}
+			Input.Text = vBox.GetChild(vBox.GetChildCount() - 1 - MsgIndex).Get("text").ToString();
+		}
+    }
 }

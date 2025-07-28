@@ -176,7 +176,7 @@ public partial class RadialMenu : Control
 		options[option.Title] = option;
 		if (option.Icon != null)
 		{
-			GDRadialMenu.AddChild(new TextureRect()
+			GDRadialMenu.AddChild(new TextureRect
 			{
 				Texture = option.Icon,
 				Name = option.Title,
@@ -185,13 +185,13 @@ public partial class RadialMenu : Control
 		}
 		else
 		{
-			GDRadialMenu.AddChild(new Label()
+			GDRadialMenu.AddChild(new Label
 			{
 				Name = option.Title,
 				Text = option.Title,
 				HorizontalAlignment = HorizontalAlignment.Center,
 				VerticalAlignment = VerticalAlignment.Center,
-				LabelSettings = new LabelSettings()
+				LabelSettings = new LabelSettings
 				{
 					FontColor = new Color(1, 1, 1, 1)
 				}
@@ -232,7 +232,7 @@ public partial class RadialMenu : Control
 					centerInfo = null;
 				}
 
-				centerInfo = new RichTextLabel(){
+				centerInfo = new RichTextLabel {
 					Text = $"[center][font_size=28][b]{option.Title}[/b][/font_size]\n[font_size=18]{option.Description}[/font_size]",
 					BbcodeEnabled = true,
 					FitContent = true,

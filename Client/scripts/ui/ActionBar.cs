@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
-using Rpg.Entities;
 
 namespace TTRpgClient.scripts.ui;
 
@@ -15,7 +14,7 @@ public static class ActionBar
 
     static ActionBar()
     {
-        container = new HBoxContainer()
+        container = new HBoxContainer
         {
             AnchorLeft = 0.5f,
             AnchorRight = 0.5f,
@@ -30,15 +29,15 @@ public static class ActionBar
         GameManager.UILayer.MoveChild(container, 2);
     }
 
-    public static void AddButton(string id, string title, string desc, Texture2D icon, Action onClick, bool clickable = true)
+    public static void AddButton(string id, string tooltip, Texture2D icon, Action onClick, bool clickable = true)
     {
-        var btn = new Button()
+        var btn = new Button
         {
             Name = id,
             Icon = icon,
             IconAlignment = HorizontalAlignment.Center,
             ExpandIcon = true,
-            TooltipText = title + "\n" + desc,
+            TooltipText = tooltip,
             CustomMinimumSize = new Vector2(32, 32),
             Disabled = clickable
         };
@@ -81,98 +80,13 @@ public static class ActionBar
     {
         foreach (var (source, skill) in creature.AvailableSkills)
         {
-            AddButton(source.Name+";"+skill.GetName(), skill.GetName(), skill.GetDescription() + "\n\nFonte: " + (source is BodyPart ? BodyPart.Parts.Translate(source.Name) : source.Name), Icons.GetIcon(skill.GetIconName()), async () => {
-                List<SkillArgument> arguments = new();
-                int index = 0;
-                foreach (var argSet in skill.GetArguments())
-                {
-                    TaskCompletionSource<SkillArgument?> result = new();
-                    if (argSet.Contains(typeof(BodyPartSkillArgument)))
-                    {
-                        Predicate<BodyPart> bpPredicate = (bp) => skill.CanUseArgument(source, index, new BodyPartSkillArgument(bp));
-                        if (argSet.Contains(typeof(EntitySkillArgument)))
-                        {
-                            InputManager.Instance.RequestEntity((ent) => {
-                                if (ent == null)
-                                {
-                                    result.SetResult(null);
-                                    return;
-                                }
-
-                                if (ent is Creature c)
-                                {
-                                    BodyInspector.Instance.Show(c.Body, new BodyInspector.BodyInspectorSettings()
-                                    {
-                                        Predicate = bpPredicate,
-                                        OnPick = (bp) => {
-                                            if (bp == null)
-                                                result.SetResult(null);
-                                            else
-                                                result.SetResult(new BodyPartSkillArgument(bp));
-                                        }
-                                    });
-                                }
-                                else
-                                {
-                                    result.SetResult(new EntitySkillArgument(ent));
-                                }
-                            }, (ent) => ent is Creature || skill.CanUseArgument(source, index, new EntitySkillArgument(ent)));
-                        }
-                        else
-                        {
-                            InputManager.Instance.RequestEntity((ent) => {
-                                Creature c = ent as Creature;
-                                BodyInspector.Instance.Show(c.Body, new BodyInspector.BodyInspectorSettings()
-                                {
-                                    Predicate = bpPredicate,
-                                    OnPick = (bp) => {
-                                        if (bp == null)
-                                            result.SetResult(null);
-                                        else
-                                            result.SetResult(new BodyPartSkillArgument(bp));
-                                    }
-                                });
-                            }, (ent) => ent is Creature);
-                        }
-                    }
-                    else if (argSet.Contains(typeof(EntitySkillArgument)))
-                    {
-                        Predicate<Entity> predicate = (ent) => skill.CanUseArgument(source, index, new EntitySkillArgument(ent));
-                        InputManager.Instance.RequestEntity((ent) => {
-                            if (ent == null)
-                                result.SetResult(null);
-                            else
-                                result.SetResult(new EntitySkillArgument(ent));
-                        }, predicate);
-                    }
-
-                    if (argSet.Contains(typeof(PositionSkillArgument)))
-                    {
-                        Predicate<Vector3> predicate = (pos) => skill.CanUseArgument(source, index, new PositionSkillArgument(pos.ToNumerics()));
-                        InputManager.Instance.RequestPosition((pos) => {
-                            if (pos == null)
-                                result.SetResult(null);
-                            else
-                                result.SetResult(new PositionSkillArgument(((Vector3)pos).ToNumerics()));
-                        }, predicate);
-                    }
-
-                    if (argSet.Contains(typeof(BooleanSkillArgument)))
-                    {
-                        Modal.OpenConfirmationDialog("Action Boolean", "Sim ou Não", (b) => {
-                            result.SetResult(new BooleanSkillArgument(b));
-                        }, "Sim", "Não");
-                    }
-
-                    var arg = await result.Task;
-                    if (arg == null)
-                        return;
-                    arguments.Add(arg);
-                    index++;
-                }
-
-                
-            }, !skill.CanBeUsed(source));
+            AddButton(source.Name+";"+skill.GetName(), skill.GetTooltip() + "\n\nFonte: " + source.Name, Icons.GetIcon(skill.GetIconName()), async () =>
+            {
+                var args = await InputManager.Instance.RequestSkillArguments(creature, source, skill);
+                if (args == null)
+                    return;
+                NetworkManager.Instance.SendPacket(new CreatureSkillUpdatePacket(creature, new SkillData(skill, args, source, skill.GetLayers(creature, source))));
+            }, !skill.CanBeUsed(creature, source));
         }
     }
 }

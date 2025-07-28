@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection.Metadata;
+using System.Text.Json.Nodes;
 using Rpg;
 
 public enum StatModifierType
 {
     Flat,
     Percent,
-    Multiplier
+    Multiplier,
+    Capmax,
+    Capmin
 }
 public struct StatModifier : ISerializable
 {
@@ -29,6 +32,13 @@ public struct StatModifier : ISerializable
         Type = (StatModifierType)stream.ReadByte();
     }
 
+    public StatModifier(JsonObject json, string defId = "")
+    {
+        Id = json.ContainsKey("id") ? json["id"]!.GetValue<string>() : defId;
+        Value = json["value"]!.GetValue<float>();
+        Type = Enum.Parse<StatModifierType>(json["type"]!.GetValue<string>().ToLower().FirstCharToUpper());
+    }
+
     public void ToBytes(Stream stream)
     {
         stream.WriteString(Id);
@@ -36,6 +46,7 @@ public struct StatModifier : ISerializable
         stream.WriteByte((byte)Type);
     }
 }
+
 public class Stat : ISerializable
 {
     public event Action<float, float>? ValueChanged;
@@ -44,14 +55,18 @@ public class Stat : ISerializable
     public event Action<StatModifier>? ModifierUpdated;
     public event Action<StatModifier>? ModifierRemoved;
 
-    public string Id { get; private set; }
+    public string Id { get; }
+    public float MinValue { get; private set; }
+    public float MaxValue { get; private set; }
+    public bool OverCap { get; private set; }
+    public bool UnderCap { get; private set; }
     private float baseValue;
     private float finalValue;
-    private Dictionary<string, StatModifier> modifiers;
+    private readonly Dictionary<string, StatModifier> modifiers;
 
     public float BaseValue
     {
-        get { return baseValue; }
+        get => baseValue;
         set
         {
             var old = baseValue;
@@ -61,16 +76,15 @@ public class Stat : ISerializable
         }
     }
 
-    public float FinalValue
-    {
-        get {
-            return finalValue;
-        }
-    }
+    public float FinalValue => finalValue;
 
-    public Stat(string id, float baseValue)
+    public Stat(string id, float baseValue, float min = 0, float max = float.MaxValue, bool overCap = true, bool underCap = true)
     {
         Id = id;
+        MinValue = min;
+        MaxValue = max;
+        OverCap = overCap;
+        UnderCap = underCap;
         this.baseValue = baseValue;
         modifiers = new Dictionary<string, StatModifier>();
     }
@@ -79,11 +93,15 @@ public class Stat : ISerializable
     {
         Id = stream.ReadString();
         baseValue = stream.ReadFloat();
+        MinValue = stream.ReadFloat();
+        MaxValue = stream.ReadFloat();
+        OverCap = stream.ReadBoolean();
+        UnderCap = stream.ReadBoolean();
         modifiers = new Dictionary<string, StatModifier>();
-        byte count = (Byte)stream.ReadByte();
+        byte count = (byte)stream.ReadByte();
         for (int i = 0; i < count; i++)
         {
-            StatModifier mod = new StatModifier(stream);
+            var mod = new StatModifier(stream);
             modifiers[mod.Id] = mod;
         }
         CalculateFinalValue();
@@ -91,12 +109,11 @@ public class Stat : ISerializable
 
     public void RemoveModifier(string id)
     {
-        if (modifiers.ContainsKey(id))
-        {
-            modifiers.Remove(id);
-            ModifierRemoved?.Invoke(modifiers[id]);
-            CalculateFinalValue();
-        }
+        if (!modifiers.ContainsKey(id)) return;
+        
+        modifiers.Remove(id);
+        ModifierRemoved?.Invoke(modifiers[id]);
+        CalculateFinalValue();
     }
     public void RemoveModifier(StatModifier modifier)
     {
@@ -105,53 +122,31 @@ public class Stat : ISerializable
 
     public void SetModifier(StatModifier modifier)
     {
-        var wasThere = modifiers.ContainsKey(modifier.Id);
+        bool wasThere = modifiers.ContainsKey(modifier.Id);
         modifiers[modifier.Id] = modifier;
         CalculateFinalValue();
         ModifierUpdated?.Invoke(modifier);
         if (!wasThere)
             ModifierAdded?.Invoke(modifier);
     }
-
-    public void AddDependency(Stat other, float weight, float maxVal = 1)
+    public void SetModifier(string id, float value, StatModifierType type)
     {
-        other.ValueChanged += (old, newVal) => {
-            SetModifier(new StatModifier(other.Id + "_dep", -((maxVal - newVal) * weight), StatModifierType.Percent));
-        };
+        SetModifier(new StatModifier(id, value, type));
     }
-
-    public void AddDependents(params (Stat dependent, float weight)[] deps)
+    public void AddModifier(string id, float value, StatModifierType type)
     {
-        foreach (var tuple in deps)
-            tuple.dependent.AddDependency(this, tuple.weight);
+        SetModifier(new StatModifier(id, value, type));
+    }
+    public void AddModifier(StatModifier modifier)
+    {
+        SetModifier(modifier);
     }
 
     private void CalculateFinalValue()
     {
-        var old = finalValue;
-        var newBase = baseValue;
-        finalValue = baseValue;
-        List<StatModifier> percentModifiers = new List<StatModifier>();
-        List<StatModifier> multiplierModifiers = new List<StatModifier>();
-        foreach (StatModifier modifier in modifiers.Values)
-        {
-            if (modifier.Type == StatModifierType.Flat)
-                newBase += modifier.Value;
-            else if (modifier.Type == StatModifierType.Percent) 
-                percentModifiers.Add(modifier);
-            else if (modifier.Type == StatModifierType.Multiplier)
-                multiplierModifiers.Add(modifier);
-        }
-        finalValue += newBase;
-        foreach (StatModifier modifier in percentModifiers)
-        {
-            finalValue += newBase * modifier.Value;
-        }
-        foreach (StatModifier modifier in multiplierModifiers)
-        {
-            finalValue *= 1 + modifier.Value;
-        }
-
+        float old = finalValue;
+        float newBase = baseValue;
+        finalValue = ApplyModifiers(modifiers.Values, newBase, MinValue, MaxValue, OverCap, UnderCap);
         ValueChanged?.Invoke(old, finalValue);
     }
 
@@ -159,8 +154,12 @@ public class Stat : ISerializable
     {
         stream.WriteString(Id);
         stream.WriteFloat(baseValue);
+        stream.WriteFloat(MinValue);
+        stream.WriteFloat(MaxValue);
+        stream.WriteBoolean(OverCap);
+        stream.WriteBoolean(UnderCap);
         stream.WriteByte((byte)modifiers.Count);
-        foreach (var modifier in modifiers.Values)
+        foreach (StatModifier modifier in modifiers.Values)
         {
             modifier.ToBytes(stream);
         }
@@ -175,9 +174,65 @@ public class Stat : ISerializable
         ModifierRemoved = null;
     }
 
-    public Dictionary<string, StatModifier>.ValueCollection GetModifiers()
+    public IEnumerable<StatModifier> GetModifiers()
     {
         return modifiers.Values;
+    }
+
+    public Stat Clone()
+    {
+        var ret = new Stat(Id, baseValue, MinValue, MaxValue, OverCap, UnderCap);
+        foreach (var mod in GetModifiers())
+            ret.AddModifier(mod);
+        return ret;
+    }
+
+    public static float ApplyModifiers(IEnumerable<StatModifier> modifiers, float baseValue = 0, float min = float.MinValue, float max = float.MaxValue, bool overCap = true, bool underCap = true)
+    {
+        float newBase = baseValue;
+        var percentModifiers = new List<StatModifier>();
+        var multiplierModifiers = new List<StatModifier>();
+        var minModifiers = new List<StatModifier>();
+        var maxModifiers = new List<StatModifier>();
+        foreach (StatModifier modifier in modifiers)
+        {
+            switch (modifier.Type)
+            {
+                case StatModifierType.Flat:
+                    newBase += modifier.Value;
+                    break;
+                case StatModifierType.Percent:
+                    percentModifiers.Add(modifier);
+                    break;
+                case StatModifierType.Multiplier:
+                    multiplierModifiers.Add(modifier);
+                    break;
+                case StatModifierType.Capmax:
+                    maxModifiers.Add(modifier);
+                    break;
+                case StatModifierType.Capmin:
+                    minModifiers.Add(modifier);
+                    break;
+            }
+        }
+        float finalValue = newBase;
+        foreach (StatModifier modifier in percentModifiers)
+        {
+            finalValue += newBase * modifier.Value;
+        }
+        foreach (StatModifier modifier in multiplierModifiers)
+        {
+            finalValue *= 1 + modifier.Value;
+        }
+
+        float minValue = minModifiers.Select(modifier => modifier.Value).Prepend(min).Max();
+        float maxValue = maxModifiers.Select(modifier => modifier.Value).Prepend(max).Min();
+        if (overCap)
+            finalValue = Math.Min(finalValue, maxValue);
+        if (underCap)
+            finalValue = Math.Max(finalValue, minValue);
+
+        return finalValue;
     }
 }
 
@@ -185,11 +240,10 @@ public static class CreatureStats
 {
     public const string AGILITY = "agility";
     public const string INTELLIGENCE = "intelligence";
-    public const string WISDOM = "wisdom";
-    public const string UTILITY_STRENGTH = "utility strength";
-    public const string MOVEMENT_STRENGTH = "movement strength";
+    public const string KNOWLEDGE =  "knowledge";
+    public const string WISDOM = KNOWLEDGE;
+    public const string STRENGTH = "strength";
     public const string PERCEPTION = "perception";
-    public const string DEXTERITY = "dexterity";
     public const string JUMP = "jump";
     public const string RESPIRATION = "respiration";
     public const string BLOOD_FLOW = "blood flow";
@@ -197,9 +251,25 @@ public static class CreatureStats
     public const string SIGHT = "sight";
     public const string HEARING = "hearing";
     public const string SOCIAL = "social";
+    public const string MOVEMENT = "movement";
+    public const string PAIN = "pain";
 
     public static string[] GetAllStats()
     {
         return typeof(CreatureStats).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static).Where(f => f.FieldType == typeof(string)).Select(f => (string)f.GetValue(null)).ToArray();
+    }
+
+    public static string GetUniqueStat(string stat, string partName)
+    {
+        return partName + "/" + stat;
+    }
+    public static string GetUniqueStat(string stat, BodyPart part)
+    {
+        return GetUniqueStat(stat, part.Name);
+    }
+
+    public static float GetAttributeModifier(float stat)
+    {
+        return stat/3;
     }
 }

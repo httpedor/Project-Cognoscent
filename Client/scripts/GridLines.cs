@@ -11,7 +11,7 @@ public partial class GridLines : Area2D
 	CollisionShape2D collision;
 	public GridLines(ClientBoard board){
 		this.board = board;
-		collision = new CollisionShape2D()
+		collision = new CollisionShape2D
 		{
 			DebugColor = new Color(0.2f, 0.2f, 0.2f, 0.2f)
 		};
@@ -33,7 +33,7 @@ public partial class GridLines : Area2D
         base._Draw();
 		ClientFloor floor = board.CurrentFloor;
 
-		collision.Shape = new RectangleShape2D(){
+		collision.Shape = new RectangleShape2D {
 			Size = floor.SizePixels
 		};
 		collision.Position = floor.SizePixels/2;

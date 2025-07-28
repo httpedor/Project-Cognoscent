@@ -1,6 +1,5 @@
 using Godot;
 using Rpg;
-using Rpg.Entities;
 using System;
 using System.IO;
 using System.Linq;
@@ -12,19 +11,19 @@ public partial class DoorNode : EntityNode
 	private Vector2 A;
 	private Vector2 B;
 	private Line2D Line;
-	public readonly Door Door;
+	public readonly DoorEntity Door;
 	private RectangleShape2D shape;
 	private LightOccluder2D occluder;
 
-	public DoorNode(Door door, ClientBoard board) : base(door, board)
+	public DoorNode(DoorEntity door, ClientBoard board) : base(door, board)
 	{
 		Door = door;
-		shape = new RectangleShape2D()
+		shape = new RectangleShape2D
 		{
 			Size = new Vector2((door.Bounds[0] - door.Bounds[1]).Length() * door.Floor.TileSize.X, door.Floor.TileSize.Y/6)
 		};
 		Hitbox.GetChild<CollisionShape2D>(0).Shape = shape;
-		occluder = new LightOccluder2D()
+		occluder = new LightOccluder2D
 		{
 			OccluderLightMask = 3,
 		};
@@ -34,22 +33,26 @@ public partial class DoorNode : EntityNode
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
-		Line = new Line2D()
+		Line = new Line2D
 		{
 			Visible = false,
 			Width = Door.Floor.TileSize.X/8
 		};
-		occluder.Occluder = new OccluderPolygon2D()
+		occluder.Occluder = new OccluderPolygon2D
 		{
 			Polygon = Door.Bounds.Select(p => (p * Door.Floor.TileSize).ToGodot()).ToArray(),
 			Closed = true
 		};
-		Door.Floor.OnImageChanged += (newImg) => {
-			using (var img = System.Drawing.Image.FromStream(new MemoryStream(newImg)))
+		Door.Floor.OnMidiaChanged += newMidia =>
+		{
+			if (newMidia.IsVideo)
+				return;
+			
+			using (var img = System.Drawing.Image.FromStream(new MemoryStream(newMidia.Bytes)))
 			{
 				var bitmap = new System.Drawing.Bitmap(img);
-				int imgX = (Int32)(Door.Position.X * Door.Floor.TileSize.X);
-				int imgY = (Int32)(Door.Position.Y * Door.Floor.TileSize.Y);
+				int imgX = (int)(Door.Position.X * Door.Floor.TileSize.X);
+				int imgY = (int)(Door.Position.Y * Door.Floor.TileSize.Y);
 				var c = bitmap.GetPixel(imgX, imgY);
 				Line.DefaultColor = new Color(c.R/255f, c.G/255f, c.B/255f, c.A/255f);
 				AddChild(Line);
@@ -69,7 +72,7 @@ public partial class DoorNode : EntityNode
 		B = B.Lerp(bound2, (float)delta*10);
 
 		Line.GlobalPosition = Vector2.Zero;
-		Line.Points = new Vector2[]{A * Door.Floor.TileSize.X, B * Door.Floor.TileSize.X};
+		Line.Points = new[]{A * Door.Floor.TileSize.X, B * Door.Floor.TileSize.X};
 
 		Hitbox.GlobalPosition = ((A + B)/2) * Door.Floor.TileSize.X;
 		Hitbox.Rotation = Mathf.Atan2(B.Y - A.Y, B.X - A.X);
@@ -83,15 +86,9 @@ public partial class DoorNode : EntityNode
 		else
 			occluder.Visible = true;
 		occluder.GlobalPosition = Vector2.Zero;
-		occluder.Occluder.Polygon = new Godot.Vector2[2]{Door.Bounds[0].ToGodot() * Door.Floor.TileSize.ToGodot(), occluder.Occluder.Polygon[1].Lerp(bound2 * Door.Floor.TileSize.ToGodot(), (Single)(delta * 10))};
+		occluder.Occluder.Polygon = new Godot.Vector2[2]{Door.Bounds[0].ToGodot() * Door.Floor.TileSize.ToGodot(), occluder.Occluder.Polygon[1].Lerp(bound2 * Door.Floor.TileSize.ToGodot(), (float)(delta * 10))};
 
 	}
-
-    public override void _Draw()
-    {
-        base._Draw();
-		//DrawPolyline(Polygon, Colors.Red);
-    }
 
     public override void OnClick()
     {

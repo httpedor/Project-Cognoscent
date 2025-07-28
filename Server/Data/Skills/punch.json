@@ -1,0 +1,7 @@
+﻿{
+  "type": "attack",
+  "name": "Soco",
+  "description": "Da um soco",
+  "icon": "punch",
+  "damage": "(creature[CreatureStats.STRENGTH], DamageType.Blunt)"
+}

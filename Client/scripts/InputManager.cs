@@ -6,7 +6,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
-using Rpg.Entities;
+using Rpg.Inventory;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
 
@@ -87,7 +87,7 @@ public partial class InputManager : SubViewportContainer
 	public async Task<Entity?> RequestEntityAsync(Predicate<Entity>? predicate = null)
 	{
 		TaskCompletionSource<Entity?> result = new();
-		RequestEntity((ent) => {
+		RequestEntity(ent => {
 			result.SetResult(ent);
 		}, predicate);
 		return await result.Task;
@@ -108,7 +108,7 @@ public partial class InputManager : SubViewportContainer
 	public async Task<Vector3?> RequestPositionAsync(Predicate<Vector3>? predicate = null)
 	{
 		TaskCompletionSource<Vector3?> result = new();
-		RequestPosition((pos) => {
+		RequestPosition(pos => {
 			result.SetResult(pos);
 		}, predicate);
 		return await result.Task;
@@ -117,11 +117,11 @@ public partial class InputManager : SubViewportContainer
 	public async Task<BodyPart?> RequestBodyPartAsync(Body body, Predicate<BodyPart>? predicate = null)
 	{
 		TaskCompletionSource<BodyPart?> result = new();
-		BodyInspector.Instance.Show(body, new BodyInspector.BodyInspectorSettings()
+		BodyInspector.Instance.Show(body, new BodyInspector.BodyInspectorSettings
 		{
 			CloseAfterSelected = true,
 			Predicate = predicate,
-			OnPick = (bp) => {
+			OnPick = bp => {
 				result.SetResult(bp);
 			}
 		});
@@ -174,7 +174,7 @@ public partial class InputManager : SubViewportContainer
 		CancelEntityRequest();
 	}
 
-	private void ExecuteContextMenuAction(Creature creature, Rpg.Skill action, Vector2 pos)
+	private void ExecuteContextMenuAction(Creature creature, Skill action, Vector2 pos)
 	{
 		//NetworkManager.Instance.SendPacket(new CreatureActionExecutePacket(action, creature));
 		RadialMenu.Instance.Hide();
@@ -191,11 +191,101 @@ public partial class InputManager : SubViewportContainer
 				Icons.GetIcon(action.GetIconName()),
 				action.GetName(),
 				action.GetDescription(),
-				(pos) => {
+				pos => {
 					ExecuteContextMenuAction(creature, action, pos);
 				}
 			));
 		}
+	}
+
+	public async Task<List<SkillArgument>?> RequestSkillArguments(Creature creature, ISkillSource source, Skill skill)
+	{
+		List<SkillArgument> arguments = new();
+		int index = 0;
+		foreach (var argSet in skill.GetArguments())
+		{
+			TaskCompletionSource<SkillArgument?> result = new();
+			if (argSet.Contains(typeof(BodyPartSkillArgument)))
+			{
+				Predicate<BodyPart> bpPredicate = bp => skill.CanUseArgument(creature, source, index, new BodyPartSkillArgument(bp));
+				if (argSet.Contains(typeof(EntitySkillArgument)))
+				{
+					Instance.RequestEntity(ent =>
+					{
+						switch (ent)
+						{
+							case null:
+								result.SetResult(null);
+								return;
+							case Creature c:
+								BodyInspector.Instance.Show(c.Body, new BodyInspector.BodyInspectorSettings
+								{
+									Predicate = bpPredicate,
+									OnPick = bp =>
+									{
+										result.SetResult(bp == null ? null : new BodyPartSkillArgument(bp));
+									}
+								});
+								break;
+							default:
+								result.SetResult(new EntitySkillArgument(ent));
+								break;
+						}
+					}, ent => ent is Creature || skill.CanUseArgument(creature, source, index, new EntitySkillArgument(ent)));
+				}
+				else
+				{
+					Instance.RequestEntity(ent =>
+					{
+						if (ent == null)
+							return;
+						
+						var c = (Creature)ent;
+						BodyInspector.Instance.Show(c.Body, new BodyInspector.BodyInspectorSettings
+						{
+							Predicate = bpPredicate,
+							OnPick = bp => {
+								if (bp == null)
+									result.SetResult(null);
+								else
+									result.SetResult(new BodyPartSkillArgument(bp));
+							}
+						});
+					}, ent => ent is Creature);
+				}
+			}
+			else if (argSet.Contains(typeof(EntitySkillArgument)))
+			{
+				bool Predicate(Entity ent) => skill.CanUseArgument(creature, source, index, new EntitySkillArgument(ent));
+				RequestEntity(ent => { result.SetResult(ent == null ? null : new EntitySkillArgument(ent)); }, Predicate);
+			}
+
+			if (argSet.Contains(typeof(PositionSkillArgument)))
+			{
+				bool Predicate(Vector3 pos) => skill.CanUseArgument(creature, source, index, new PositionSkillArgument(pos.ToNumerics()));
+				Instance.RequestPosition(pos =>
+				{
+					result.SetResult(pos == null
+						? null
+						: new PositionSkillArgument(((Vector3)pos).ToNumerics()));
+				}, Predicate);
+			}
+
+			if (argSet.Contains(typeof(BooleanSkillArgument)))
+			{
+				Modal.OpenConfirmationDialog("Action Boolean", "Sim ou Não", b => {
+					result.SetResult(new BooleanSkillArgument(b));
+				}, "Sim", "Não");
+			}
+
+			var arg = await result.Task;
+			if (arg == null)
+				return null;
+			arguments.Add(arg);
+			index++;
+		}
+
+		return arguments;
 	}
 
 	private void HandleContextMenu(ClientBoard board)
@@ -212,26 +302,24 @@ public partial class InputManager : SubViewportContainer
 
 			if (InputPriority == null)
 			{
-				ContextMenu.AddOption("Criar Criatura", (pos) => {
+				ContextMenu.AddOption("Criar Criatura", pos => {
 					ContextMenu.Hide();
-					Modal.OpenFormDialog("Criar Criatura", (info) => {
-						string name = info["Nome"] as string;
-						BodyType bt = (BodyType)info["Corpo"];
-						byte[] img = (Byte[])info["Imagem"];
-						var fileName = info["Imagem_fName"] as string;
-						Creature c = new Creature()
+					Modal.OpenFormDialog("Criar Criatura", info => {
+						string name = (info["Nome"] as string)!;
+						string btName = (info["Corpo"] as string)!;
+						Midia img = (Midia)info["Imagem"];
+						var bodyJson = Compendium.GetEntry<Body>(btName);
+						var body = Body.NewBody(bodyJson);
+						if (body == null)
+							return;
+						Creature created = new Creature(body)
 						{
+							Name = name,
 							Position = new System.Numerics.Vector3(board.CurrentFloor.PixelToWorld(new System.Numerics.Vector2(Mathf.Floor(pos.X), Mathf.Floor(pos.Y))), board.FloorIndex),
-							Display = new Midia(img, fileName),
+							Display = img
 						};
-						switch (bt)
-						{
-							case BodyType.Humanoid:
-								c.Body = Body.NewHumanoidBody(c);
-								break;
-						}
-						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, c));
-					}, ("Nome", "Nome1", null), ("Corpo", BodyType.Humanoid, null), ("Imagem", new byte[0], null));
+						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, created));
+					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<Body>().ToArray(), null), ("Imagem", new Midia(), null));
 				});
 			}
 		}
@@ -244,7 +332,7 @@ public partial class InputManager : SubViewportContainer
 		if (board.SelectedEntity != null && (GameManager.IsGm || (board.SelectedEntity is Creature c && c.Owner == GameManager.Instance.Username)))
 		{
 			var entity = board.SelectedEntity;
-			ContextMenu.AddOption("Olhar Aqui", (pos) => {
+			ContextMenu.AddOption("Olhar Aqui", pos => {
 				var worldPos = board.PixelToWorld(pos);
 				var rotation = (worldPos - entity.Position.ToGodot().ToV2()).Angle();
 				NetworkManager.Instance.SendPacket(new EntityRotationPacket(entity, rotation));
@@ -253,12 +341,12 @@ public partial class InputManager : SubViewportContainer
 
 			if (GameManager.IsGm)
 			{
-				ContextMenu.AddOption("Teleportar Aqui", (pos) => {
+				ContextMenu.AddOption("Teleportar Aqui", pos => {
 					var worldPos = board.CurrentFloor.PixelToTileCenter(pos);
 					NetworkManager.Instance.SendPacket(new EntityPositionPacket(entity, new System.Numerics.Vector3(worldPos.ToNumerics(), entity.FloorIndex)));
 					ContextMenu.Hide();
 				});
-				ContextMenu.AddOption("Teleportar Exatamente Aqui", (pos) => {
+				ContextMenu.AddOption("Teleportar Exatamente Aqui", pos => {
 					var worldPos = board.CurrentFloor.PixelToWorld(pos);
 					NetworkManager.Instance.SendPacket(new EntityPositionPacket(entity, new System.Numerics.Vector3(worldPos.ToNumerics(), entity.FloorIndex)));
 					ContextMenu.Hide();
@@ -316,9 +404,9 @@ public partial class InputManager : SubViewportContainer
 	{
 		if (line == null && board.SelectedEntity != null && positionCallback != null)
 		{
-			line = new Line2D()
+			line = new Line2D
 			{
-				Material = new CanvasItemMaterial()
+				Material = new CanvasItemMaterial
 				{
 					LightMode = CanvasItemMaterial.LightModeEnum.Unshaded
 				},
@@ -347,13 +435,44 @@ public partial class InputManager : SubViewportContainer
 		if (GameManager.Instance.CurrentBoard == null)
 			return;
 
-		var prop = new PropEntity()
+		var prop = new PropEntity
 		{
 			Position = new System.Numerics.Vector3(GameManager.Instance.CurrentBoard.CurrentFloor.PixelToWorld(MousePosition).ToNumerics(), GameManager.Instance.CurrentBoard.FloorIndex),
 			Display = new Midia(files[0]),
 		};
 		NetworkManager.Instance.SendPacket(new EntityCreatePacket(GameManager.Instance.CurrentBoard, prop));
 	}
+
+	public void PopulateContextMenuWithItem(Item item)
+	{
+        var owned = GameManager.Instance.CurrentBoard.OwnedSelectedEntity;
+        if (owned != null)
+        {
+            var ep = item.GetProperty<EquipmentProperty>();
+            if (ep != null)
+            {
+                foreach (var bp in owned.Body.GetPartsThatCanEquip(ep.Slot))
+                {
+                    if (bp.CanAddItem(item))
+                    {
+                        ContextMenu.AddOption("Equipar Em: " + bp.Name, _ => {
+                            NetworkManager.Instance.SendPacket(new CreatureEquipItemPacket(bp, ep.Slot, item));
+                        });
+                    }
+                }
+            }
+            foreach (var bp in owned.Body.GetPartsThatCanEquip(EquipmentSlot.Hold))
+            {
+                if (bp.CanAddItem(item))
+                {
+                    ContextMenu.AddOption("Pegar Com " + bp.Name, _ => {
+                        NetworkManager.Instance.SendPacket(new CreatureEquipItemPacket(bp, EquipmentSlot.Hold, item));
+                    });
+                }
+            }
+        }
+	}
+
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
@@ -409,7 +528,7 @@ public partial class InputManager : SubViewportContainer
 				RadialMenu.Instance.Show();
 			}
 
-			if (!board.CombatMode)
+			if (!board.TurnMode)
 				HandleMovement(board, creature);
 		}
 

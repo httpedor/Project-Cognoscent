@@ -1,9 +1,8 @@
-namespace Rpg.Entities;
+namespace Rpg;
 
 public class PropEntity : Entity
 {
-    public byte[] MidiaToShow;
-    public bool IsShownMidiaVideo;
+    public Midia? ShownMidia;
     public override EntityType GetEntityType()
     {
         return EntityType.Prop;
@@ -11,21 +10,26 @@ public class PropEntity : Entity
 
     public PropEntity() : base()
     {
-        MidiaToShow = new byte[0];
-        IsShownMidiaVideo = false;
+        ShownMidia = null;
     }
     public PropEntity(Stream stream) : base(stream)
     {
-        MidiaToShow = stream.ReadExactly(stream.ReadUInt32());
-        IsShownMidiaVideo = stream.ReadByte() != 0;
+        if (stream.ReadByte() != 0)
+            ShownMidia = new Midia(stream);
+        else
+            ShownMidia = null;
     }
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
 
-        stream.WriteUInt32((UInt32)MidiaToShow.Length);
-        stream.Write(MidiaToShow);
-        stream.WriteByte((Byte)(IsShownMidiaVideo ? 1 : 0));
+        if (ShownMidia.HasValue)
+        {
+            stream.WriteByte(1);
+            ShownMidia.Value.ToBytes(stream);
+        }
+        else
+            stream.WriteByte(0);
     }
 }

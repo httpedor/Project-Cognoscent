@@ -1,6 +1,6 @@
 using System.Drawing;
 using System.Numerics;
-using Rpg.Entities;
+using Rpg;
 
 namespace Rpg;
 
@@ -19,7 +19,7 @@ public struct Polygon : ISerializable {
     }
 
     public void ToBytes(Stream stream){
-            stream.Write(BitConverter.GetBytes((UInt16)points.Length));
+            stream.Write(BitConverter.GetBytes((ushort)points.Length));
             foreach (Vector2 point in points)
             {
                 stream.WriteVec2(point);
@@ -33,9 +33,9 @@ public struct Light : ISerializable {
     public Vector2 Position;
     public float Range;
     public float Intensity;
-    public UInt32 Color;
+    public uint Color;
     public bool Shadows;
-    public Light(Vector2 position, float range, float intensity, UInt32 color, bool shadows){
+    public Light(Vector2 position, float range, float intensity, uint color, bool shadows){
         Position = position;
         Range = range;
         Intensity = intensity;
@@ -63,26 +63,29 @@ public struct Light : ISerializable {
 
 public abstract class Floor
 {
-    public event Action<byte[]>? OnImageChanged;
+    public event Action<Midia>? OnMidiaChanged;
     public enum TileFlag{
         AIR = 0x0,
         FLOOR = 0x1,
+        IS_STAIR = 0x2,
+        STAIR_HORIZONTAL = 0x4,
+        STAIR_INVERSE = 0x8
     }
 
     public Vector2 Size { get; protected set; }
     public Vector2 TileSize { get; protected set; }
-    public UInt32 AmbientLight {get; set;}
+    public uint AmbientLight {get; set;}
     public Polygon[] Walls = Array.Empty<Polygon>();
     public Polygon[] LineOfSight = Array.Empty<Polygon>();
-    public UInt32[] TileFlags = Array.Empty<UInt32>();
+    public uint[] TileFlags = Array.Empty<uint>();
     public float DefaultEntitySight;
-    public byte[] Image { get; protected set;}
+    public Midia Display { get; protected set;}
 
     private void GenerateTiles(){
-        TileFlags = new UInt32[(int)(Size.X * Size.Y)];
+        TileFlags = new uint[(int)(Size.X * Size.Y)];
         for (int i = 0; i < TileFlags.Length; i++)
         {
-            TileFlags[i] = (UInt32)TileFlag.FLOOR;
+            TileFlags[i] = (uint)TileFlag.FLOOR;
         }
     }
 
@@ -90,41 +93,44 @@ public abstract class Floor
         Size = new Vector2(10, 10);
         TileSize = new Vector2(32, 32);
         AmbientLight = 0xFFFFFFFF;
-        Image = new byte[0];
+        Display = new Midia();
         DefaultEntitySight = MathF.Max(Size.X, Size.Y);
         GenerateTiles();
     }
 
-    public Floor(Vector2 size, Vector2 tileSize, UInt32 ambientLight){
+    public Floor(Vector2 size, Vector2 tileSize, uint ambientLight){
         Size = size;
         TileSize = tileSize;
         AmbientLight = ambientLight;
-        Image = new byte[0];
+        Display = new Midia();
         DefaultEntitySight = MathF.Max(Size.X, Size.Y);
         GenerateTiles();
     }
 
     public void UpdateTilesFromImage()
     {
-        TileFlags = new UInt32[(int)(Size.X * Size.Y)];
-        using (Image img = System.Drawing.Image.FromStream(new MemoryStream(Image)))
+        TileFlags = new uint[(int)(Size.X * Size.Y)];
+        if (Display.IsVideo)
+            return;
+        
+        using (Image img = Image.FromStream(new MemoryStream(Display.Bytes)))
         {
             var bitmap = new Bitmap(img);
             for (int i = 0; i < TileFlags.Length; i++)
             {
-                int x = (Int32)(i % Size.X);
-                int y = (Int32)(i / Size.X);
-                int imgX = (Int32)(x * TileSize.X + TileSize.X / 2);
-                int imgY = (Int32)(y * TileSize.Y + TileSize.Y / 2);
+                int x = (int)(i % Size.X);
+                int y = (int)(i / Size.X);
+                int imgX = (int)(x * TileSize.X + TileSize.X / 2);
+                int imgY = (int)(y * TileSize.Y + TileSize.Y / 2);
                 Color c = bitmap.GetPixel(imgX, imgY);
 
-                TileFlags[i] = c.A == 0 ? (UInt32)TileFlag.AIR : (UInt32)TileFlag.FLOOR;
+                TileFlags[i] = c.A == 0 ? (uint)TileFlag.AIR : (uint)TileFlag.FLOOR;
             }
         }
     }
 
     public bool TileHasFlag(Vector2 position, TileFlag flag){
-        return (TileFlags[(int)(MathF.Floor(position.Y) * Size.X + MathF.Floor(position.X))] & (UInt32)flag) != 0;
+        return (TileFlags[(int)(MathF.Floor(position.Y) * Size.X + MathF.Floor(position.X))] & (uint)flag) != 0;
     }
 
     public Vector2 WorldToPixel(Vector2 world){
@@ -142,13 +148,29 @@ public abstract class Floor
         return TileHasFlag(position, TileFlag.FLOOR);
     }
 
-    public byte[] GetImage(){
-        return Image;
+    public Vector2? GetTileStairs(Vector2 position)
+    {
+        if (!TileHasFlag(position, TileFlag.IS_STAIR))
+            return null;
+        Vector2 dir;
+        if (TileHasFlag(position, TileFlag.STAIR_HORIZONTAL))
+            dir = new Vector2(1, 0);
+        else
+            dir = new Vector2(0, 1);
+        if (TileHasFlag(position, TileFlag.STAIR_INVERSE))
+            dir *= -1;
+
+        return dir;
     }
 
-    public virtual void SetImage(byte[] image){
-        OnImageChanged?.Invoke(image);
-        Image = image;
+    public byte[] GetImage(){
+        return Display.Bytes;
+    }
+
+    public virtual void SetMidia(Midia midia)
+    {
+        OnMidiaChanged?.Invoke(midia);
+        Display = midia;
     }
 
     public Vector2? GetIntersection(Vector2 start, Vector2 end){

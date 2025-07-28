@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://dk2b0rkgb8jqd"]
+[gd_scene load_steps=7 format=3 uid="uid://dk2b0rkgb8jqd"]
 
 [ext_resource type="Material" uid="uid://cuqud7gib1ekc" path="res://materials/entity.material" id="1_6qxao"]
 [ext_resource type="Texture2D" uid="uid://ctt3y5y57k254" path="res://assets/sprites/entity-mask.jpg" id="2_cijjq"]
@@ -13,6 +13,9 @@ _data = {
 &"test": ExtResource("3_qhhsx")
 }
 
+[sub_resource type="LabelSettings" id="LabelSettings_m0cyi"]
+font_size = 32
+
 [node name="Entity" type="Node2D"]
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
@@ -22,5 +25,14 @@ region_rect = Rect2(0, 0, 128, 64)
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
-"": SubResource("AnimationLibrary_dlvdr")
+&"": SubResource("AnimationLibrary_dlvdr")
 }
+
+[node name="Label" type="Label" parent="."]
+offset_left = -201.68
+offset_right = 191.32
+offset_bottom = 45.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "Oi meu nome é pedrooo!!"
+label_settings = SubResource("LabelSettings_m0cyi")

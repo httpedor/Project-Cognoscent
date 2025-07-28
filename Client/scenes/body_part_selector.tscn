@@ -28,6 +28,17 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="Label" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 69.0
+grow_horizontal = 2
+text = "Nenhuma Parte Selecionada"
+label_settings = SubResource("LabelSettings_sa0ee")
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="HumanoidBody" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -52,17 +63,6 @@ texture = ExtResource("2_u31em")
 expand_mode = 2
 stretch_mode = 5
 
-[node name="Label" type="Label" parent="HumanoidBody"]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_bottom = 23.0
-grow_horizontal = 2
-text = "Nenhuma Parte Selecionada"
-label_settings = SubResource("LabelSettings_sa0ee")
-horizontal_alignment = 1
-vertical_alignment = 1
-
 [node name="PartButtons" type="Control" parent="HumanoidBody"]
 layout_mode = 1
 anchors_preset = 15
@@ -81,7 +81,7 @@ anchor_right = 0.448
 anchor_bottom = 0.565
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/shoulder right/arm right/hand right"
+BodyPartPath = "Torso/Ombro Direito/Braço Direito/Mão Direita"
 
 [node name="HandLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -92,7 +92,7 @@ anchor_right = 0.585
 anchor_bottom = 0.567
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/shoulder left/arm left/hand left"
+BodyPartPath = "Torso/Ombro Esquerdo/Braço Esquerdo/Mão Esquerda"
 
 [node name="ArmLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -103,7 +103,7 @@ anchor_right = 0.57
 anchor_bottom = 0.484
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/shoulder left/arm left"
+BodyPartPath = "Torso/Ombro Esquerdo/Braço Esquerdo"
 
 [node name="ArmRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -114,7 +114,7 @@ anchor_right = 0.463
 anchor_bottom = 0.484
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/shoulder right/arm right"
+BodyPartPath = "Torso/Ombro Direito/Braço Direito"
 
 [node name="ShoulderLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -125,7 +125,7 @@ anchor_right = 0.555
 anchor_bottom = 0.33
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/shoulder left"
+BodyPartPath = "Torso/Ombro Esquerdo"
 
 [node name="ShoulderRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -136,7 +136,7 @@ anchor_right = 0.468
 anchor_bottom = 0.33
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/shoulder right"
+BodyPartPath = "Torso/Ombro Direito"
 
 [node name="Head" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -147,7 +147,7 @@ anchor_right = 0.525
 anchor_bottom = 0.24
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/neck/head"
+BodyPartPath = "Torso/Pescoço/Cabeça"
 
 [node name="Neck" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -158,7 +158,7 @@ anchor_right = 0.519
 anchor_bottom = 0.258
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/neck"
+BodyPartPath = "Torso/Pescoço"
 
 [node name="Torso" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -169,7 +169,7 @@ anchor_right = 0.531
 anchor_bottom = 0.524
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso"
+BodyPartPath = "Torso"
 
 [node name="LegRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -180,7 +180,7 @@ anchor_right = 0.498
 anchor_bottom = 0.776
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/leg right"
+BodyPartPath = "Torso/Perna Direita"
 
 [node name="LegLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -191,7 +191,7 @@ anchor_right = 0.538
 anchor_bottom = 0.776
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/leg left"
+BodyPartPath = "Torso/Perna Esquerda"
 
 [node name="FootRight" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -202,7 +202,7 @@ anchor_right = 0.498
 anchor_bottom = 0.864
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/leg right/foot right"
+BodyPartPath = "Torso/Perna Direita/Pé Direito"
 
 [node name="FootLeft" type="ColorRect" parent="HumanoidBody/PartButtons"]
 layout_mode = 1
@@ -213,7 +213,7 @@ anchor_right = 0.526
 anchor_bottom = 0.864
 color = Color(1, 0, 0, 0.415686)
 script = ExtResource("3_p32xw")
-BodyPartPath = "torso/leg left/foot left"
+BodyPartPath = "Torso/Perna Esquerda/Pé Esquerdo"
 
 [node name="Specifics" type="VBoxContainer" parent="."]
 layout_mode = 1

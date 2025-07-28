@@ -1,30 +1,38 @@
 using Godot;
-using Rpg.Entities;
+using Rpg;
 using System;
 using System.Threading.Tasks;
+using TTRpgClient.scripts.ui;
 
 public partial class BodyInspector : Control
 {
 	public class BodyInspectorSettings {
 		public static readonly BodyInspectorSettings EMPTY = new BodyInspectorSettings();
-		public static readonly BodyInspectorSettings HEALTH = new BodyInspectorSettings()
+		public static readonly BodyInspectorSettings HEALTH = new BodyInspectorSettings
 		{
-			InText = (bp) => {
-				return bp.Health + "/" + bp.MaxHealth;
-			},
-			CustomText = (bp) => {
-				var txt =  "Feridas:\n";
+			InText = bp => bp.Health + "/" + bp.MaxHealth,
+			CustomText = bp => {
+				string txt =  "Feridas:\n";
 				foreach (var injury in bp.Injuries)
 				{
-					txt += injury.Type.Translation + "(" + injury.Severity + ")\n";
+					txt += injury.Type.Name + "(" + injury.Severity + ")\n";
 				}
 				return txt;
+			},
+			BackgroundColor = bp =>
+			{
+				double health = bp.Health;
+				if (health <= 0)
+					return Colors.DimGray;
+				return Colors.Green.Lerp(Colors.Red, 1f - (float)(health / bp.MaxHealth));
 			}
 		};
-		public Action<BodyPart?>? OnPick = null;
-		public Predicate<BodyPart>? Predicate = null;
-		public Func<BodyPart, string>? CustomText = null;
-		public Func<BodyPart, string>? InText = null;
+		public Action<BodyPart?>? OnPick;
+		public Predicate<BodyPart>? Predicate;
+		public Func<BodyPart, string>? CustomText;
+		public Func<BodyPart, string>? InText;
+		public Func<BodyPart, Texture2D>? Icon;
+		public Func<BodyPart, Color>? BackgroundColor;
 		public bool CloseAfterSelected = true;
 
 		public BodyInspectorSettings()
@@ -38,6 +46,8 @@ public partial class BodyInspector : Control
 			CustomText = clone.CustomText;
 			InText = clone.InText;
 			CloseAfterSelected = clone.CloseAfterSelected;
+			Icon = clone.Icon;
+			BackgroundColor = clone.BackgroundColor;
 		}
 	}
 	public event Action<Body?, Body?>? BodyChanged;
@@ -46,47 +56,29 @@ public partial class BodyInspector : Control
 		get;
 		private set;
 	} = BodyInspectorSettings.EMPTY;
-	private Body? _body;
+
 	public Body? Body
 	{
-		get
-		{
-			return _body;
-		}
+		get;
 		private set
 		{
-			BodyChanged?.Invoke(_body, value);
-			_body = value;
+			BodyChanged?.Invoke(field, value);
+			field = value;
 			humanoidBodySelector.Visible = false;
-			if (Body != null)
-			{
-				switch (Body.Type)
-				{
-					case BodyType.Humanoid:
-					{
-						humanoidBodySelector.Visible = true;
-						break;
-					}
-					default:
-					{
-						break;
-					}
-				}
-			}
+			if (Body == null) return;
+			if (Body.IsHumanoid)
+				humanoidBodySelector.Visible = true;
 		}
 	}
-	private BodyPart? _current;
+
 	public BodyPart? Current
 	{
-		get
-		{
-			return _current;
-		}
+		get;
 		set
 		{
-			if (value != null && value.BodyInfo != Body)
+			if (value != null && value.Body != Body)
 				GD.PushWarning("BodyPart from other body selected on BPSelector screen");
-			_current = value;
+			field = value;
 			foreach (var control in specificsContainer.GetChildren())
 			{
 				if (control is Button)
@@ -94,19 +86,19 @@ public partial class BodyInspector : Control
 			}
 			customLabel.Text = "";
 
-			if (_current != null)
+			if (field != null)
 			{
-				humanoidSelectedLbl.Text = BodyPart.Parts.Translate(_current.Name);
+				selectedLbl.Text = field.Name;
 				if (Settings.CustomText != null)
-					customLabel.Text = Settings.CustomText.Invoke(_current);
-				foreach (var child in _current.Children)
+					customLabel.Text = Settings.CustomText.Invoke(field);
+				foreach (var child in field.Children)
 				{
 					if ((child.IsInternal || child.OverlapsParent) && (Settings.Predicate == null || Settings.Predicate(child) || child.Children.Count > 0))
 					{
-						var btn = new Button()
+						var btn = new Button
 						{
 							Name = child.Name,
-							Text = BodyPart.Parts.Translate(child.Name),
+							Text = child.Name,
 						};
 						btn.Pressed += () => {
 							Current = child;
@@ -123,46 +115,44 @@ public partial class BodyInspector : Control
 			}
 			else
 			{
-				humanoidSelectedLbl.Text = "Nenhuma Parte Selecionada";
+				selectedLbl.Text = "Nenhuma Parte Selecionada";
 			}
 		}
 	}
+
 	private VBoxContainer specificsContainer;
 	private Label customLabel;
-	private Label humanoidSelectedLbl;
+	private Label selectedLbl;
 	private Button readyBtn;
 	private TextureRect hideBtn;
 	private Control humanoidBodySelector;
 	private static BodyInspector _instance;
-	public static BodyInspector Instance
-	{
-		get {
-			return _instance;
-		}
-	}
+	public static BodyInspector Instance => _instance;
+
 	public BodyInspector()
 	{
 		_instance = this;
 	}
+
+	public void SelectCurrent()
+	{
+		if (Settings.OnPick == null || Current == null) return;
+		Settings.OnPick(Current);
+		if (!Settings.CloseAfterSelected) return;
+		
+		Settings.OnPick = null;
+		Hide();
+	}
+	
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
 		humanoidBodySelector = GetNode<Control>("HumanoidBody");
-		humanoidSelectedLbl = humanoidBodySelector.GetNode<Label>("Label");
+		selectedLbl = GetNode<Label>("Label");
 		specificsContainer = GetNode<VBoxContainer>("Specifics");
 		customLabel = GetNode<Label>("Customs/Label");
 		readyBtn = GetNode<Button>("Button");
-		readyBtn.Pressed += () => {
-			if (Settings.OnPick != null && Current != null)
-			{
-				Settings.OnPick(Current);
-				if (Settings.CloseAfterSelected)
-				{
-					Settings.OnPick = null;
-					Hide();
-				}
-			}
-		};
+		readyBtn.Pressed += SelectCurrent;
 		hideBtn = GetNode<TextureRect>("CloseBtn");
 		hideBtn.GuiInput += (ev) => {
 			if (ev is InputEventMouseButton iemb && iemb.Pressed)
@@ -180,15 +170,17 @@ public partial class BodyInspector : Control
 		Settings = settings;
 		Body = body;
 		Visible = true;
-		
 
-		if (settings.OnPick == null)
-			readyBtn.Visible = false;
+		if (body.IsHumanoid)
+			humanoidBodySelector.Visible = true;
 		else
-			readyBtn.Visible = true;
+			humanoidBodySelector.Visible = false;
+
+		readyBtn.Visible = settings.OnPick != null;
+		ActionBar.Hide();
 	}
 
-	public void Hide()
+	public new void Hide()
 	{
 		if (Settings.OnPick != null)
 		{
@@ -198,12 +190,13 @@ public partial class BodyInspector : Control
 		Visible = false;
 		Body = null;
 		Current = null;
+		ActionBar.Show();
 	}
 
     public override void _GuiInput(InputEvent @event)
     {
         base._GuiInput(@event);
-		if (@event is InputEventMouseButton iemb && iemb.Pressed)
+		if (@event is InputEventMouseButton { Pressed: true })
 		{
 			AcceptEvent();
 			Current = null;

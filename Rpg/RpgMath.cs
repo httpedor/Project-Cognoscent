@@ -66,4 +66,35 @@ public static class RpgMath
     {
         return firstFloat * (1 - by) + secondFloat * by;
     }
+    public static double Lerp(double firstDouble, double secondDouble, double by)
+    {
+        return firstDouble * (1 - by) + secondDouble * by;
+    }
+
+    public static float RandomFloat()
+    {
+        return (float) new Random().NextDouble();
+    }
+    public static float RandomFloat(float min, float max)
+    {
+        return min + (max - min) * RandomFloat();
+    }
+    public static int RandomInt()
+    {
+        return new Random().Next();
+    }
+    public static int RandomInt(int min, int max)
+    {
+        return new Random().Next(min, max);
+    }
+
+    public static double RandomGaussian(double mean, double stdDev = 0)
+    {
+        Random rand = new Random(); //reuse this if you are generating many
+        double u1 = 1.0-rand.NextDouble(); //uniform(0,1] random doubles
+        double u2 = 1.0-rand.NextDouble();
+        double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
+                    Math.Sin(2.0 * Math.PI * u2); //random normal(0,1)
+        return mean + stdDev * randStdNormal; //random normal(mean,stdDev^2)
+    }
 }

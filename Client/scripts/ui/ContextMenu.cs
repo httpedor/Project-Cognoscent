@@ -8,7 +8,7 @@ public static class ContextMenu
 {
     private static PopupMenu popupMenu;
     private static int addedSinceLastSep = 0;
-    private static Dictionary<string, Action<Vector2>> callbacks = new();
+    private static Dictionary<string, (Action<Vector2> action, bool autoHide)> callbacks = new();
     private static Vector2 lastPos;
 
     public static bool IsOpen => popupMenu.Visible;
@@ -24,7 +24,10 @@ public static class ContextMenu
         };
         popupMenu.IndexPressed += (index) =>
         {
-            callbacks[popupMenu.GetItemText((Int32)index)](lastPos);
+            var cb = callbacks[popupMenu.GetItemText((Int32)index)];
+            cb.action(lastPos);
+            if (cb.autoHide)
+                Hide();
         };
         popupMenu.PopupHide += () => {
             callbacks.Clear();
@@ -32,11 +35,12 @@ public static class ContextMenu
         };
     }
 
-    public static void AddOption(string title, Action<Vector2> action)
+    public static void AddOption(string title, Action<Vector2> action, bool autoHide = true)
     {
         popupMenu.AddItem(title);
         addedSinceLastSep++;
-        callbacks[title] = action;
+        callbacks[title] = (action, autoHide);
+
     }
     public static void AddSeparator()
     {

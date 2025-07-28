@@ -1,4 +1,4 @@
-namespace Rpg.Entities;
+namespace Rpg;
 
 public class LightEntity : Entity
 {

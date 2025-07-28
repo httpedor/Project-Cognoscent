@@ -2,20 +2,23 @@ using System.Buffers.Text;
 using System.Numerics;
 using Rpg.Inventory;
 
-namespace Rpg.Entities;
+namespace Rpg;
 
-public class ItemEntity : Entity
+public class ItemEntity : Entity, IItemHolder
 {
-    private Item _item;
     public Item Item
     {
-        get => _item;
+        get => field;
         set
         {
-            _item = value;
-            //Size = new Vector3(value.Size, 0.01f);
+            field = value;
         }
     }
+
+    public IEnumerable<Item> Items => new []{Item};
+    Board? IItemHolder.Board => Board;
+
+
     public ItemEntity(Item item) : base()
     {
         Item = item;
@@ -24,7 +27,7 @@ public class ItemEntity : Entity
 
     public ItemEntity(Stream stream) : base(stream)
     {
-        Item = Item.FromBytes(stream);
+        Item = new Item(stream);
     }
 
     public override void ToBytes(Stream stream)
@@ -36,5 +39,22 @@ public class ItemEntity : Entity
     public override EntityType GetEntityType()
     {
         return EntityType.Item;
+    }
+
+    public bool CanAddItem(Item item)
+    {
+        return Item == null;
+    }
+    public void AddItem(Item item)
+    {
+        Item = item;
+    }
+    public void RemoveItem(Item item)
+    {
+        if (Item == item)
+        {
+            Item = null;
+            Board.RemoveEntity(this);
+        }
     }
 }

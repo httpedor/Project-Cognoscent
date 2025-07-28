@@ -1,5 +1,4 @@
 using System.Numerics;
-using MoonSharp.Interpreter;
 using Rpg;
 
 namespace Server.Game;
@@ -18,9 +17,9 @@ public struct FloorCollisionInfo
 public class AreaTrigger : ISerializable
 {
     public Polygon Area;
-    public Rpg.Skill Action;
+    public Skill Action;
 
-    public AreaTrigger(Polygon area, Rpg.Skill action){
+    public AreaTrigger(Polygon area, Skill action){
         Area = area;
         Action = action;
     }
@@ -100,7 +99,7 @@ public class ServerFloor : Floor, ISerializable
         }
     }
 
-    public ServerFloor(Vector2 size, Vector2 tileSize, UInt32 ambinetLight) : base(size, tileSize, ambinetLight)
+    public ServerFloor(Vector2 size, Vector2 tileSize, uint ambinetLight) : base(size, tileSize, ambinetLight)
     {
     }
 
@@ -109,7 +108,7 @@ public class ServerFloor : Floor, ISerializable
         TileSize = stream.ReadVec2();
         AmbientLight = stream.ReadUInt32();
 
-        TileFlags = new UInt32[stream.ReadUInt32()];
+        TileFlags = new uint[stream.ReadUInt32()];
         for (int i = 0; i < TileFlags.Length; i++)
             TileFlags[i] = stream.ReadUInt32();
 
@@ -125,8 +124,7 @@ public class ServerFloor : Floor, ISerializable
         for (int i = 0; i < Triggers.Length; i++)
             Triggers[i] = new AreaTrigger(stream);
 
-        Image = new byte[stream.ReadUInt32()];
-        stream.ReadExactly(Image);
+        Display = new Midia(stream);
         UpdateCollisionGrid();
     }
 
@@ -138,20 +136,19 @@ public class ServerFloor : Floor, ISerializable
         stream.Write(BitConverter.GetBytes(TileFlags.Length));
         foreach (var tileFlag in TileFlags)
             stream.Write(BitConverter.GetBytes(tileFlag));
-        stream.Write(BitConverter.GetBytes((UInt16)Walls.Length));
+        stream.Write(BitConverter.GetBytes((ushort)Walls.Length));
         foreach (var wall in Walls)
             wall.ToBytes(stream);
         
-        stream.Write(BitConverter.GetBytes((UInt16)LineOfSight.Length));
+        stream.Write(BitConverter.GetBytes((ushort)LineOfSight.Length));
         foreach (var vb in LineOfSight)
             vb.ToBytes(stream);
         
-        stream.WriteUInt16((UInt16)Triggers.Length);
+        stream.WriteUInt16((ushort)Triggers.Length);
         foreach (var trigger in Triggers)
             trigger.ToBytes(stream);
         
-        stream.Write(BitConverter.GetBytes((UInt32)Image.Length));
-        stream.Write(Image);
+        Display.ToBytes(stream);
     }
 
     public bool AddTrigger(AreaTrigger trigger)
@@ -167,16 +164,16 @@ public class ServerFloor : Floor, ISerializable
         if (limit <= 0)
             return new FloorCollisionInfo { Intersections = Array.Empty<Vector2>(), Walls = Array.Empty<Line>(), Triggers = Array.Empty<AreaTrigger>()};
 
-        List<Vector2> intersections = new List<Vector2>();
+        var intersections = new List<Vector2>();
         List<Line> walls = new();
-        List<AreaTrigger> triggers = new List<AreaTrigger>();
-        List<Vector2> normalsList = new List<Vector2>();
+        var triggers = new List<AreaTrigger>();
+        var normalsList = new List<Vector2>();
 
         var min = new Vector2(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y));
         var max = new Vector2(Math.Max(start.X, end.X), Math.Max(start.Y, end.Y));
-        for (int x = (Int32)min.X; x <= max.X; x++)
+        for (int x = (int)min.X; x <= max.X; x++)
         {
-            for (int y = (Int32)min.Y; y <= max.Y; y++)
+            for (int y = (int)min.Y; y <= max.Y; y++)
             {
                 if (x < 0 || x >= Size.X || y < 0 || y >= Size.Y)
                     continue;
@@ -184,28 +181,26 @@ public class ServerFloor : Floor, ISerializable
                 var lines = collisionGrid[x, y];
                 if (countWalls && lines.Count > 0)
                 {
-                    for (int i = 0; i < lines.Count; i++)
+                    foreach (Line line in lines)
                     {
-                        var line = lines[i];
-                        var p3 = line.Start;
-                        var p4 = line.End;
+                        Vector2 p3 = line.Start;
+                        Vector2 p4 = line.End;
                         var intersect = Geometry.LineLineIntersection(start, end, p3, p4);
-                        if (intersect != null && !intersections.Contains((Vector2)intersect))
+                        if (intersect == null || intersections.Contains((Vector2)intersect)) continue;
+                        
+                        intersections.Add((Vector2)intersect);
+                        walls.Add(line);
+                        if (normals)
                         {
-                            intersections.Add((Vector2)intersect);
-                            walls.Add(line);
-                            if (normals)
-                            {
-                                var normal = new Vector2(p4.Y - p3.Y, p3.X - p4.X);
-                                var midPoint = (p3 + p4) / 2;
-                                var midToStart = Vector2.Normalize(start - midPoint);
-                                if (Vector2.Dot(midToStart, midPoint) < 0)
-                                    normal = -normal;
-                                normalsList.Add(Vector2.Normalize(normal));
-                            }
-                            if (intersections.Count >= limit)
-                                goto LimitExceeded;
+                            var normal = new Vector2(p4.Y - p3.Y, p3.X - p4.X);
+                            var midPoint = (p3 + p4) / 2;
+                            var midToStart = Vector2.Normalize(start - midPoint);
+                            if (Vector2.Dot(midToStart, midPoint) < 0)
+                                normal = -normal;
+                            normalsList.Add(Vector2.Normalize(normal));
                         }
+                        if (intersections.Count >= limit)
+                            goto LimitExceeded;
                     }
                 }
 
@@ -240,14 +235,14 @@ public class ServerFloor : Floor, ISerializable
 
     public override Vector2? GetIntersection(Vector2 start, Vector2 end, out Vector2? normal)
     {
-        var info = GetIntersection(start, end, Int32.MaxValue, countTriggers: false, normals: true);
+        var info = GetIntersection(start, end, int.MaxValue, countTriggers: false, normals: true);
         normal = null;
         if (info.Intersections.Length == 0)
         {
             return null;
         }
         Vector2 closest = Vector2.Zero;
-        float closestDist = Single.MaxValue;
+        float closestDist = float.MaxValue;
         for (int i = 0; i < info.Intersections.Length; i++)
         {
             var dist = Vector2.Distance(start, info.Intersections[i]);
@@ -273,9 +268,9 @@ public class ServerFloor : Floor, ISerializable
             max = new Vector2(Math.Max(max.X, corners[i].X), Math.Max(max.Y, corners[i].Y));
         }
 
-        for (int x = (Int32)min.X; x <= max.X; x++)
+        for (int x = (int)min.X; x <= max.X; x++)
         {
-            for (int y = (Int32)min.Y; y <= max.Y; y++)
+            for (int y = (int)min.Y; y <= max.Y; y++)
             {
                 if (x < 0 || x >= Size.X || y < 0 || y >= Size.Y)
                     continue;
@@ -299,8 +294,8 @@ public class ServerFloor : Floor, ISerializable
 
     public IEnumerable<AreaTrigger> PossibleTriggersAt(Vector2 position)
     {
-        var x = (Int32)position.X;
-        var y = (Int32)position.Y;
+        var x = (int)position.X;
+        var y = (int)position.Y;
         if (x < 0 || x >= Size.X || y < 0 || y >= Size.Y)
             yield break;
 

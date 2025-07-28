@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json.Nodes;
 
 namespace Rpg;
 
@@ -8,4 +9,5 @@ public static class Vec3Extension
     {
         return new Vector2(vector.X, vector.Y);
     }
+    
 }
