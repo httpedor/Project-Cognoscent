@@ -217,4 +217,9 @@ public static class Geometry
         // The line intersects the OBB
         return true;
     }
+
+    public static bool OBBOBBIntersection(OBB obb, OBB obb2, out Vector2 MTV)
+    {
+        //TODO: This
+    }
 }

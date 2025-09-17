@@ -44,7 +44,13 @@ public class Body : ISerializable
                     {
                         field.RemoveFeature(feature);
                     }
-                    //TODO: Unapply stats and statDependencies to creature
+                    
+                    foreach (var depInfo in statDependencies)
+                    {
+                        string statName = depInfo.Key;
+                        var stat = field.GetStat(statName)!;
+                        stat.ClearEvents();
+                    }
                 }
             }
 
@@ -307,12 +313,6 @@ public class Body : ISerializable
 
     public void OnHeld(BodyPart part, Item item)
     {
-        /*var luaProp = item.GetProperty<LuaItemProperty>();
-        if (luaProp != null)
-        {
-            //TODO: Execute lua code
-        }*/
-
         if (Owner != null)
         {
             foreach (var entry in item.StatModifiers)
@@ -335,12 +335,6 @@ public class Body : ISerializable
 
     public void OnUnheld(BodyPart part, Item item)
     {
-        /*var luaProp = item.GetProperty<LuaItemProperty>();
-        if (luaProp != null)
-        {
-            //TODO: Run lua code
-        }*/
-
         if (Owner != null)
         {
             foreach (var entry in item.StatModifiers)

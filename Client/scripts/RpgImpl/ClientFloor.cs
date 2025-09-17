@@ -190,4 +190,8 @@ public class ClientFloor : Floor
     {
         throw new NotImplementedException();
     }
+    public override IEnumerable<OBB> PossibleEntityIntersections(OBB obb)
+    {
+        throw new NotImplementedException();
+    }
 }

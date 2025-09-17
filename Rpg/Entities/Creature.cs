@@ -68,7 +68,6 @@ public class ActionLayer(string name, string id, uint startTick, uint delay, uin
     }
 }
 
-//TODO: Movement speed
 public class Creature : Entity, IItemHolder, IDamageable
 {
     /// <summary>
@@ -143,6 +142,9 @@ public class Creature : Entity, IItemHolder, IDamageable
     public readonly Dictionary<int, SkillData> ActiveSkills = new();
     public SkillTree? SkillTree;
     public string Owner;
+    public float MovementSpeed => this[CreatureStats.MOVEMENT];
+
+    public Vector2 TargetPos = Vector2.NaN;
 
     public Creature(Body body)
     {
@@ -190,6 +192,12 @@ public class Creature : Entity, IItemHolder, IDamageable
                 feature.OnTick(part);
             }
         }
+
+        if (TargetPos != Vector2.NaN)
+            Position += new Vector3((TargetPos - Position.XY()) * (MovementSpeed/50), 0);
+        if ((TargetPos - Position.XY()).Length() < 0.1)
+            TargetPos = Vector2.NaN;
+        
         var processed = new HashSet<int>();
         foreach (ActionLayer layer in actionLayers.Values.ToList())
         {
