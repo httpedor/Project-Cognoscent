@@ -72,6 +72,7 @@ public class ServerBoard : Board, ISerializable
         Network.Manager.SendToBoard(new EntityCreatePacket(this, entity), Name);
         entity.OnPositionChanged += (pos, _) => Manager.SendToBoard(new EntityPositionPacket(entity, pos), entity.Board.Name);
         entity.OnRotationChanged += (newRot, _) => Network.Manager.SendToBoard(new EntityRotationPacket(entity, newRot), Name);
+        entity.OnDisplayChanged += newDisplay => Network.Manager.SendToBoard(new EntityMidiaPacket(entity, newDisplay), Name);
         entity.OnFeatureAdded += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Add(entity, feat), Name);
         entity.OnFeatureRemoved += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Remove(entity, feat), Name);
         entity.OnFeatureEnabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Enable(entity, feat), Name);
@@ -142,8 +143,11 @@ public class ServerBoard : Board, ISerializable
 
             void OnBodyPartChildAdd(BodyPart child)
             {
-                Network.Manager.SendToBoard(new EntityBodyPartPacket(child), Name);
-                child.OnChildAdded += OnBodyPartChildAdd;
+                child.OnChildAdded += grandChild =>
+                {
+                    Network.Manager.SendToBoard(new EntityBodyPartPacket(grandChild), this);
+                    OnBodyPartChildAdd(grandChild);
+                };
 
                 child.OnChildRemoved += grandChild => {
                     Network.Manager.SendToBoard(new EntityBodyPartPacket(grandChild.Owner, grandChild.Path), Name);
@@ -194,9 +198,8 @@ public class ServerBoard : Board, ISerializable
 
     public override void StartTurnMode()
     {
-        Network.Manager.SendToBoard(new CombatModePacket(this), this);
-        BroadcastMessage("Entrando em modo de turnos");
         base.StartTurnMode();
+        Network.Manager.SendToBoard(new CombatModePacket(this), this);
     }
     public override void EndTurnMode()
     {

@@ -647,7 +647,7 @@ public class Command
             "boardcombat",
             "Checks or toggles the board's combat mode",
             "<board> [state]",
-            new[]{"combat"},
+            new[]{"combat", "combatmode", "turn", "turnmode"},
             [typeof(ServerBoard), typeof(bool)],
             (_, args) =>
             {
@@ -763,7 +763,7 @@ public class Command
                 string fileName = (args[2] as string)!;
                 try
                 {
-                    File.WriteAllBytes(fileName, board.GetFloor(floor).GetImage());
+                    File.WriteAllBytes(fileName, board.GetFloor(floor).GetMidia().Bytes);
                 }
                 catch (IOException e)
                 {

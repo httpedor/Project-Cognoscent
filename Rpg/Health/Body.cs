@@ -26,6 +26,7 @@ public class Body : ISerializable
     private readonly Dictionary<string, Stat> statDefs = new();
     // STAT -> (Dependency, (dependencyVal, statVal) -> (ModVal, ModType))
     private readonly Dictionary<string, StatDependency[]> statDependencies = new();
+    private readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
 
     public Creature? Owner
@@ -39,6 +40,10 @@ public class Body : ISerializable
                     UnapplyPartToOwner(part);
                 if (!SidedLogic.Instance.IsClient())
                 {
+                    foreach (var feature in features)
+                    {
+                        field.RemoveFeature(feature);
+                    }
                     //TODO: Unapply stats and statDependencies to creature
                 }
             }
@@ -49,6 +54,10 @@ public class Body : ISerializable
                     ApplyPartToOwner(part);
                 if (!SidedLogic.Instance.IsClient())
                 {
+                    foreach (var feature in features)
+                    {
+                        value.AddFeature(feature);
+                    }
                     foreach (var stat in statDefs.Values)
                     {
                         value.CreateStat(stat.Clone());
@@ -123,8 +132,8 @@ public class Body : ISerializable
     private static Func<float, float, (float, StatModifierType)> Compile(string code)
     {
         var script = CSharpScript.Create<(float, StatModifierType)>(code,
-            ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly)
-                .WithImports("Rpg"), typeof(StatDepCodeGlobals)).CreateDelegate();
+            ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly, typeof(Math).Assembly)
+                .WithImports("Rpg", "System.Math"), typeof(StatDepCodeGlobals)).CreateDelegate();
         return (x, y) => script(new StatDepCodeGlobals{x = x, y=y}).Result;
     }
 
@@ -390,9 +399,12 @@ public class Body : ISerializable
 
     public IEnumerable<BodyPart> GetPartsThatCanEquip(string slot)
     {
-        if (equipmentSlots.TryGetValue(slot, out HashSet<BodyPart>? parts))
-            return parts;
-        return Array.Empty<BodyPart>();
+        return equipmentSlots.TryGetValue(slot, out HashSet<BodyPart>? parts) ? parts : [];
+    }
+
+    public IEnumerable<BodyPart> GetPartsWithSlot(string slot)
+    {
+        return GetPartsThatCanEquip(slot);
     }
 
     public IEnumerable<BodyPart> GetPartsOnGroup(string group)
@@ -429,6 +441,18 @@ public class Body : ISerializable
                 return null;
             var ret = new Body(json["name"]!.ToString(), root,
                 json.ContainsKey("humanoid") && json["humanoid"]!.GetValue<bool>());
+            if (json.TryGetPropertyValue("features", out JsonNode? featuresNode))
+            {
+                foreach (JsonNode? featureJson in featuresNode.AsArray())
+                {
+                    string name = featureJson.GetValue<string>();
+                    Feature? feature = Compendium.GetEntryObject<Feature>(name);
+                    if (feature == null)
+                        Console.WriteLine("Warning: Invalid creature feature in JSON: " + name);
+                    else
+                        ret.features.Add(feature);
+                }
+            }
             JsonObject? stats = json["stats"]?.AsObject();
             if (stats != null)
             {

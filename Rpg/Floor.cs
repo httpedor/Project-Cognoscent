@@ -110,7 +110,7 @@ public abstract class Floor
     public void UpdateTilesFromImage()
     {
         TileFlags = new uint[(int)(Size.X * Size.Y)];
-        if (Display.IsVideo)
+        if (Display.Type != MidiaType.Image)
             return;
         
         using (Image img = Image.FromStream(new MemoryStream(Display.Bytes)))
@@ -163,8 +163,8 @@ public abstract class Floor
         return dir;
     }
 
-    public byte[] GetImage(){
-        return Display.Bytes;
+    public Midia GetMidia(){
+        return Display;
     }
 
     public virtual void SetMidia(Midia midia)

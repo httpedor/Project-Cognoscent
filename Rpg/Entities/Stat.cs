@@ -71,6 +71,10 @@ public class Stat : ISerializable
         {
             var old = baseValue;
             baseValue = value;
+            if (OverCap)
+                baseValue = Math.Min(baseValue, MaxValue);
+            if (UnderCap)
+                baseValue = Math.Max(baseValue, MinValue);
             BaseValueChanged?.Invoke(baseValue, old);
             CalculateFinalValue();
         }
@@ -238,6 +242,7 @@ public class Stat : ISerializable
 
 public static class CreatureStats
 {
+    public const string ADRENALINE = "adrenaline";
     public const string AGILITY = "agility";
     public const string INTELLIGENCE = "intelligence";
     public const string KNOWLEDGE =  "knowledge";

@@ -34,7 +34,7 @@ public partial class InputManager : SubViewportContainer
 	private Line2D? line;
 	private ulong lastMovementTick;
 
-	public static Node2D? InputPriority;
+	public static Node? InputPriority;
 	public InputManager() : base()
 	{
 		Instance = this;
@@ -52,10 +52,10 @@ public partial class InputManager : SubViewportContainer
 		GetTree().Root.FilesDropped += HandleFiles;
     }
 
-    public static void RequestPriority(Node2D requester){
+    public static void RequestPriority(Node requester){
 		InputPriority = requester;
 	}
-	public static void ReleasePriority(Node2D requester){
+	public static void ReleasePriority(Node requester){
 		if (InputPriority == requester)
 			InputPriority = null;
 	}
@@ -294,7 +294,7 @@ public partial class InputManager : SubViewportContainer
 			return;
 		if (GameManager.IsGm)
 		{
-			if (InputPriority is EntityNode hovering)
+			if (InputPriority is IContextMenuProvider hovering)
 			{
 				hovering.AddGMContextMenuOptions();
 				ContextMenu.AddSeparator();
@@ -319,11 +319,15 @@ public partial class InputManager : SubViewportContainer
 							Display = img
 						};
 						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, created));
-					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<Body>().ToArray(), null), ("Imagem", new Midia(), null));
+					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<Body>().ToArray(), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
+				});
+				ContextMenu.AddOption(board.TurnMode ? "Sair do modo de turnos" : "Entrar no modo de turnos", _ =>
+				{
+					NetworkManager.Instance.SendPacket(new CombatModePacket(board, !board.TurnMode));
 				});
 			}
 		}
-		if (InputPriority is EntityNode en)
+		if (InputPriority is IContextMenuProvider en)
 		{
 			en.AddContextMenuOptions();
 			ContextMenu.AddSeparator();
@@ -479,8 +483,11 @@ public partial class InputManager : SubViewportContainer
 		
 		if (Input.IsActionJustPressed("debug"))
 		{
-			GD.Print("Toggling BodyViewer");
-			((Control)BodyViewer.Instance.GetParent()).Visible = !((Control)BodyViewer.Instance.GetParent()).Visible;
+			GD.Print("Toggling SkillTreeDisplay");
+			SkillTreeDisplay.Tree = Compendium.GetEntryObject<SkillTree>("humanoid_skill_tree");
+			SkillTreeDisplay.Visible = !SkillTreeDisplay.Visible;
+			//GD.Print("Toggling BodyViewer");
+			//((Control)BodyViewer.Instance.GetParent()).Visible = !((Control)BodyViewer.Instance.GetParent()).Visible;
 		}
 
 		ClientBoard? board = GameManager.Instance.CurrentBoard;

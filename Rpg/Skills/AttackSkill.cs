@@ -26,6 +26,12 @@ public abstract class AttackSkill : Skill
     {
         
     }
+
+    public virtual bool IsProjectile(Creature executor, List<SkillArgument> arguments, ISkillSource source,
+        IDamageable target)
+    {
+        return false;
+    }
     public override void Execute(Creature executor, List<SkillArgument> arguments, uint tick, ISkillSource source)
     {
         base.Execute(executor, arguments, tick, source);
@@ -110,6 +116,11 @@ public abstract class AttackSkill : Skill
     {
         return true;
     }
+
+    public virtual bool CanTarget(Creature executor, ISkillSource source, IDamageable target)
+    {
+        return true;
+    }
     public override bool CanUseArgument(Creature executor, ISkillSource source, int index, SkillArgument arg)
     {
         if (index != 0)
@@ -117,19 +128,19 @@ public abstract class AttackSkill : Skill
 
         return arg switch
         {
-            EntitySkillArgument esa => esa.Entity is IDamageable,
-            BodyPartSkillArgument bpsa => bpsa.Part is { IsAlive: true, IsInternal: false },
+            EntitySkillArgument esa => esa.Entity is IDamageable damageable && CanTarget(executor, source, damageable),
+            BodyPartSkillArgument bpsa => bpsa.Part is { IsAlive: true, IsInternal: false } part && CanTarget(executor, source, part),
             _ => false
         };
     }
     public override Type[][] GetArguments()
     {
-        return new[] {new[] {typeof(BodyPartSkillArgument), typeof(EntitySkillArgument)}};
+        return [[typeof(BodyPartSkillArgument), typeof(EntitySkillArgument)]];
     }
 
     public override string[] GetLayers(Creature executor, ISkillSource source)
     {
-        return ["interact"];
+        return ["action"];
     }
 
     protected AttackSkill(Stream stream) : base(stream)

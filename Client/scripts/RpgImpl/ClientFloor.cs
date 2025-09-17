@@ -37,7 +37,6 @@ public class ClientFloor : Floor
         DisplayNode = new MidiaNode
         {
             Name = "Midia",
-            Midia = Display,
             Position = new Vector2(Size.X * TileSize.X / 2, Size.Y * TileSize.Y / 2)
         };
 

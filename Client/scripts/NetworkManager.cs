@@ -129,14 +129,13 @@ public partial class NetworkManager : Node
 			case ProtocolId.FLOOR_IMAGE:
 			{
 				var fip = (FloorImagePacket)packet;
-				GD.Print("Received floor image for " + fip.BoardName + " floor " + fip.FloorIndex + " with " + fip.Data.Length + " bytes");
 				ClientBoard? board = GameManager.Instance.GetBoard(fip.BoardName);
 				if (board == null){
 					GD.PrintErr("Board not found for floor image packet");
 					break;
 				}
 				ClientFloor floor = board.GetFloor(fip.FloorIndex);
-				floor.SetMidia(new Midia(fip.Data));
+				floor.SetMidia(fip.Data);
 				break;
 			}
 			case ProtocolId.DOOR_UPDATE:
@@ -152,6 +151,18 @@ public partial class NetworkManager : Node
 				GD.Print("Received entity packet for " + ecp.BoardName + " with id " + ecp.Entity.Id);
 				ClientBoard? board = GameManager.Instance.GetBoard(ecp.BoardName);
 				board?.AddEntity(ecp.Entity);
+				break;
+			}
+			case ProtocolId.ENTITY_MIDIA:
+			{
+				var emp = (EntityMidiaPacket)packet;
+				var entity = emp.Ref.Entity;
+				if (entity == null)
+				{
+					GD.PushWarning("Received midia packet for unknown entity: " + emp.Ref.Id);
+					break;
+				}
+				entity.Display = emp.Midia;
 				break;
 			}
 			case ProtocolId.ENTITY_REMOVE:
@@ -189,7 +200,10 @@ public partial class NetworkManager : Node
 				ClientBoard? board = GameManager.Instance.GetBoard(turnModePacket.BoardName);
 				if (board == null)
 					break;
-				board.TurnMode = turnModePacket.CombatMode;
+				if (turnModePacket.CombatMode)
+					board.StartTurnMode();
+				else
+					board.EndTurnMode();
 				int diff = (int)board.CurrentTick - (int)turnModePacket.Tick;
 				if (Math.Abs(diff) > 50)
 					GD.PushWarning("Client was " + diff + " ticks desynced to server");
@@ -350,6 +364,19 @@ public partial class NetworkManager : Node
 				var calrp = (ActionLayerRemovePacket)packet;
 				Creature? creature = calrp.CreatureRef.Creature;
 				creature?.CancelActionLayer(calrp.LayerId);
+				break;
+			}
+			case ProtocolId.CREATURE_SKILLTREE_UPDATE:
+			{
+				var csu = (SkillTreeUpdatePacket)packet;
+				var entry = csu.EntryRef.Entry;
+				if (entry == null)
+					break;
+                
+				if (csu.Enabled && !entry.Enabled)
+					entry.Enable();
+				if (!csu.Enabled && entry.Enabled)
+					entry.Disable();
 				break;
 			}
 			case ProtocolId.EXECUTE_COMMAND:

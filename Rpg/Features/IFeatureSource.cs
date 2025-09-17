@@ -99,6 +99,16 @@ public interface IFeatureSource : ICustomDataContainer
         FeaturesDict[id] = (featureData.feature, false);
         return true;
     }
+
+    public bool HasFeature(string id)
+    {
+        return FeaturesDict.ContainsKey(id);
+    }
+
+    public bool HasFeature(Feature feature)
+    {
+        return FeaturesDict.ContainsKey(feature.GetId());
+    }
 }
 
 public static class FeatureSourceExtensions

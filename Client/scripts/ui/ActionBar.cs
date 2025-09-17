@@ -12,10 +12,13 @@ public static class ActionBar
 {
     private static HBoxContainer container;
 
+    public static IEnumerable<Button> Buttons => container.GetChildren().Cast<Button>();
+
     static ActionBar()
     {
         container = new HBoxContainer
         {
+            Name = "ActionBar",
             AnchorLeft = 0.5f,
             AnchorRight = 0.5f,
             AnchorTop = 1f,
@@ -39,7 +42,7 @@ public static class ActionBar
             ExpandIcon = true,
             TooltipText = tooltip,
             CustomMinimumSize = new Vector2(32, 32),
-            Disabled = clickable
+            Disabled = !clickable
         };
         btn.ButtonUp += onClick;
         container.AddChild(btn);
@@ -86,7 +89,7 @@ public static class ActionBar
                 if (args == null)
                     return;
                 NetworkManager.Instance.SendPacket(new CreatureSkillUpdatePacket(creature, new SkillData(skill, args, source, skill.GetLayers(creature, source))));
-            }, !skill.CanBeUsed(creature, source));
+            }, creature.CanExecuteSkill(skill, source));
         }
     }
 }

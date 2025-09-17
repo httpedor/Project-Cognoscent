@@ -149,7 +149,7 @@ public class Environment
             }
         }
 
-        f.SetMidia(new Midia(Convert.FromBase64String(uvtt.image), false));
+        f.SetMidia(new Midia(Convert.FromBase64String(uvtt.image), MidiaType.Image));
         f.UpdateTilesFromImage();
         f.UpdateCollisionGrid();
         return f;

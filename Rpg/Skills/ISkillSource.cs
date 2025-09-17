@@ -21,6 +21,7 @@ public class SkillSourceRef
             1 => new ItemRef(stream).Item,
             2 => new BodyPartRef(stream).BodyPart,
             3 => new ItemRef(stream).Item?.GetProperty<EquipmentProperty>(),
+            4 => new SkillTreeEntryRef(stream).Entry,
             _ => throw new Exception("Unknown skill source type: " + type)
         };
     }
@@ -43,6 +44,10 @@ public class SkillSourceRef
             case EquipmentProperty ep:
                 stream.WriteByte(3);
                 new ItemRef(ep.Item).ToBytes(stream);
+                break;
+            case SkillTreeEntry ste:
+                stream.WriteByte(4);
+                new SkillTreeEntryRef(ste).ToBytes(stream);
                 break;
             default:
                 throw new Exception("Unknown skill source type: " + SkillSource.GetType());

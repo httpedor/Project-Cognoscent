@@ -16,7 +16,7 @@ public partial class MidiaNode : Node2D
     {
         get
         {
-            if (Midia is { IsVideo: true })
+            if (Midia is { Type: MidiaType.Video })
                 return VideoPlayer.GetVideoTexture();
             return Sprite.Texture;
         }
@@ -27,12 +27,14 @@ public partial class MidiaNode : Node2D
         get;
         set
         {
+            if (field == value)
+                return;
             field = value;
             if (Sprite.Texture != null && Sprite.Texture is not CompressedTexture2D)
                 Sprite.Texture.Free();
             VideoPlayer.Stream?.Free();
             
-            if (!value.HasValue)
+            if (value == null)
             {
                 Visible = false;
                 return;
@@ -40,12 +42,12 @@ public partial class MidiaNode : Node2D
 
             Visible = true;
 
-            if (value.Value.IsVideo)
+            if (value.Type == MidiaType.Video)
             {
                 string filePath = Path.Combine(OS.GetCacheDir(), new Random().Next() + ".midia");
                 using (FileAccess? file = FileAccess.Open(filePath, FileAccess.ModeFlags.Write))
                 {
-                    file.StoreBuffer(value.Value.Bytes);
+                    file.StoreBuffer(value.Bytes);
                 }
 
                 var videoStream = ResourceLoader.Load<VideoStream>("res://assets/ffmpeg.tres");
@@ -55,27 +57,32 @@ public partial class MidiaNode : Node2D
                 Sprite.Texture = VideoPlayer.GetVideoTexture();
                 DirAccess.RemoveAbsolute(filePath);
             }
-            else
+            else if (value.Type == MidiaType.Image)
             {
-                if (value.Value.Bytes.Length <= 0)
+                if (value.Bytes.Length <= 0)
                     return;
                 
                 var img = new Image();
-                img.LoadPngFromBuffer(value.Value.Bytes);
+                img.LoadPngFromBuffer(value.Bytes);
                 if (!img.IsEmpty())
                     Sprite.Texture = ImageTexture.CreateFromImage(img);
                 else
                 {
-                    img.LoadJpgFromBuffer(value.Value.Bytes);
+                    img.LoadJpgFromBuffer(value.Bytes);
                     if (!img.IsEmpty())
                         Sprite.Texture = ImageTexture.CreateFromImage(img);
                     else
                     {
-                        img.LoadWebpFromBuffer(value.Value.Bytes);
+                        img.LoadWebpFromBuffer(value.Bytes);
                         if (!img.IsEmpty())
                             Sprite.Texture = ImageTexture.CreateFromImage(img);
                     }
                 }
+            }
+            //TODO: Directional audio(or smth like that)
+            else
+            {
+                GD.PushWarning($"Midia of type {value.Type} cannot be shown in a node");
             }
         }
     }
@@ -98,6 +105,8 @@ public partial class MidiaNode : Node2D
         
         if (!VideoPlayer.IsPlaying())
             VideoPlayer.Play();
+
+        Sprite.Scale = Sprite.Scale.Lerp(Midia?.Scale.ToGodot() ?? Vector2.One, (float)delta);
     }
 
     public void SetImage(Texture2D tex)

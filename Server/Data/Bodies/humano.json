@@ -1,13 +1,19 @@
 {
   "name": "Humano",
   "humanoid": true,
+  "icon": "humanoid",
   "stats": {
     "strength": {
+      "base": 1,
       "dependsOn": {
-        "consciousness": 0.8
+        "consciousness": 0.15,
+        "blood_flow": 0.5,
+        "respiration": 0.5,
+        "adrenaline": "(x, StatModifierType.Percent)"
       }
     },
     "agility": {
+      "base": 1,
       "dependsOn": {
         "consciousness": 1
       }
@@ -31,16 +37,24 @@
       "max": 1
     },
     "pain": {
-      "max": 1
+      "max": 1,
+      "dependsOn": {
+        "adrenaline": "(Max(-(x*0.7f), -0.7f), StatModifierType.Percent)"
+      }
+    },
+    "adrenaline": {
+      "max": 1,
+      "overCap": false
     },
     "respiration": {
       "max": 1
     },
     "consciousness": {
       "dependsOn": {
-        "blood_flow": 0.2,
-        "respiration": 0.2,
-        "pain": "(x <= 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)"
+        "blood_flow": 0.3,
+        "respiration": 0.3,
+        "pain": "(x <= 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)",
+        "adrenaline": "(Min((x*0.15f), 0.15f), StatModifierType.Percent)"
       },
       "overCap": false,
       "max": 1
@@ -565,7 +579,6 @@
                   "HasBone"
                 ],
                 "skills": [
-                  "teleport",
                   "punch"
                 ],
                 "slots": [

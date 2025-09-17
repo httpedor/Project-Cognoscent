@@ -36,3 +36,19 @@ grow_horizontal = 2
 grow_vertical = 0
 text = "Oi meu nome é pedrooo!!"
 label_settings = SubResource("LabelSettings_m0cyi")
+
+[node name="Line2D" type="Line2D" parent="."]
+
+[node name="Button" type="Button" parent="."]
+offset_right = 8.0
+offset_bottom = 8.0
+theme_override_font_sizes/font_size = 111
+text = "Ugabuga aaaa"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="TextureRect" type="TextureRect" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0

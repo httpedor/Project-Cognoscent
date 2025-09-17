@@ -226,6 +226,8 @@ public abstract class Entity : ISerializable, IFeatureSource
 
     public void AddFeature(Feature feature)
     {
+        if (((IFeatureSource)this).HasFeature(feature))
+            return;
         ((IFeatureSource)this).AddFeature(feature);
         OnFeatureAdded?.Invoke(feature);
     }
@@ -278,10 +280,17 @@ public abstract class Entity : ISerializable, IFeatureSource
 
     public virtual void ClearEvents()
     {
+        OnDisplayChanged = null;
+        OnFeatureAdded = null;
+        OnFeatureEnabled = null;
+        OnFeatureDisabled = null;
+        OnFeatureRemoved = null;
+        OnDisplayChanged = null;
+        OnNameChange = null;
+        OnStatCreated = null;
         OnPositionChanged = null;
         OnRotationChanged = null;
         OnSizeChanged = null;
-        OnDisplayChanged = null;
 
         foreach (Stat stat in Stats)
         {

@@ -45,7 +45,7 @@ public partial class DoorNode : EntityNode
 		};
 		Door.Floor.OnMidiaChanged += newMidia =>
 		{
-			if (newMidia.IsVideo)
+			if (newMidia.Type != MidiaType.Image)
 				return;
 			
 			using (var img = System.Drawing.Image.FromStream(new MemoryStream(newMidia.Bytes)))

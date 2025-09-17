@@ -117,6 +117,7 @@ public class ClientBoard : Board
 	} = 0;
 
 	public ClientFloor CurrentFloor => GetFloor(FloorIndex)!;
+	private GodotObject? turnModeToast;
 
     public ClientBoard()
     {
@@ -157,6 +158,39 @@ public class ClientBoard : Board
 	}
 	public System.Numerics.Vector2 WorldToPixel(System.Numerics.Vector2 world){
 		return CurrentFloor.WorldToPixel(world);
+	}
+
+	public void UpdateTurnModeToast()
+	{
+		if (TurnMode && turnModeToast == null)
+		{
+			turnModeToast = ToastParty.Show(new ToastParty.Config
+			{
+				Text = "Modo de Turno",
+				Duration = -1
+			});
+		}
+
+		if (!TurnMode && turnModeToast != null)
+		{
+			turnModeToast.Call("destroy");
+			turnModeToast = null;
+		}
+	}
+	
+	public override void StartTurnMode()
+	{
+		base.StartTurnMode();
+		InitiativeBar.Show();
+		InitiativeBar.PopulateWithBoard(this);
+		UpdateTurnModeToast();
+	}
+
+	public override void EndTurnMode()
+	{
+		base.EndTurnMode();
+		InitiativeBar.Hide();
+		UpdateTurnModeToast();
 	}
 
 	public override List<Creature> GetCreaturesByOwner(string owner)
@@ -213,22 +247,37 @@ public class ClientBoard : Board
 			node = new EntityNode(entity, this);
 
 		entityNodesCache[entity.Id] = node;
-		GetFloor(entity.FloorIndex).EntitiesNode.AddChild(node);
-
-		if (!GameManager.IsGm && entity is Creature creature){
-			if (creature.Owner.Equals(GameManager.Instance.Username))
+		GetFloor(entity.FloorIndex)?.EntitiesNode.AddChild(node);
+		if (entity is Creature creature)
+		{
+			creature.ActionLayerChanged += (layer) =>
 			{
-				foreach (var e in entities)
+				if (TurnMode)
+					InitiativeBar.PopulateWithBoard(this);
+			};
+			creature.ActionLayerRemoved += (layer) =>
+			{
+				if (TurnMode)
+					InitiativeBar.PopulateWithBoard(this);
+			};
+			if (TurnMode)
+				InitiativeBar.PopulateWithBoard(this);
+			if (!GameManager.IsGm)
+			{
+				if (creature.Owner.Equals(GameManager.Instance.Username))
 				{
-					if (e is Creature c && c.Owner.Equals(GameManager.Instance.Username))
-						GameManager.Instance.VisionManager.RemoveVisionPoint(creature);
+					foreach (var e in entities)
+					{
+						if (e is Creature c && c.Owner.Equals(GameManager.Instance.Username))
+							GameManager.Instance.VisionManager.RemoveVisionPoint(creature);
+					}
+					VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));
+					localEntityIds.Add(entity.Id);
 				}
-				VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));
-				localEntityIds.Add(entity.Id);
-			}
 
-			if (localEntityIds.Count == 0 && creature.HasOwner())
-				VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));
+				if (localEntityIds.Count == 0 && creature.HasOwner())
+					VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));
+			}
 		}
     }
 

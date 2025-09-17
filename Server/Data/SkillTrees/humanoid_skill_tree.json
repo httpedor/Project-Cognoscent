@@ -1,0 +1,18 @@
+﻿{
+  "icon": "humanoid",
+  "Combate Desarmado": [
+    {
+      "feature": "street_fighter"
+    },
+    {
+      "skill": "jab",
+      "dependencies": ["Street Fighter"]
+    },
+    {
+      "name": "1-2",
+      "description": "Após um jab, você pode executar outro jab mais rápido ainda",
+      "icon": "punch",
+      "dependencies": ["Jab"]
+    }
+  ]
+}

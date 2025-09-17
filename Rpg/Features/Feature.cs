@@ -12,6 +12,10 @@ public abstract class Feature : ISerializable
     public static Feature FromBytes(Stream bytes){
         string path = bytes.ReadString();
         var type = Type.GetType(path);
+        if (type != null && (type.IsAssignableTo(typeof(ArbitraryFeature))))
+        {
+            return Compendium.GetEntryObject<Feature>(bytes.ReadString());
+        }
 
         if (type == null)
             throw new Exception("Failed to get feature type: " + path);
@@ -24,10 +28,7 @@ public abstract class Feature : ISerializable
     {
         string? type = json["type"]?.GetValue<string>();
         if (type == null)
-        {
-            Console.WriteLine("Feature type is null in JSON: " + json);
-            return null;
-        }
+            type = "arbitrary";
         Feature? feature = null;
         string? name = json["name"]?.GetValue<string>();
         string? icon = json["icon"]?.GetValue<string>();
@@ -52,7 +53,7 @@ public abstract class Feature : ISerializable
         {
             case "damage_over_time":
             {
-                string? dtName = json["damage_over_type"]?.GetValue<string>();
+                string? dtName = json["damage_type"]?.GetValue<string>();
                 if (dtName == null)
                 {
                     Console.WriteLine("Damage type is null in JSON: " + json);
@@ -78,6 +79,27 @@ public abstract class Feature : ISerializable
             }
             case "arbitrary":
             {
+                string? onTick = json["tick"]?.GetValue<string>();
+                string? onEnable = json["enable"]?.GetValue<string>();
+                string? onDisable = json["disable"]?.GetValue<string>();
+                string? doesGetAttacked = json["doesGetAttacked"]?.GetValue<string>();
+                string? doesAttack = json["doesAttack"]?.GetValue<string>();
+                string? doesExecuteSkill = json["doesExecuteSkill"]?.GetValue<string>();
+                string? onAttacked = json["attacked"]?.GetValue<string>();
+                string? onAttack = json["attack"]?.GetValue<string>();
+                string? onExecuteSkill = json["executeSkill"]?.GetValue<string>();
+                string? onInjured = json["injured"]?.GetValue<string>();
+                string? modifyReceivingDamage = json["receivingDamage"]?.GetValue<string>();
+                string? modifyAttackingDamage = json["attackingDamage"]?.GetValue<string>();
+
+                feature = new ArbitraryFeature(
+                    id, name, description,
+                    onTick, onEnable, onDisable,
+                    doesGetAttacked, doesAttack, doesExecuteSkill,
+                    onAttacked, onAttack, onExecuteSkill, onInjured,
+                    modifyReceivingDamage, modifyAttackingDamage,
+                    toggleable
+                );
                 break;
             }
             case "simple":
@@ -198,7 +220,7 @@ public abstract class Feature : ISerializable
         }
     }
 
-    public virtual void OnTick(IFeatureSource entity)
+    public virtual void OnTick(IFeatureSource source)
     {
         
     }
@@ -250,6 +272,11 @@ public abstract class Feature : ISerializable
     }
 
     public virtual void OnExecuteSkill(Creature executor, Skill skill, List<SkillArgument> arguments, uint tick, ISkillSource source)
+    {
+        
+    }
+
+    public virtual void OnInjured(IDamageable injured, Injury injury)
     {
         
     }

@@ -3,7 +3,7 @@
 [ext_resource type="PackedScene" uid="uid://b3s8mwohy3e8u" path="res://scenes/radial_menu.tscn" id="1_iwaoh"]
 [ext_resource type="Script" uid="uid://bxe2xym1ryqyy" path="res://scripts/ui/SideBar.cs" id="2_85g3d"]
 [ext_resource type="PackedScene" uid="uid://cj5avp6jaieki" path="res://scenes/chat.tscn" id="2_fwvon"]
-[ext_resource type="Script" uid="uid://dy5guj2b132b" path="res://scripts/ui/CompendiumControl.cs" id="2_tipki"]
+[ext_resource type="Script" uid="uid://dy5guj2b132b" path="res://scripts/Compendium/CompendiumControl.cs" id="2_tipki"]
 [ext_resource type="Script" uid="uid://cxjelplhsajsx" path="res://scripts/GameManager.cs" id="2_xbo6v"]
 [ext_resource type="Script" uid="uid://dghix885enr74" path="res://scripts/NetworkManager.cs" id="3_cpse8"]
 [ext_resource type="PackedScene" uid="uid://c5lqpor5uufqj" path="res://scenes/menu.tscn" id="4_vvtgy"]
@@ -62,7 +62,7 @@ drag_to_rearrange_enabled = true
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="Compendium" type="VBoxContainer" parent="UILayer/Sidebar/TabContainer"]
+[node name="ScrollContainer" type="ScrollContainer" parent="UILayer/Sidebar/TabContainer"]
 visible = false
 layout_mode = 2
 script = ExtResource("2_tipki")

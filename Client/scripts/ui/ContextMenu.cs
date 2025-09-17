@@ -47,6 +47,7 @@ public static class ContextMenu
         if (addedSinceLastSep == 0)
             return;
         popupMenu.AddSeparator();
+        addedSinceLastSep = 0;
     }
 
     public static void Show()
@@ -56,6 +57,7 @@ public static class ContextMenu
         lastPos = InputManager.Instance.MousePosition;
         var screenP = InputManager.Instance.GetGlobalMousePosition();
         popupMenu.Position = new Vector2I((Int32)screenP.X, (Int32)screenP.Y);
+        popupMenu.ResetSize();
         if (popupMenu.GetParent() != null)
             popupMenu.Popup();
         else
@@ -66,5 +68,6 @@ public static class ContextMenu
     public static void Hide()
     {
         popupMenu.Hide();
+        addedSinceLastSep = 0;
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Threading.Tasks;
 using Godot;
 using Rpg;
 using TTRpgClient.scripts;
@@ -267,6 +268,81 @@ public static class Modal
                     fileD.Popup();
                 };
             }
+            else if (pair.Value is Vector2 vec)
+            {
+                // Container for two SpinBoxes side-by-side
+                var hbox = new HBoxContainer();
+
+                var sbX = new SpinBox
+                {
+                    Value = vec.X
+                };
+                var sbY = new SpinBox
+                {
+                    Value = vec.Y
+                };
+
+                // Update results whenever X changes
+                sbX.ValueChanged += val =>
+                {
+                    results[pair.Key] = new Vector2((float)val, (float)sbY.Value);
+                };
+
+                // Update results whenever Y changes
+                sbY.ValueChanged += val =>
+                {
+                    results[pair.Key] = new Vector2((float)sbX.Value, (float)val);
+                };
+
+                hbox.AddChild(sbX);
+                hbox.AddChild(sbY);
+
+                input = hbox;
+                results[pair.Key] = vec;
+            }
+            else if (pair.Value is Vector3 vec3)
+            {
+                // Container for three SpinBoxes side-by-side
+                var hbox = new HBoxContainer();
+
+                var sbX = new SpinBox
+                {
+                    Value = vec3.X
+                };
+                var sbY = new SpinBox
+                {
+                    Value = vec3.Y
+                };
+                var sbZ = new SpinBox
+                {
+                    Value = vec3.Z
+                };
+
+                // Update whenever X changes
+                sbX.ValueChanged += val =>
+                {
+                    results[pair.Key] = new Vector3((float)val, (float)sbY.Value, (float)sbZ.Value);
+                };
+
+                // Update whenever Y changes
+                sbY.ValueChanged += val =>
+                {
+                    results[pair.Key] = new Vector3((float)sbX.Value, (float)val, (float)sbZ.Value);
+                };
+
+                // Update whenever Z changes
+                sbZ.ValueChanged += val =>
+                {
+                    results[pair.Key] = new Vector3((float)sbX.Value, (float)sbY.Value, (float)val);
+                };
+
+                hbox.AddChild(sbX);
+                hbox.AddChild(sbY);
+                hbox.AddChild(sbZ);
+
+                input = hbox;
+                results[pair.Key] = vec3;
+            }
             else
             {
                 continue;
@@ -311,27 +387,40 @@ public static class Modal
         };
             
         Control control;
-        if (midia.IsVideo)
+        switch (midia.Type)
         {
-            control = new VideoStreamPlayer();
-            string filePath = Path.Combine(OS.GetCacheDir(), "Temp", "modal_midia");
-            using (var file = Godot.FileAccess.Open(filePath, Godot.FileAccess.ModeFlags.Write))
+            case MidiaType.Video:
             {
-                file.StoreBuffer(midia.Bytes);
-            }
+                control = new VideoStreamPlayer();
+                string filePath = Path.Combine(OS.GetCacheDir(), "Temp", "modal_midia");
+                using (var file = Godot.FileAccess.Open(filePath, Godot.FileAccess.ModeFlags.Write))
+                {
+                    file.StoreBuffer(midia.Bytes);
+                }
 
-            var videoStream = ResourceLoader.Load<VideoStream>("res://assets/ffmpeg.tres");
-            videoStream.File = filePath;
-            (control as VideoStreamPlayer).Stream = videoStream;
-        }
-        else
-        {
-            var img = new Image();
-            img.LoadPngFromBuffer(midia.Bytes);
-            control = new TextureRect
+                var videoStream = ResourceLoader.Load<VideoStream>("res://assets/ffmpeg.tres");
+                videoStream.File = filePath;
+                (control as VideoStreamPlayer).Stream = videoStream;
+                break;
+            }
+            case MidiaType.Image:
             {
-                Texture = ImageTexture.CreateFromImage(img)
-            };
+                var img = new Image();
+                img.LoadPngFromBuffer(midia.Bytes);
+                control = new TextureRect
+                {
+                    Texture = ImageTexture.CreateFromImage(img)
+                };
+                break;
+            }
+            default:
+            {
+                control = new Control()
+                {
+                    Visible = false
+                };
+                break;
+            }
         }
         control.AnchorLeft = 0.1f;
         control.AnchorRight = 0.9f;
@@ -343,5 +432,94 @@ public static class Modal
         dialog.AddChild(control);
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();
+    }
+
+    public static void OpenFileDialog(Action<string[]> onSelect, FileDialog.FileModeEnum fileMode = FileDialog.FileModeEnum.OpenFile)
+    {
+        var fileD = new FileDialog
+        {
+            Access = FileDialog.AccessEnum.Filesystem,
+            FileMode = FileDialog.FileModeEnum.OpenFiles,
+            UseNativeDialog = true
+        };
+        GameManager.Instance.GetTree().Root.AddChild(fileD);
+        fileD.DirSelected += (dir) =>
+        {
+            onSelect([dir]);
+        };
+        fileD.FileSelected += (file) =>
+        {
+            onSelect([file]);
+        };
+        fileD.FilesSelected += (files) =>
+        {
+            onSelect(files);
+        };
+        fileD.Popup();
+    }
+
+    public static async Task<string[]> OpenFileDialogAsync(
+        FileDialog.FileModeEnum fileMode = FileDialog.FileModeEnum.OpenFile)
+    {
+        var fileD = new FileDialog
+        {
+            Access = FileDialog.AccessEnum.Filesystem,
+            FileMode = FileDialog.FileModeEnum.OpenFiles,
+            UseNativeDialog = true
+        };
+        GameManager.Instance.GetTree().Root.AddChild(fileD);
+        fileD.Popup();
+        string[] ret = [];
+        switch (fileMode)
+        {
+            case FileDialog.FileModeEnum.OpenFile:
+                ret = [(await GameManager.Instance.ToSignal(fileD, FileDialog.SignalName.FileSelected))[0].AsString()];
+                break;
+            case FileDialog.FileModeEnum.OpenDir:
+                ret = [(await GameManager.Instance.ToSignal(fileD, FileDialog.SignalName.DirSelected))[0].AsString()];
+                break;
+            case FileDialog.FileModeEnum.OpenFiles:
+                ret = (await GameManager.Instance.ToSignal(fileD, FileDialog.SignalName.FilesSelected))[0].AsStringArray();
+                break;
+        }
+
+        return ret;
+    }
+    public static void OpenMultiline(string title, Action<string> onSave, string? startingText = null)
+    {
+        var dialog = new Window
+        {
+            Title = title,
+            PopupWindow = true,
+            Size = GameManager.Instance.GetWindow().Size/2
+        };
+        dialog.CloseRequested += () => {
+            dialog.Hide();
+            dialog.QueueFree();
+        };
+
+        var input = new TextEdit
+        {
+            Text = startingText ?? ""
+        };
+        dialog.AddChild(input);
+
+        dialog.CloseRequested += () =>
+        {
+            dialog.QueueFree();
+            onSave(input.Text);
+        };
+        dialog.Ready += () =>
+        {
+            input.Size = dialog.Size;
+        };
+        dialog.SizeChanged += () =>
+        {
+            input.Size = dialog.Size;
+        };
+
+        GameManager.Instance.AddChild(dialog);
+        dialog.PopupCentered();
+
     }
 }

@@ -78,9 +78,10 @@ public class RpgClient
                 ServerBoard? board = Game.Game.GetBoard(turnModePacket.BoardName);
                 if (board == null || !IsGm)
                     break;
-                board.TurnMode = turnModePacket.CombatMode;
-                board.CurrentTick = turnModePacket.Tick;
-                Manager.SendToAll(turnModePacket);
+                if (turnModePacket.CombatMode)
+                    board.StartTurnMode();
+                else
+                    board.EndTurnMode();
                 break;
             }
             case ProtocolId.CHAT:
@@ -199,6 +200,17 @@ public class RpgClient
                 board.AddEntity(ecp.Entity);
                 break;
             }
+            case ProtocolId.ENTITY_MIDIA:
+            {
+                var emp = (EntityMidiaPacket)packet;
+                if (!IsGm)
+                    return;
+                var entity = emp.Ref.Entity;
+                if (entity == null)
+                    return;
+                entity.Display = emp.Midia;
+                break;
+            }
             case ProtocolId.CREATURE_EQUIP_ITEM:
             {
                 var cei = (CreatureEquipItemPacket)packet;
@@ -254,6 +266,23 @@ public class RpgClient
                 creature?.CancelActionLayer(calr.LayerId);
                 break;
             }
+            case ProtocolId.CREATURE_SKILLTREE_UPDATE:
+            {
+                var csu = (SkillTreeUpdatePacket)packet;
+                var entry = csu.EntryRef.Entry;
+                if (entry is not { CanEnable: true })
+                    break;
+                var creature = csu.EntryRef.Creature.Creature!;
+                if (!IsGm && creature.Owner != Username)
+                    break;
+                
+                if (csu.Enabled && !entry.Enabled)
+                    entry.Enable();
+                if (!csu.Enabled && entry.Enabled)
+                    entry.Disable();
+                Network.Manager.Broadcast(packet);
+                break;
+            }
             case ProtocolId.EXECUTE_COMMAND:
             {
                 var ecp = (ExecuteCommandPacket)packet;
@@ -270,9 +299,15 @@ public class RpgClient
                 string name = drp.DataName;
                 var data = drp.Json;
                 if (drp.Remove)
+                {
                     Compendium.RemoveEntry(type, name);
+                    File.Delete("Data/" + type + "/" + name + ".json");
+                }
                 else
+                {
                     Compendium.RegisterEntry(type, name, data);
+                    File.WriteAllText("Data/" + type + "/" + name + ".json", data.ToJsonString());
+                }
                 
                 break;
             }
@@ -301,7 +336,7 @@ public class RpgClient
         foreach (Entity e in board.GetEntities())
             Send(new EntityCreatePacket(board, e));
         for (int i = 0; i < board.GetFloorCount(); i++)
-            Send(new FloorImagePacket(board.Name, i, board.GetFloor(i).GetImage()));
+            Send(new FloorImagePacket(board.Name, i, board.GetFloor(i).GetMidia()));
         
         LoadedBoards.Add(board.Name);
     }

@@ -18,6 +18,7 @@ public enum ProtocolId{
     DOOR_INTERACT,
     COMBAT_MODE,
     ENTITY_CREATE,
+    ENTITY_MIDIA,
     ENTITY_REMOVE,
     ENTITY_MOVE,
     ENTITY_POSITION,
@@ -35,8 +36,10 @@ public enum ProtocolId{
     CREATURE_SKILL_REMOVE,
     CREATURE_ACTION_LAYER_UPDATE,
     CREATURE_ACTION_LAYER_REMOVE,
+    CREATURE_SKILLTREE_UPDATE,
     EXECUTE_COMMAND,
     COMPENDIUM_UPDATE,
+    
 }
 
 public enum DeviceType {
@@ -243,16 +246,16 @@ public class BoardRemovePacket : Packet
     }
 }
 
-public class FloorImagePacket(string boardName, int floorIndex, byte[] data) : Packet
+public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : Packet
 {
     public string BoardName = boardName;
     public int FloorIndex = floorIndex;
-    public byte[] Data{get; private set;} = data;
+    public Midia Data{get; private set;} = midia;
 
     public override ProtocolId Id => ProtocolId.FLOOR_IMAGE;
 
 
-    public FloorImagePacket(Stream stream) : this(stream.ReadString(), stream.ReadByte(), stream.ReadExactly(stream.ReadUInt32()))
+    public FloorImagePacket(Stream stream) : this(stream.ReadString(), stream.ReadByte(), new Midia(stream))
     {
     }
 
@@ -262,8 +265,7 @@ public class FloorImagePacket(string boardName, int floorIndex, byte[] data) : P
 
         stream.WriteString(BoardName);
         stream.WriteByte((byte)FloorIndex);
-        stream.WriteUInt32((uint)Data.Length);
-        stream.Write(Data);
+        midia.ToBytes(stream);
     }
 }
 
@@ -320,6 +322,7 @@ public class DoorInteractPacket : Packet
 
 public class CombatModePacket : Packet
 {
+    private bool tickInfo;
     public string BoardName;
     public bool CombatMode;
     public uint Tick;
@@ -331,16 +334,28 @@ public class CombatModePacket : Packet
     {
         BoardName = board.Name;
         CombatMode = board.TurnMode;
+        tickInfo = true;
         Tick = board.CurrentTick;
         PauseAt = board.GetWhenToPause();
+    }
+
+    public CombatModePacket(Board board, bool combatMode)
+    {
+        BoardName = board.Name;
+        CombatMode = combatMode;
+        tickInfo = false;
     }
 
     public CombatModePacket(Stream stream)
     {
         BoardName = stream.ReadString();
         CombatMode = stream.ReadByte() == 1;
-        Tick = stream.ReadUInt32();
-        PauseAt = stream.ReadUInt32();
+        tickInfo = stream.ReadBoolean();
+        if (tickInfo)
+        {
+            Tick = stream.ReadUInt32();
+            PauseAt = stream.ReadUInt32();
+        }
     }
 
     public override void ToBytes(Stream stream)
@@ -349,8 +364,12 @@ public class CombatModePacket : Packet
 
         stream.WriteString(BoardName);
         stream.WriteByte(CombatMode ? (byte)1 : (byte)0);
-        stream.WriteUInt32(Tick);
-        stream.WriteUInt32(PauseAt);
+        stream.WriteBoolean(tickInfo);
+        if (tickInfo)
+        {
+            stream.WriteUInt32(Tick);
+            stream.WriteUInt32(PauseAt);
+        }
     }
 }
 
@@ -379,6 +398,33 @@ public class EntityCreatePacket : Packet
 
         stream.WriteString(BoardName);
         Entity.ToBytes(stream);
+    }
+}
+
+public class EntityMidiaPacket : Packet
+{
+    public EntityRef Ref;
+    public Midia Midia;
+
+    public override ProtocolId Id => ProtocolId.ENTITY_MIDIA;
+
+    public EntityMidiaPacket(Entity entity, Midia newMidia)
+    {
+        Ref = new EntityRef(entity);
+        Midia = newMidia;
+    }
+
+    public EntityMidiaPacket(Stream stream)
+    {
+        Ref = new EntityRef(stream);
+        Midia = new Midia(stream);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Ref.ToBytes(stream);
+        Midia.ToBytes(stream);
     }
 }
 
@@ -934,6 +980,32 @@ public class ActionLayerRemovePacket : Packet
     }
 }
 
+public class SkillTreeUpdatePacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.CREATURE_SKILLTREE_UPDATE;
+    public readonly SkillTreeEntryRef EntryRef;
+    public readonly bool Enabled;
+
+    public SkillTreeUpdatePacket(SkillTreeEntry entry) : this(entry, entry.Enabled) { }
+    public SkillTreeUpdatePacket(SkillTreeEntry entry, bool enabled)
+    {
+        EntryRef = new SkillTreeEntryRef(entry);
+        Enabled = enabled;
+    }
+    public SkillTreeUpdatePacket(Stream stream)
+    {
+        EntryRef = new SkillTreeEntryRef(stream);
+        Enabled = stream.ReadBoolean();
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        EntryRef.ToBytes(stream);
+        stream.WriteBoolean(Enabled);
+    }
+}
+
 public class ExecuteCommandPacket : Packet
 {
     public override ProtocolId Id => ProtocolId.EXECUTE_COMMAND;
@@ -995,7 +1067,14 @@ public class CompendiumUpdatePacket : Packet
         RegistryName = stream.ReadString();
         DataName = stream.ReadString();
         byte type = (byte)stream.ReadByte();
-        Json = type == 0 ? null : JsonNode.Parse(stream.ReadLongString())?.AsObject();
+        if (type == 0)
+            Json = null;
+        else
+        {
+            ulong count = stream.ReadUInt64();
+            byte[] data = stream.ReadExactly((uint)count);
+            Json = JsonNode.Parse(new string(data.Select(b => (char)b).ToArray()))?.AsObject();
+        }
     }
 
     public override void ToBytes(Stream stream)
@@ -1010,6 +1089,8 @@ public class CompendiumUpdatePacket : Packet
             return;
         }
         stream.WriteByte(1);
-        stream.WriteLongString(Json.ToJsonString());
+        string str = Json.ToJsonString();
+        stream.WriteUInt64((ulong)str.Length);
+        stream.Write(str.ToBytes());
     }
 }

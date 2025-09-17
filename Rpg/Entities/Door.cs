@@ -47,6 +47,8 @@ public class DoorEntity : Entity, IDamageable
     public bool BlocksVision;
     public bool Locked;
     public bool Slide;
+    public double Health { get; }
+    public double MaxHealth { get; }
 
     public DoorEntity()
     {

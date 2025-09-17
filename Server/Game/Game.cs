@@ -49,10 +49,13 @@ public static class Game
 
     public static void AddBoard(ServerBoard board)
     {
+        bool deleteOld = _boards.ContainsKey(board.Name);
         _boards[board.Name] = board;
 
         foreach (var client in Network.Manager.Clients.Values)
         {
+            if (deleteOld)
+                client.Send(new BoardRemovePacket(board));
             if (client.IsGm || client.LoadedBoards.Contains(board.Name) || _boards.Count == 1)
                 client.SendBoard(board);
         }

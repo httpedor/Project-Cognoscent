@@ -1,0 +1,7 @@
+﻿{
+  "name": "Adrenalina",
+  "icon": "unknown",
+  "description": "Seu corpo de mamífero solta adrenalina ao ser machucado, temporariamente negando dor. Todavia isso também significa que se algum órgão interno ou osso for danificado, você não sentirá até a adrenalina passar.",
+  "tick": "if (source is not Creature creature) return; creature.GetStat(CreatureStats.ADRENALINE).BaseValue -= 1f / (50f * 3600);",
+  "attacked": "if (injury.Severity >= injured.MaxHealth * 0.20 || injured.Health / injured.MaxHealth <= 0.5) ;"
+}

@@ -20,6 +20,76 @@ public static class Compendium
     
     public static IEnumerable<string> Folders => types.Keys;
 
+    private static JsonObject Merge(JsonObject first, JsonObject second)
+    {
+        JsonObject result = new JsonObject();
+
+        // Copy from first, skipping nulls
+        foreach (var kvp in first)
+        {
+            if (kvp.Value is not null)
+                result[kvp.Key] = kvp.Value.DeepClone();
+        }
+
+        // Merge from second
+        foreach (var kvp in second)
+        {
+            if (kvp.Value is null)
+            {
+                result.Remove(kvp.Key); // Remove the key if null
+                continue;
+            }
+
+            if (result[kvp.Key] is JsonObject obj1 && kvp.Value is JsonObject obj2)
+            {
+                result[kvp.Key] = Merge(obj1, obj2);
+            }
+            else if (result[kvp.Key] is JsonArray arr1 && kvp.Value is JsonArray arr2)
+            {
+                result[kvp.Key] = MergeArraysByName(arr1, arr2);
+            }
+            else
+            {
+                result[kvp.Key] = kvp.Value.DeepClone();
+            }
+        }
+
+        return result;
+    }
+
+    private static JsonArray MergeArraysByName(JsonArray first, JsonArray second)
+    {
+        var merged = new JsonArray();
+        var map = new Dictionary<string, JsonObject>();
+
+        void AddOrMerge(JsonNode? node)
+        {
+            if (node is JsonObject obj && obj["name"] is JsonValue nameVal && nameVal.GetValue<string>() is string name)
+            {
+                if (map.TryGetValue(name, out var existing))
+                {
+                    map[name] = Merge(existing, obj);
+                }
+                else
+                {
+                    map[name] = (JsonObject)obj.DeepClone();
+                }
+            }
+            else
+            {
+                if (node is not null)
+                    merged.Add(node.DeepClone());
+            }
+        }
+
+        foreach (var item in first) AddOrMerge(item);
+        foreach (var item in second) AddOrMerge(item);
+
+        foreach (var obj in map.Values)
+            merged.Add(obj);
+
+        return merged;
+    }
 
     public static void RegisterDefaults()
     {
@@ -29,6 +99,20 @@ public static class Compendium
             (name, json) => Features.Exists(name) ? Features.Get(name) : Feature.FromJson(name, json));
         RegisterFolder<Body>("Bodies", (_, json) => Body.NewBody(json));
         RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
+        RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
+        RegisterFolder<Midia>("Midia", (fName, json) =>
+        {
+            string fileName = json["fileName"].GetValue<string>();
+            bool parsed = Enum.TryParse(json["type"]?.GetValue<string>(), out MidiaType type);
+            byte[] data = Convert.FromBase64String(json["data"].GetValue<string>());
+            Midia ret;
+            if (parsed)
+                ret = new Midia(data, type);
+            else
+                ret = new Midia(data, fileName);
+            return ret;
+        });
+        RegisterFolder<string>("Notes", (_, json) => json["text"]?.GetValue<string>() ?? "");
     }
     
     public static IEnumerable<(string fName, JsonObject obj)> GetFiles(string folder)
@@ -37,6 +121,8 @@ public static class Compendium
         if (!Directory.Exists(path))
             yield break;
 
+        Dictionary<string, JsonObject> processedFiles = new();
+        List<(string fName, JsonObject obj)> toProcess = new();
         foreach (string file in Directory.GetFiles(path))
         {
             string json = File.ReadAllText(file);
@@ -48,7 +134,13 @@ public static class Compendium
                 if (node is JsonObject obj)
                 {
                     fName = file[(file.LastIndexOf('\\') + 1)..file.LastIndexOf('.')];
-                    parsed = obj;
+                    if (obj.ContainsKey("parent"))
+                        toProcess.Add((fName, obj));
+                    else
+                    {
+                        processedFiles[fName] = obj;
+                        parsed = obj;
+                    }
                 }
             }
             catch (JsonException e)
@@ -58,6 +150,26 @@ public static class Compendium
             }
             if (fName != null && parsed != null)
                 yield return (fName, parsed);
+        }
+
+        while (toProcess.Count > 0)
+        {
+            var next = toProcess.First();
+            string parent = next.obj["parent"]!.GetValue<string>();
+            if (!processedFiles.TryGetValue(parent, out JsonObject? parentObj))
+            {
+                if (!toProcess.Select(x => x.fName).Contains(parent))
+                {
+                    Console.WriteLine($"Warning: File {next.fName} is child of {parent} but it doesn't exist.");
+                    toProcess.RemoveAt(0);
+                }
+                continue;
+            }
+
+            var result = Merge(parentObj, next.obj);
+            toProcess.RemoveAt(0);
+            processedFiles[next.fName] = result;
+            yield return (next.fName, result);
         }
     }
     public static void RegisterFolder<T>(string folder, Func<string, JsonObject, T?>? builder = null) where T : class
@@ -93,16 +205,25 @@ public static class Compendium
         if (data == null)
         {
             object? ret = builder(name, data);
+            files[folder].Remove(name);
             loaded[folder][name] = ret;
             return ret;
         }
         else
         {
-            object? ret = builder(name, data);
-            if (ret != null && ret.GetType().IsAssignableTo(types[folder]))
+            try
             {
-                loaded[folder][name] = ret;
-                return ret;
+                object? ret = builder(name, data);
+                if (ret != null && ret.GetType().IsAssignableTo(types[folder]))
+                {
+                    loaded[folder][name] = ret;
+                    return ret;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                // ignored
             }
         }
 

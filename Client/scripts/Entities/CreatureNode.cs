@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Godot;
 using Rpg;
 using TTRpgClient.scripts.RpgImpl;
+using TTRpgClient.scripts.ui;
 
 namespace TTRpgClient.scripts;
 
@@ -65,10 +66,37 @@ public partial class CreatureNode(Creature ent, ClientBoard board) : EntityNode(
         });
     }
 
+    public override void AddContextMenuOptions()
+    {
+        base.AddContextMenuOptions();
+        if (Board.OwnedSelectedEntity != Creature)
+            return;
+
+        if (Creature.SkillTree != null)
+        {
+            ContextMenu.AddOption("Habilidades", _ =>
+            {
+                SkillTreeDisplay.Tree = Creature.SkillTree;
+                SkillTreeDisplay.Visible = true;
+            });
+        }
+    }
+
     public override void _Ready()
     {
         base._Ready();
         Label = "TesteBaixo";
+        
+        Creature.ActionLayerChanged += (layer) =>
+        {
+            if (!IsInstanceValid(this))
+                return;
+            if (GameManager.Instance.CurrentBoard?.OwnedSelectedEntity == Creature)
+            {
+                ActionBar.Clear();
+                ActionBar.PopulateWithSkills(Creature);
+            }
+        };
     }
 
     public override void _Process(double delta)
@@ -96,12 +124,12 @@ public partial class CreatureNode(Creature ent, ClientBoard board) : EntityNode(
         if (layer.ExecutionStartTick > Board.CurrentTick)
         {
             prefix = "Preparando ";
-            LoadBarFilling = (layer.ExecutionStartTick - Board.CurrentTick) / (float)layer.Delay;
+            LoadBarFilling = 1 - ((layer.ExecutionStartTick - Board.CurrentTick) / (float)layer.Delay);
         }
         else
         {
             prefix = "Executando ";
-            LoadBarFilling = (layer.ExecutionEndTick - Board.CurrentTick) / (float)layer.Duration;
+            LoadBarFilling = 1 - ((layer.ExecutionEndTick - Board.CurrentTick) / (float)layer.Duration);
         }
 
         if (LoadBarLabel == null)

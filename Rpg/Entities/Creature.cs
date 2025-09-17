@@ -68,6 +68,7 @@ public class ActionLayer(string name, string id, uint startTick, uint delay, uin
     }
 }
 
+//TODO: Movement speed
 public class Creature : Entity, IItemHolder, IDamageable
 {
     /// <summary>
@@ -107,6 +108,17 @@ public class Creature : Entity, IItemHolder, IDamageable
                         ret.AddRange(ep.Skills.Select(skill => new Tuple<ISkillSource, Skill>(ep, skill)));
                 }
             }
+
+            if (SkillTree != null)
+            {
+                foreach (var entry in SkillTree.EnabledEntries)
+                {
+                    foreach (var skill in entry.Skills)
+                    {
+                        ret.Add(new Tuple<ISkillSource, Skill>(entry, skill));
+                    }
+                }
+            }
             return ret;
         }
     }
@@ -123,10 +135,13 @@ public class Creature : Entity, IItemHolder, IDamageable
 
     Board? IItemHolder.Board => Board;
 
+    public double Health => Body.Parts.Sum(p => p.Health);
+    public double MaxHealth => Body.Parts.Sum(p => p.MaxHealth);
 
     private readonly Dictionary<string, ActionLayer> actionLayers = new();
     public IEnumerable<string> ActiveActionLayers => actionLayers.Keys;
     public readonly Dictionary<int, SkillData> ActiveSkills = new();
+    public SkillTree? SkillTree;
     public string Owner;
 
     public Creature(Body body)
@@ -139,11 +154,16 @@ public class Creature : Entity, IItemHolder, IDamageable
     public Creature(Stream stream) : base(stream)
     {
         Owner = stream.ReadString();
+        Name = stream.ReadString();
+        if (stream.ReadBoolean())
+            SkillTree = new SkillTree(stream)
+            {
+                Owner = this
+            };
         Body = new Body(stream)
         {
             Owner = this
         };
-        Name = stream.ReadString();
 
         int count = stream.ReadInt32();
         for (int i = 0; i < count; i++)
@@ -303,10 +323,7 @@ public class Creature : Entity, IItemHolder, IDamageable
     {
         if (!skill.CanBeUsed(this, source))
             return false;
-        foreach (string layer in skill.GetLayers(this, source))
-            if (!CanUseActionLayer(layer))
-                return false;
-        return true;
+        return skill.GetLayers(this, source).All(CanUseActionLayer);
     }
 
     public void ExecuteSkill(Skill skill, List<SkillArgument> args, ISkillSource source)
@@ -334,7 +351,7 @@ public class Creature : Entity, IItemHolder, IDamageable
         foreach (string layer in data.Layers)
         {
             ActiveSkills[data.Id] = data;
-            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, skill.GetDelay(this, args, source), skill.GetDuration(this, args, source), skill.GetCooldown(this, args, source), skill.CanCancel(this, args, source)));
+            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, Math.Max(skill.GetDelay(this, args, source), 0), Math.Max(skill.GetDuration(this, args, source), 0), Math.Max(skill.GetCooldown(this, args, source), 0), skill.CanCancel(this, args, source)));
         }
         skill.Start(this, args, source);
         OnSkillStart?.Invoke(data);
@@ -373,14 +390,20 @@ public class Creature : Entity, IItemHolder, IDamageable
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteString(Owner);
-        Body.ToBytes(stream);
         stream.WriteString(Name);
+        stream.WriteString(Owner);
+        if (SkillTree != null)
+        {
+            stream.WriteBoolean(true);
+            SkillTree.ToBytes(stream);
+        }
+        else
+            stream.WriteBoolean(false);
+        Body.ToBytes(stream);
 
         stream.WriteInt32(actionLayers.Count);
         foreach (var kvp in actionLayers)
         {
-            stream.WriteString(kvp.Key);
             kvp.Value.ToBytes(stream);
         }
 

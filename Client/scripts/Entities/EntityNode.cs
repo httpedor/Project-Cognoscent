@@ -5,7 +5,7 @@ using TTRpgClient.scripts.RpgImpl;
 
 namespace TTRpgClient.scripts;
 
-public partial class EntityNode : Node2D
+public partial class EntityNode : Node2D, IContextMenuProvider
 {
     private static ShaderMaterial MATERIAL = GD.Load<ShaderMaterial>("res://materials/entity.material");
     public ClientBoard Board { get; }
@@ -97,6 +97,11 @@ public partial class EntityNode : Node2D
         Display.Sprite.Material = (Material)MATERIAL.Duplicate();
         AddChild(Display);
 
+        ent.OnDisplayChanged += (newDisplay) =>
+        {
+            Display.Midia = newDisplay;
+        };
+
         label = new Label
         {
             Text = "",
@@ -179,7 +184,7 @@ public partial class EntityNode : Node2D
         AddChild(Hitbox);
 
         ent.OnDisplayChanged += _ => {
-            CircleMask = !ent.Display.IsVideo;
+            CircleMask = ent.Display.Type == MidiaType.Image;
         };
         ent.OnPositionChanged += OnMove;
 
@@ -193,7 +198,7 @@ public partial class EntityNode : Node2D
             };
         }
 
-        CircleMask = !ent.Display.IsVideo;
+        CircleMask = ent.Display.Type == MidiaType.Image;
     }
 
     protected void OnMove(System.Numerics.Vector3 newPos, System.Numerics.Vector3 oldPos)
@@ -214,11 +219,12 @@ public partial class EntityNode : Node2D
         loadBarColorRect.Size = loadBarSize;
         loadBarBgColorRect.Size = loadBarSize;
         loadBar.Position = new Vector2(-loadBarSize.X / 2, -(Entity.PixelSize.Y/2) - loadBarSize.Y);
-                
-        
+
+
         ClientFloor floor = Board.GetFloor((int)Entity.Position.Z);
         Position = Position.Lerp(new Vector2(floor.TileSize.X * Entity.Position.X, floor.TileSize.Y * Entity.Position.Y), (float)delta * 10);
-        Display.Scale = Display.Scale.Lerp(new Vector2(floor.TileSize.X / Display.Sprite.Texture.GetSize().X * Entity.Size.X, floor.TileSize.Y / Display.Sprite.Texture.GetSize().Y * Entity.Size.Y), (float)delta * 10);
+        if (Display.Sprite.Texture != null)
+            Display.Scale = Display.Scale.Lerp(new Vector2(floor.TileSize.X / Display.Sprite.Texture.GetSize().X * Entity.Size.X, floor.TileSize.Y / Display.Sprite.Texture.GetSize().Y * Entity.Size.Y), (float)delta * 10);
         var rot = Mathf.LerpAngle(Display.Rotation, Entity.Rotation - (MathF.PI/2 * (Entity is Creature ? 1 : 0)), (float)delta * 10);
         Display.Rotation = rot;
         if (Board.FloorIndex > Entity.Position.Z + Entity.Size.Z)
@@ -264,6 +270,31 @@ public partial class EntityNode : Node2D
 
     public virtual void AddGMContextMenuOptions()
     {
+        ContextMenu.AddOption("Mudar Exibição", (_) =>
+        {
+            Modal.OpenFormDialog("Mudar Exibição", (info) =>
+            {
+                Midia img = (Midia)info["image"];
+                NetworkManager.Instance.SendPacket(new EntityMidiaPacket(Entity, img));
+            }, ("image", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
+        });
+        ContextMenu.AddOption("Mudar Tamanho(Real)", (_) =>
+        {
+            Modal.OpenFormDialog("Mudar Tamanho(Real)", (info) =>
+            {
+                Vector3 size = (Vector3)info["Tamanho"];
+                //TODO: This
+            }, ("Tamanho", Entity.Size.ToGodot(), null));
+        });
+        ContextMenu.AddOption("Mudar Tamanho(Imagem)", (_) =>
+        {
+            Modal.OpenFormDialog("Mudar Tamanho(Imagem)", (info) =>
+            {
+                Vector2 size = (Vector2)info["Tamanho"];
+                Entity.Display.Scale = size.ToNumerics();
+                NetworkManager.Instance.SendPacket(new EntityMidiaPacket(Entity, Entity.Display));
+            }, ("Tamanho", Entity.Display.Scale.ToGodot(), null));
+        });
         ContextMenu.AddOption("Destruir Entidade", (_) => {
             if (!Input.IsKeyPressed(Key.Shift))
                 Modal.OpenConfirmationDialog("Deletar Entidade", "Deseja deletar/remover essa entidade?", (remove) => {

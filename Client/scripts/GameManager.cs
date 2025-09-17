@@ -22,12 +22,22 @@ public partial class GameManager : Node
         {
             VisionManager.ClearVisionPoints();
             if (field != null){
+                field.UpdateTurnModeToast();
                 field.Node.Visible = false;
             }
             field = value;
             if (field != null){
+                
                 field.Node.Visible = true;
                 ChatControl.Instance.SetMessageHistory(field.GetChatHistory());
+                if (field.TurnMode)
+                {
+                    InitiativeBar.PopulateWithBoard(field);
+                    InitiativeBar.Show();
+                }
+                else
+                    InitiativeBar.Hide();
+                field.UpdateTurnModeToast();
                 if (IsGm) return;
                 
                 RenderingServer.SetDefaultClearColor(new Color(0, 0, 0));
@@ -42,9 +52,11 @@ public partial class GameManager : Node
                             VisionManager.AddVisionPoint(new VisionPoint(creature));
                     }
                 }
+
             }
             else
             {
+                InitiativeBar.Hide();
                 ChatControl.Instance.SetMessageHistory(new List<string>());
                 RenderingServer.SetDefaultClearColor(defaultClearColor);
                 ActionBar.Clear();
@@ -169,7 +181,11 @@ public partial class GameManager : Node
 
         foreach (var board in boards)
         {
-            Task.Run(async () => board.Tick());
+            Task.Run(async () =>
+            {
+                if (!board.TurnMode)
+                    board.Tick();
+            });
         }
     }
 
@@ -189,6 +205,13 @@ public partial class GameManager : Node
     public void HideMenu()
     {
         GetParent().FindChild("UILayer").FindChild("Menu")?.QueueFree();
+    }
+
+    public void PlayAudio(Midia midia)
+    {
+        if (midia.Type != MidiaType.Audio)
+            return;
+        //TODO: Play audio
     }
 
     public void ExecuteCommand(string command)

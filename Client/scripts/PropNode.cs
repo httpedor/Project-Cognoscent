@@ -15,9 +15,9 @@ public partial class PropNode : EntityNode
 
     protected override void MouseEntered()
     {
-        if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || !(GameManager.Instance.CurrentBoard.SelectedEntity is Creature)))
+        if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || GameManager.Instance.CurrentBoard.SelectedEntity is not Creature))
             base.MouseEntered();
-        else if (Prop.ShownMidia.HasValue && Prop.ShownMidia.Value.Bytes.Length > 0)
+        else if (Prop.ShownMidia is { Bytes.Length: > 0 })
         {
             Input.SetDefaultCursorShape(Input.CursorShape.PointingHand);
             InputManager.RequestPriority(this);
@@ -25,9 +25,9 @@ public partial class PropNode : EntityNode
     }
     protected override void MouseExited()
     {
-        if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || !(GameManager.Instance.CurrentBoard.SelectedEntity is Creature)))
+        if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || GameManager.Instance.CurrentBoard.SelectedEntity is not Creature))
             base.MouseExited();
-        else if (Prop.ShownMidia != null && Prop.ShownMidia.Value.Bytes.Length > 0)
+        else if (Prop.ShownMidia is { Bytes.Length: > 0 })
         {
             Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
             InputManager.ReleasePriority(this);
@@ -36,11 +36,11 @@ public partial class PropNode : EntityNode
 
     public override void OnClick()
     {
-        if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || !(GameManager.Instance.CurrentBoard.SelectedEntity is Creature)))
+        if (GameManager.IsGm && (GameManager.Instance.CurrentBoard == null || GameManager.Instance.CurrentBoard.SelectedEntity is not Creature))
             base.OnClick();
-        else if (Prop.ShownMidia.HasValue && Prop.ShownMidia.Value.Bytes.Length > 0)
+        else if (Prop.ShownMidia is { Bytes.Length: > 0 })
         {
-            Modal.OpenMedia(Prop.ShownMidia.Value);
+            Modal.OpenMedia(Prop.ShownMidia);
         }
     }
 }

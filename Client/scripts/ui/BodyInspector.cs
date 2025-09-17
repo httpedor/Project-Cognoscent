@@ -103,7 +103,7 @@ public partial class BodyInspector : Control
 						btn.Pressed += () => {
 							Current = child;
 
-							readyBtn.Disabled = Settings.Predicate != null && Settings.Predicate(child);
+							readyBtn.Disabled = Settings.Predicate != null && !Settings.Predicate(child);
 						};
 						specificsContainer.AddChild(btn);
 					}

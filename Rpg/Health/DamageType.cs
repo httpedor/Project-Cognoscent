@@ -34,7 +34,7 @@ public class DamageType : ISerializable
         OnHard = onHard;
         Parent = parent;
         dts.Add(this);
-        dtsByName[name] = this;
+        dtsByName[name.ToLower()] = this;
 
         if (Color == null)
             Color = parent?.Color;
@@ -91,7 +91,7 @@ public class DamageType : ISerializable
 
     public static DamageType? FromName(string name)
     {
-        return dtsByName.GetValueOrDefault(name);
+        return dtsByName.GetValueOrDefault(name.ToLower());
     }
 
     public static DamageType FromId(byte id)

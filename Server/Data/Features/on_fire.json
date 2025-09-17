@@ -1,0 +1,8 @@
+﻿{
+  "type": "damage_over_time",
+  "name": "Fogo",
+  "description": "Esta entidade está pegando fogo",
+  "icon": "fire",
+  "damage_type": "fogo",
+  "damage": 1
+}

@@ -10,6 +10,8 @@ public abstract class Skill : ISerializable
     public string? CustomName = null;
     public string? CustomIcon = null;
     public string? CustomLayer = null;
+    protected HashSet<string> tags = [];
+    public virtual IEnumerable<string> Tags => tags;
 
     public string BBHint => $"[hint={GetTooltip()}]{GetName()}[/hint]";
 
@@ -40,32 +42,17 @@ public abstract class Skill : ISerializable
                 case "arbitrary":
                     skill = new ArbitrarySkill(
                         id,
-                        obj["execute"]?.GetValue<string>(),
-                        obj["start"]?.GetValue<string>(),
-                        obj["cancel"]?.GetValue<string>(),
-                        obj["canCancel"]?.GetValue<string>(),
-                        obj["delay"]?.GetValue<string>(),
-                        obj["cooldown"]?.GetValue<string>(),
-                        obj["duration"]?.GetValue<string>(),
-                        obj["layers"]?.GetValue<string>(),
+                        new SkillJson(obj),
                         obj["description"]!.GetValue<string>(),
                         obj["name"]!.GetValue<string>(),
                         obj["icon"]!.GetValue<string>()
                     );
+
                     break;
                 case "attack":
                     skill = new ArbitraryAttackSkill(
                         id,
-                        obj["execute"]?.GetValue<string>(),
-                        obj["start"]?.GetValue<string>(),
-                        obj["cancel"]?.GetValue<string>(),
-                        obj["canCancel"]?.GetValue<string>(),
-                        obj["delay"]?.GetValue<string>(),
-                        obj["cooldown"]?.GetValue<string>(),
-                        obj["damage"]?.GetValue<string>(),
-                        obj["doesHit"]?.GetValue<string>(),
-                        obj["onHit"]?.GetValue<string>(),
-                        obj["onAttack"]?.GetValue<string>(),
+                        new SkillJson(obj),
                         obj["description"]!.GetValue<string>(),
                         obj["name"]!.GetValue<string>(),
                         obj["icon"]!.GetValue<string>()
@@ -75,11 +62,18 @@ public abstract class Skill : ISerializable
                     throw new Exception("Unknown skill type: " + type);
             }
 
+            if (obj.ContainsKey("tags"))
+            {
+                foreach (var tagVal in obj["tags"]!.AsArray())
+                {
+                    skill.tags.Add(tagVal.GetValue<string>());
+                }
+            }
             return skill;
         }
         catch (Exception e)
         {
-            Console.WriteLine("Couldn't laoad skill from JSON");
+            Console.WriteLine("Couldn't load skill from JSON");
             Console.WriteLine(e);
         }
 
@@ -226,6 +220,15 @@ public abstract class Skill : ISerializable
         return new Type[0][];
     }
 
+    public bool Is(string tag)
+    {
+        return tags.Contains(tag);
+    }
+    public bool HasTag(string tag)
+    {
+        return Is(tag);
+    }
+
     public Skill WithName(string name)
     {
         CustomName = name;
@@ -234,6 +237,12 @@ public abstract class Skill : ISerializable
     public Skill WithIcon(string icon)
     {
         CustomIcon = icon;
+        return this;
+    }
+
+    public Skill WithTags(params string[] tags)
+    {
+        this.tags = new HashSet<string>(tags);
         return this;
     }
 }

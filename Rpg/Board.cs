@@ -52,6 +52,7 @@ public abstract class Board
             entityCacheByType[type] = new List<Entity>();
 
 
+        //what the fuck is this shit
         foreach (Entity ent in GetEntitiesByType(EntityType.Creature))
         {
             RemoveEntity(ent);
@@ -148,6 +149,7 @@ public abstract class Board
             return;
         entities.Remove(entity);
         entity.Board = null;
+        entity.ClearEvents();
         if (entity is IItemHolder ih)
             UncacheItems(ih);
         return;
@@ -220,9 +222,10 @@ public abstract class Board
     {
         CurrentTick++;
         
-        if (CurrentTick == pauseTick)
+        if (CurrentTick >= pauseTick)
         {
             StartTurnMode();
+            PauseAt(uint.MaxValue);
         }
 
         foreach (var pair in queuedActions.ToArray())

@@ -4,6 +4,7 @@ using Godot;
 public static class Icons
 {
     private static Dictionary<string, Texture2D> cache = new();
+    public static readonly Texture2D Unknown = GetIcon("unknown");
     public static readonly Texture2D Ping = GetIcon("ping");
     public static readonly Texture2D Ping2 = GetIcon("ping2");
     public static readonly Texture2D Trash = GetIcon("trash");
@@ -19,16 +20,22 @@ public static class Icons
     public static readonly Texture2D Light = GetIcon("light");
     public static readonly Texture2D Chat = GetIcon("chat");
     public static readonly Texture2D Book = GetIcon("book");
+    public static readonly Texture2D Plus  = GetIcon("plus");
+    public static readonly Texture2D Add = Plus;
+    public static readonly Texture2D File = GetIcon("binary-file");
+    public static readonly Texture2D Audio = GetIcon("audio");
 
 
-    public static Texture2D GetIcon(string name)
+    public static Texture2D GetIcon(string? name)
     {
+        if (name == null)
+            return Unknown;
         if (cache.ContainsKey(name))
             return cache[name];
         
         var icon = GD.Load<Texture2D>($"res://assets/svg/{name}.svg");
         if (icon == null)
-            icon = GD.Load<Texture2D>($"res://assets/svg/unknown.svg");
+            return Unknown;
         cache[name] = icon;
         return icon;
     }

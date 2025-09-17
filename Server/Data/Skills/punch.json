@@ -1,7 +1,10 @@
 ﻿{
   "type": "attack",
   "name": "Soco",
-  "description": "Da um soco",
+  "description": "Da um soco simples",
   "icon": "punch",
-  "damage": "(creature[CreatureStats.STRENGTH], DamageType.Blunt)"
+  "tags": ["unnarmed"],
+  "delay": "(uint)MathF.Round(RpgMath.Lerp(15f, 5f, (float)creature[CreatureStats.AGILITY]/100f))",
+  "cooldown": "(uint)MathF.Round(RpgMath.Lerp(15f, 5f, (float)creature[CreatureStats.AGILITY]/100f))",
+  "damage": "(creature[CreatureStats.STRENGTH]/4f, DamageType.Blunt)"
 }

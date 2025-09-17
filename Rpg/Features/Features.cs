@@ -4,7 +4,7 @@ public static class Features
 {
     private static Dictionary<string, Feature> _features = new();
     public static IEnumerable<Feature> All => _features.Values;
-    public static readonly Feature OnFire = register(new DamageOverTimeCondition("on_fire", "Fogo", "Esta entidade está pegando fogo.", DamageType.Fire, 1));
+    //public static readonly Feature OnFire = register(new DamageOverTimeCondition("on_fire", "Fogo", "Esta entidade está pegando fogo.", DamageType.Fire, 1));
 
     private static T register<T>(T feature) where T : Feature
     {

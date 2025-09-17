@@ -50,7 +50,7 @@ public abstract class ConditionFeature : Feature
     public override void Enable(IFeatureSource source)
     {
         base.Enable(source);
-        source.SetCustomData(StartTickKey, BitConverter.GetBytes(source.Board.CurrentTick));
+        source.SetCustomData(StartTickKey, source.Board.CurrentTick);
     }
     public override void Disable(IFeatureSource source)
     {

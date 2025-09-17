@@ -1,42 +1,75 @@
 
+using System.Numerics;
+
 namespace Rpg;
 
-public struct Midia : ISerializable
+public enum MidiaType
+{
+    Image,
+    Video,
+    Audio,
+    Binary
+}
+public class Midia : ISerializable
 {
     public byte[] Bytes;
-    public bool IsVideo = false;
-    public Midia() : this(Array.Empty<Byte>(), false)
+    public MidiaType Type;
+    public Vector2 Scale = Vector2.One;
+    public Midia() : this([])
     {
 
     }
-    public Midia(byte[] bytes, string fileName) : this(bytes, IsFilenameVideo(fileName))
+    public Midia(byte[] bytes, string fileName) : this(bytes, GetFilenameType(fileName))
     {
 
     }
-    public Midia(string fileName) : this(File.Exists(fileName) ? File.ReadAllBytes(fileName) : Array.Empty<Byte>(), IsFilenameVideo(fileName))
+    public Midia(string fileName) : this(File.Exists(fileName) ? File.ReadAllBytes(fileName) : Array.Empty<Byte>(), GetFilenameType(fileName))
     {
 
     }
-    public Midia(byte[] bytes, bool isVideo = false)
+    public Midia(byte[] bytes, MidiaType type = MidiaType.Binary)
     {
         Bytes = bytes;
-        IsVideo = isVideo;
+        Type = type;
     }
     public Midia(Stream stream)
     {
-        IsVideo = stream.ReadByte() != 0;
+        Type = (MidiaType)stream.ReadByte();
+        Scale = stream.ReadVec2();
         Bytes = stream.ReadExactly(stream.ReadUInt32());
     }
     
     public void ToBytes(Stream stream)
     {
-        stream.WriteByte((Byte)(IsVideo ? 1 : 0));
-        stream.WriteUInt32((UInt32)Bytes.Length);
+        stream.WriteByte((byte)Type);
+        stream.WriteVec2(Scale);
+        stream.WriteUInt32((uint)Bytes.Length);
         stream.Write(Bytes);
     }
 
-    public static bool IsFilenameVideo(string fileName)
+    public static MidiaType GetFilenameType(string? fileName)
     {
-        return fileName != null && (fileName.EndsWith(".webm") || fileName.EndsWith(".mp4"));
+        if (fileName == null)
+            return MidiaType.Binary;
+        switch (fileName.Substring(fileName.LastIndexOf('.')+1))
+        {
+            case "webm":
+            case "mp4":
+            case "mkv":
+                return MidiaType.Video;
+            case "bmp":
+            case "webp":
+            case "jpg":
+            case "png":
+            case "jpeg":
+            case "jfif":
+                return MidiaType.Image;
+            case "ogg":
+            case "wav":
+            case "mp3":
+                return MidiaType.Audio;
+            default:
+                return MidiaType.Binary;
+        }
     }
 }

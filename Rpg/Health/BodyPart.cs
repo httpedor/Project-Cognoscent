@@ -118,7 +118,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     public IEnumerable<Injury> Injuries => injuries;
     public readonly float PainMultiplier = 1;
     public double Pain => injuries.Sum(injury => injury.Type.Pain * injury.Severity * PainMultiplier);
-    public readonly float MaxHealth;
+    public double MaxHealth { get; private set; }
     //This should only be used if the parent is alive
     public double HealthStandalone
     {
@@ -231,7 +231,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     {
         Name = stream.ReadString();
         Group = stream.ReadString();
-        MaxHealth = stream.ReadFloat();
+        MaxHealth = stream.ReadDouble();
         Size = stream.ReadFloat();
         flags = (byte)stream.ReadByte();
         equipmentSlots = new Dictionary<string, Item?>();
@@ -241,7 +241,9 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
         for (int i = 0; i < slotCount; i++)
         {
             string slot = stream.ReadString();
-            if (stream.ReadByte() != 0)
+            if (stream.ReadByte() == 0)
+                equipmentSlots[slot] = null;
+            else
                 equipmentSlots[slot] = new Item(stream);
         }
 
@@ -464,7 +466,13 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
             Body?.OnPartDie(this);
 
         if (!SidedLogic.Instance.IsClient())
+        {
             UpdateStatModifiers();
+            foreach (var feat in SelfEnabledFeatures.Concat(Owner?.EnabledFeatures ?? []))
+            {
+                feat.OnInjured(this, condition);
+            }
+        }
     }
 
     public void RemoveInjury(Injury condition)
@@ -599,7 +607,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     {
         stream.WriteString(Name);
         stream.WriteString(Group);
-        stream.WriteFloat(MaxHealth);
+        stream.WriteDouble(MaxHealth);
         stream.WriteFloat(Size);
         stream.WriteByte(flags);
         
@@ -786,6 +794,11 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
         return sb.ToString();
     }
 
+    public override string ToString()
+    {
+        return "BodyPart[" + Name + "]";
+    }
+
     public void ClearEvents()
     {
         OnChildAdded = null;
@@ -906,7 +919,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
                     if (skill != null)
                         skills.Add(skill);
                     else
-                        Console.WriteLine("Warning: Invalid skill name in JSON: " + skillJson);
+                        Console.WriteLine("Warning: Invalid skill name in BodyPart JSON: " + skillJson);
                 }
                 builder.Skills(skills.ToArray());
             }
@@ -951,7 +964,11 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
                 }
             }
 
-            return builder.Build();
+            var ret = builder.Build();
+            //CustomData
+            if (json.TryGetPropertyValue("metadata", out JsonNode? metadataNode))
+                ret.CustomDataFromJson(metadataNode.AsObject());
+            return ret;
         }
 #pragma warning restore CS8602 // Dereference of a possibly null reference.
         catch (JsonException e)

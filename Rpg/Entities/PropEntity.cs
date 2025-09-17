@@ -24,10 +24,10 @@ public class PropEntity : Entity
     {
         base.ToBytes(stream);
 
-        if (ShownMidia.HasValue)
+        if (ShownMidia != null)
         {
             stream.WriteByte(1);
-            ShownMidia.Value.ToBytes(stream);
+            ShownMidia.ToBytes(stream);
         }
         else
             stream.WriteByte(0);
