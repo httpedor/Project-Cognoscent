@@ -39,7 +39,7 @@ public class ServerFloor : Floor, ISerializable
 {
     public AreaTrigger[] Triggers = Array.Empty<AreaTrigger>();
     private List<Line>[,] collisionGrid;
-    private List<OBB>[,] entityCollisionGrid;
+    private List<Entity>[,] entityCollisionGrid;
     private List<AreaTrigger>[,] triggerGrid;
     
     public void UpdateCollisionGrid()
@@ -100,16 +100,52 @@ public class ServerFloor : Floor, ISerializable
         }
     }
 
-    public void UpdateEntityCollisionGrid()
+    public void UpdateEntityCollisionGrid(Entity entity)
     {
-        //TODO: This
+        //TODO: Remove old entity positions before updating
+        var obb = entity.Hitbox;
+        var corners = obb.Corners;
+
+        // Compute AABB bounds from OBB corners
+        float minX = corners.Min(c => c.X);
+        float maxX = corners.Max(c => c.X);
+        float minY = corners.Min(c => c.Y);
+        float maxY = corners.Max(c => c.Y);
+
+        for (int x = (int)minX; x <= (int)maxX; x++)
+        {
+            for (int y = (int)minY; y <= (int)maxY; y++)
+            {
+                if (x >= 0 && x < Size.X && y >= 0 && y < Size.Y)
+                {
+                    if (!entityCollisionGrid[x, y].Contains(entity))
+                        entityCollisionGrid[x, y].Add(entity);
+                }
+            }
+        }
     }
 
     public ServerFloor(Vector2 size, Vector2 tileSize, uint ambinetLight) : base(size, tileSize, ambinetLight)
     {
+        entityCollisionGrid = new List<Entity>[(int)Size.X, (int)Size.Y];
+        for (int x = 0; x < Size.X; x++)
+        {
+            for (int y = 0; y < Size.Y; y++)
+            {
+                entityCollisionGrid[x, y] = new();
+            }
+        }
     }
 
     public ServerFloor(Stream stream){
+        entityCollisionGrid = new List<Entity>[(int)Size.X, (int)Size.Y];
+        for (int x = 0; x < Size.X; x++)
+        {
+            for (int y = 0; y < Size.Y; y++)
+            {
+                entityCollisionGrid[x, y] = new ();
+            }
+        }
         Size = stream.ReadVec2();
         TileSize = stream.ReadVec2();
         AmbientLight = stream.ReadUInt32();
@@ -298,9 +334,32 @@ public class ServerFloor : Floor, ISerializable
         }*/
     }
 
-    public override IEnumerable<OBB> PossibleEntityIntersections(OBB obb)
+    public override IEnumerable<Entity> PossibleEntityIntersections(OBB obb)
     {
-        yield break;
+        HashSet<Entity> alreadyYielded = new ();
+
+        var corners = obb.Corners;
+        float minX = corners.Min(c => c.X);
+        float maxX = corners.Max(c => c.X);
+        float minY = corners.Min(c => c.Y);
+        float maxY = corners.Max(c => c.Y);
+
+        for (int x = (int)minX; x <= (int)maxX; x++)
+        {
+            for (int y = (int)minY; y <= (int)maxY; y++)
+            {
+                if (x < 0 || x >= Size.X || y < 0 || y >= Size.Y)
+                    continue;
+
+                var cell = entityCollisionGrid[x, y];
+                foreach (var other in cell)
+                {
+                    // Avoid duplicates
+                    if (alreadyYielded.Add(other))
+                        yield return other;
+                }
+            }
+        }
     }
 
     public IEnumerable<AreaTrigger> PossibleTriggersAt(Vector2 position)

@@ -77,6 +77,7 @@ public class ServerBoard : Board, ISerializable
         entity.OnFeatureRemoved += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Remove(entity, feat), Name);
         entity.OnFeatureEnabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Enable(entity, feat), Name);
         entity.OnFeatureDisabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Disable(entity, feat), Name);
+        entity.OnPositionChanged += (_, _) => (entity.Floor as ServerFloor)?.UpdateEntityCollisionGrid(entity);
         
         void addStatEvents(Stat stat)
         {

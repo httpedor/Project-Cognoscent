@@ -194,7 +194,19 @@ public class Creature : Entity, IItemHolder, IDamageable
         }
 
         if (TargetPos != Vector2.NaN)
-            Position += new Vector3((TargetPos - Position.XY()) * (MovementSpeed/50), 0);
+        {
+            var result = Position + new Vector3((TargetPos - Position.XY()) * (MovementSpeed / 50), 0);
+            bool canProceed = true;
+            foreach (var line in Floor.PossibleOBBIntersections(Hitbox))
+            {
+                canProceed = !Geometry.OBBLineIntersection(Hitbox, line, out _);
+                if (!canProceed)
+                    break;
+            }
+
+            if (canProceed)
+                Position = result;
+        }
         if ((TargetPos - Position.XY()).Length() < 0.1)
             TargetPos = Vector2.NaN;
         

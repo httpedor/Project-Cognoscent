@@ -2,8 +2,13 @@
 
 public class ProjectileEntity : Entity
 {
+    public event Action<Entity> OnHit;
+    
     public Skill? UsedSkill;
     public Entity? Owner;
+    public bool DestroyOnHit = true;
+    public bool DestroyOnHitWall = true;
+        
     public override EntityType GetEntityType()
     {
         return EntityType.Projectile;
@@ -25,7 +30,30 @@ public class ProjectileEntity : Entity
     public override void Tick()
     {
         base.Tick();
-        //TODO: Collision detection
+        foreach (var entity in Floor.PossibleEntityIntersections(Hitbox))
+        {
+            if (Geometry.OBBOBBIntersection(entity.Hitbox, Hitbox, out _))
+            {
+                if (DestroyOnHit)
+                {
+                    Board.RemoveEntity(this);
+                    OnHit?.Invoke(entity);
+                    break;
+                }
+            }
+        }
+
+        if (DestroyOnHitWall)
+        {
+            foreach (var line in Floor.PossibleOBBIntersections(Hitbox))
+            {
+                if (Geometry.OBBLineIntersection(Hitbox, line, out _))
+                {
+                    Board.RemoveEntity(this);
+                    break;
+                }
+            }
+        }
     }
 
     public override void ToBytes(Stream stream)

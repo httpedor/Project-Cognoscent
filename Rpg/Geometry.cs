@@ -218,8 +218,65 @@ public static class Geometry
         return true;
     }
 
-    public static bool OBBOBBIntersection(OBB obb, OBB obb2, out Vector2 MTV)
+    public static void ProjectOBB(OBB obb, Vector2 axis, out float min, out float max)
     {
-        //TODO: This
+        min = float.MaxValue;
+        max = float.MinValue;
+
+        foreach (var corner in obb.Corners)
+        {
+            float projection = Vector2.Dot(corner, axis);
+            if (projection < min) min = projection;
+            if (projection > max) max = projection;
+        }
+    }
+    public static bool OBBOBBIntersection(OBB obb1, OBB obb2, out Vector2 MTV)
+    {
+        MTV = Vector2.Zero;
+        float minOverlap = float.MaxValue;
+        Vector2 smallestAxis = Vector2.Zero;
+
+        // Get all 4 axes to test (local axes of both OBBs)
+        Vector2[] axes = new Vector2[]
+        {
+            obb1.XAxis,
+            obb1.YAxis,
+            obb2.XAxis,
+            obb2.YAxis
+        };
+
+        foreach (Vector2 axis in axes)
+        {
+            // Project both OBBs onto the current axis
+            ProjectOBB(obb1, axis, out float min1, out float max1);
+            ProjectOBB(obb2, axis, out float min2, out float max2);
+
+            // Check for overlap
+            if (max1 < min2 || max2 < min1)
+            {
+                // Separating axis found, no intersection
+                return false;
+            }
+
+            // Calculate overlap
+            float overlap = MathF.Min(max1, max2) - MathF.Max(min1, min2);
+
+            // Keep the smallest overlap for MTV
+            if (overlap < minOverlap)
+            {
+                minOverlap = overlap;
+                smallestAxis = axis;
+            }
+        }
+
+        // Ensure the MTV points from obb1 to obb2
+        Vector2 direction = obb2.Center - obb1.Center;
+        if (Vector2.Dot(direction, smallestAxis) < 0)
+        {
+            smallestAxis = -smallestAxis;
+        }
+
+        MTV = smallestAxis * minOverlap;
+        return true;
     }
 }
