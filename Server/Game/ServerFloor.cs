@@ -39,6 +39,7 @@ public class ServerFloor : Floor, ISerializable
 {
     public AreaTrigger[] Triggers = Array.Empty<AreaTrigger>();
     private List<Line>[,] collisionGrid;
+    private List<OBB>[,] entityCollisionGrid;
     private List<AreaTrigger>[,] triggerGrid;
     
     public void UpdateCollisionGrid()
@@ -97,6 +98,11 @@ public class ServerFloor : Floor, ISerializable
                 }
             }
         }
+    }
+
+    public void UpdateEntityCollisionGrid()
+    {
+        //TODO: This
     }
 
     public ServerFloor(Vector2 size, Vector2 tileSize, uint ambinetLight) : base(size, tileSize, ambinetLight)
@@ -290,6 +296,11 @@ public class ServerFloor : Floor, ISerializable
             else
                 yield return new Line(door.Bounds[0], door.OpenBound2);
         }*/
+    }
+
+    public override IEnumerable<OBB> PossibleEntityIntersections(OBB obb)
+    {
+        yield break;
     }
 
     public IEnumerable<AreaTrigger> PossibleTriggersAt(Vector2 position)

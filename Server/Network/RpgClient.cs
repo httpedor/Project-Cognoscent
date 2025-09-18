@@ -138,17 +138,22 @@ public class RpgClient
 				Entity? entity = emp.EntityRef.Entity;
 				if (entity == null)
 					break;
-                var targetOBB = new OBB(emp.Position, (entity.Size.XY() / 2f) * 0.8f, entity.Rotation);
-                var doorLines = entity.Board.GetEntities<DoorEntity>().Select((door) => new Line(door.Bounds[0], door.Closed ? door.Bounds[1] : door.OpenBound2));
-                IEnumerable<Line> stairLines = new List<Line>();
-                foreach (Line wall in entity.Board.GetFloor(entity.FloorIndex).BroadPhaseOBB(targetOBB).Union(doorLines).Union(stairLines))
+                if (entity is Creature c && entity.Board.TurnMode)
+                    c.TargetPos = emp.Position;
+                else
                 {
-                    if (Geometry.OBBLineIntersection(targetOBB, wall, out Vector2 _))
+                    var targetOBB = new OBB(emp.Position, (entity.Size.XY() / 2f) * 0.8f, entity.Rotation);
+                    var doorLines = entity.Board.GetEntities<DoorEntity>().Select((door) => new Line(door.Bounds[0], door.Closed ? door.Bounds[1] : door.OpenBound2));
+                    IEnumerable<Line> stairLines = new List<Line>();
+                    foreach (Line wall in entity.Board.GetFloor(entity.FloorIndex).BroadPhaseOBB(targetOBB).Union(doorLines).Union(stairLines))
                     {
-                        return;
+                        if (Geometry.OBBLineIntersection(targetOBB, wall, out Vector2 _))
+                        {
+                            return;
+                        }
                     }
+                    entity.Position = new Vector3(emp.Position.X, emp.Position.Y, entity.Position.Z);
                 }
-                entity.Position = new Vector3(emp.Position.X, emp.Position.Y, entity.Position.Z);
 				break;
 			}
             case ProtocolId.ENTITY_POSITION:

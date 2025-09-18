@@ -257,6 +257,7 @@ public static class CreatureStats
     public const string HEARING = "hearing";
     public const string SOCIAL = "social";
     public const string MOVEMENT = "movement";
+    public const string MOVEMENT_SPEED = MOVEMENT;
     public const string PAIN = "pain";
 
     public static string[] GetAllStats()

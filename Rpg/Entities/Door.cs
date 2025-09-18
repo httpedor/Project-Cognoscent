@@ -47,8 +47,8 @@ public class DoorEntity : Entity, IDamageable
     public bool BlocksVision;
     public bool Locked;
     public bool Slide;
-    public double Health { get; }
-    public double MaxHealth { get; }
+    public double Health { get; set; }
+    public double MaxHealth { get; set; }
 
     public DoorEntity()
     {
@@ -117,7 +117,8 @@ public class DoorEntity : Entity, IDamageable
 
     public double Damage(DamageSource source, double damage)
     {
-        throw new NotImplementedException();
+        Health -= damage;
+        return damage;
     }
 
     public string BBLink { get; }
