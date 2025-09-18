@@ -62,7 +62,7 @@ drag_to_rearrange_enabled = true
 layout_mode = 2
 metadata/_tab_index = 0
 
-[node name="ScrollContainer" type="ScrollContainer" parent="UILayer/Sidebar/TabContainer"]
+[node name="Compendium" type="ScrollContainer" parent="UILayer/Sidebar/TabContainer"]
 visible = false
 layout_mode = 2
 script = ExtResource("2_tipki")

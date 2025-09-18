@@ -1,15 +1,35 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
+using Rpg.Inventory;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
 
 namespace TTRpgClient.scripts;
 
-public partial class CreatureNode(Creature ent, ClientBoard board) : EntityNode(ent, board)
+public partial class CreatureNode : EntityNode
 {
-    public Creature Creature { get; } = ent;
+    private static Texture2D handTexture = GD.Load<Texture2D>("res://assets/sprites/circle_gradient.tres");
+    private Dictionary<string, Sprite2D> limbs = new();
+    public Creature Creature { get; }
+
+    public CreatureNode(Creature ent, ClientBoard board) : base(ent, board)
+    {
+        Creature = ent;
+
+        /*var body = ent.Body;
+        foreach (var hand in body.GetPartsWithSlot(EquipmentSlot.Hand))
+        {
+            var sprite = new Sprite2D();
+            sprite.Texture = handTexture;
+            sprite.ZIndex = 1;
+            sprite.Visible = false;
+            AddChild(sprite);
+            limbs[hand.Path] = sprite;
+        }*/
+    }
     
     public override void AddGMContextMenuOptions()
     {
@@ -118,8 +138,12 @@ public partial class CreatureNode(Creature ent, ClientBoard board) : EntityNode(
         {
             layerDesc = data.Skill.GetName();
             if (GameManager.Instance.CurrentBoard?.OwnedSelectedEntity != null && GameManager.Instance.CurrentBoard?.OwnedSelectedEntity != Creature)
-                show = data.Skill.CanCreatureSeeSkill(Creature, GameManager.Instance.CurrentBoard.OwnedSelectedEntity, data.Arguments, data.Source.SkillSource);
+                show = data.Skill.CanCreatureSeeSkill(Creature, GameManager.Instance.CurrentBoard!.OwnedSelectedEntity, data.Arguments, data.Source.SkillSource);
+            
+            ProcessAnimation(data, layer);
         }
+        else
+            ProcessAnimation(null);
 
         if (layer.ExecutionStartTick > Board.CurrentTick)
         {
@@ -146,8 +170,25 @@ public partial class CreatureNode(Creature ent, ClientBoard board) : EntityNode(
         
     }
 
-    public void PlayAnimation(string animation)
+    private void ProcessAnimation(SkillData? skillData, ActionLayer? layer = null)
     {
-        
+        return;
+        if (skillData == null)
+        {
+            foreach (var limb in limbs.Values)
+                limb.Visible = false;
+            return;
+        }
+
+        string id = skillData.Skill switch
+        {
+            ArbitrarySkill arbSkill => arbSkill.Id,
+            ArbitraryAttackSkill aas => aas.Id,
+            _ => skillData.Skill.GetType().Name
+        };
+        if (skillData.Skill is AttackSkill)
+        {
+            
+        }
     }
 }
