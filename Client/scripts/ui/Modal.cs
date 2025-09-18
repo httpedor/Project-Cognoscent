@@ -493,10 +493,6 @@ public static class Modal
             PopupWindow = true,
             Size = GameManager.Instance.GetWindow().Size/2
         };
-        dialog.CloseRequested += () => {
-            dialog.Hide();
-            dialog.QueueFree();
-        };
 
         var input = new TextEdit
         {
@@ -506,6 +502,7 @@ public static class Modal
 
         dialog.CloseRequested += () =>
         {
+            dialog.Hide();
             dialog.QueueFree();
             onSave(input.Text);
         };
@@ -520,6 +517,77 @@ public static class Modal
 
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();
+    }
 
+    public enum CodeLanguage
+    {
+        CSharp
+    }
+
+    public static void OpenCode(string title, (string name, string? code)[] tabs, Action<(string name, string code)[]>? onSave,
+        CodeLanguage language = CodeLanguage.CSharp)
+    {
+        CodeEdit CreateCodeEdit(CodeLanguage language)
+        {
+            return language switch
+            {
+                CodeLanguage.CSharp => new CSharpCodeEdit(),
+                _ => throw new InvalidOperationException("Unknown language: " + language)
+            };
+        }
+        var dialog = new Window
+        {
+            Title = title,
+            PopupWindow = true,
+            Size = GameManager.Instance.GetWindow().Size/2
+        };
+        dialog.CloseRequested += () => {
+            dialog.Hide();
+            dialog.QueueFree();
+        };
+
+        var tabContainer = new TabContainer();
+        foreach (var tab in tabs)
+        {
+            var code = CreateCodeEdit(language);
+            code.Name = tab.name;
+            code.Text = tab.code;
+            tabContainer.AddChild(code);
+        }
+        dialog.AddChild(tabContainer);
+
+        dialog.CloseRequested += () =>
+        {
+            dialog.Hide();
+            dialog.QueueFree();
+
+            if (onSave == null)
+                return;
+            
+            (string name, string code)[] tabResults = new (string, string)[tabContainer.GetChildCount()];
+            int i = 0;
+            foreach (var tab in tabContainer.GetChildren())
+            {
+                CodeEdit code = (tab as CodeEdit)!;
+                if (code.Text == "")
+                    continue;
+                
+                tabResults[i] = (tab.Name.ToString(), code.Text);
+                i++;
+            }
+
+            onSave(tabResults);
+        };
+        dialog.Ready += () =>
+        {
+            tabContainer.Size = dialog.Size;
+        };
+        dialog.SizeChanged += () =>
+        {
+            tabContainer.Size = dialog.Size;
+        };
+
+        GameManager.Instance.AddChild(dialog);
+        dialog.PopupCentered();
     }
 }

@@ -16,7 +16,7 @@ public class ArbitraryAttackSkill : AttackSkill
         public bool? interrupted;
     }
 
-    private readonly string id;
+    public readonly string Id;
     private readonly SkillJson code;
 
     private readonly string description;
@@ -28,7 +28,7 @@ public class ArbitraryAttackSkill : AttackSkill
         string name,
         string icon)
     {
-        this.id = id;
+        this.Id = id;
         this.code = code;
         this.description = description;
         
@@ -115,6 +115,6 @@ public class ArbitraryAttackSkill : AttackSkill
     public override void ToBytes(Stream stream)
     {
         stream.WriteString(GetType().FullName);
-        stream.WriteString(id);
+        stream.WriteString(Id);
     }
 }

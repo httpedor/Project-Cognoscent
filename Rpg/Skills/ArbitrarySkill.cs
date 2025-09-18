@@ -8,13 +8,13 @@ namespace Rpg;
 public class ArbitrarySkill : Skill
 {
     private SkillJson code;
-    private readonly string id;
+    public readonly string Id;
     
     private readonly string description;
     
     public ArbitrarySkill(string id, SkillJson code, string description, string name, string icon)
     {
-        this.id = id;
+        this.Id = id;
         this.code = code;
 
         CustomName = name;
@@ -90,6 +90,6 @@ public class ArbitrarySkill : Skill
     public override void ToBytes(Stream stream)
     {
         stream.WriteString(GetType().FullName);
-        stream.WriteString(id);
+        stream.WriteString(Id);
     }
 }
