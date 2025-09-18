@@ -14,10 +14,15 @@ public partial class CodeCompendiumEntry : CompendiumEntry
         public string TabTitle;
         public Dictionary<string, Type> Globals;
     }
-    private TabInfo[] tabs;
+    protected TabInfo[] tabs;
     public CodeCompendiumEntry(string folder, string entryId, JsonObject json, TabInfo[] tabs) : base(folder, entryId, json)
     {
         this.tabs = tabs;
+    }
+
+    public CodeCompendiumEntry(string folder, string entryId, JsonObject json) : base(folder, entryId, json)
+    {
+        tabs = [];
     }
 
     protected override void OnClick()

@@ -112,7 +112,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
         
     }
     
-    public void AddGMContextMenuOptions()
+    public virtual void AddGMContextMenuOptions()
     {
         ContextMenu.AddOption("Renomear", _ =>
         {
@@ -126,7 +126,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
         });
     }
 
-    public void AddContextMenuOptions()
+    public virtual void AddContextMenuOptions()
     {
     }
 
