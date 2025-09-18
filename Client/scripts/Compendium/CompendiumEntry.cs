@@ -12,7 +12,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
         {
             "Midia" => new MidiaCompendiumEntry(entryId, entry),
             "Notes" => new NoteCompendiumEntry(entryId, entry),
-            "Features" => new CodeCompendiumEntry(folder, entryId, entry, ["attackingDamage"]),
+            "Features" => new CodeCompendiumEntry(folder, entryId, entry, []),
             _ => new CompendiumEntry(folder, entryId, entry)
         };
     }

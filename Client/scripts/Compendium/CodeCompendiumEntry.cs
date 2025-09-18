@@ -1,32 +1,51 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Godot;
+using Rpg;
 
 namespace TTRpgClient.scripts.ui;
 
 public partial class CodeCompendiumEntry : CompendiumEntry
 {
-    private string[] codeKeys;
-    public CodeCompendiumEntry(string folder, string entryId, JsonObject json, string[] codeKeys) : base(folder, entryId, json)
+    public class TabInfo
     {
-        this.codeKeys = codeKeys;
+        public string JsonKey;
+        public string TabTitle;
+        public Dictionary<string, Type> Globals;
+    }
+    private TabInfo[] tabs;
+    public CodeCompendiumEntry(string folder, string entryId, JsonObject json, TabInfo[] tabs) : base(folder, entryId, json)
+    {
+        this.tabs = tabs;
     }
 
     protected override void OnClick()
     {
         base.OnClick();
 
-        var tabs = new List<(string, string?)>();
-        foreach (string key in codeKeys)
+        var tabsContent = new (string, Control)[tabs.Length];
+        for (int i = 0; i < tabs.Length; i++)
         {
-            if (json.ContainsKey(key))
-            {
-                tabs.Add((key, json[key]!.ToString()));
-            }
+            var tabInfo = tabs[i];
+            var code = new CSharpCodeEdit();
+            if (json.ContainsKey(tabInfo.JsonKey))
+                code.Text = json[tabInfo.JsonKey]!.ToString();
+            
+            tabsContent[i] = (tabs[i].TabTitle, code);
         }
-        Modal.OpenCode("Titulo", tabs.ToArray(), (results) =>
+        Modal.OpenTabs(entryId, tabsContent, () =>
         {
-            GD.Print(results.Length);
+            foreach (var tabContent in tabsContent)
+            {
+                var code = (tabContent.Item2 as CodeEdit)!;
+                
+                if (code.Text == "")
+                    json.Remove(tabContent.Item1);
+                else
+                    json[tabContent.Item1] = code.Text;
+            }
+            NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, json));
         });
     }
 }
