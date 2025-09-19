@@ -233,12 +233,13 @@ public class Creature : Entity, IItemHolder, IDamageable
                 layer.Duration = data.Skill.GetDuration(this, data.Arguments, source);
                 if (oldDur != layer.Duration)
                     ActionLayerChanged?.Invoke(layer);
-                if (layer.ExecutionEndTick > Board.CurrentTick)
+                bool canExecute = data.Skill.CanBeUsed(this, source);
+                if (layer.ExecutionEndTick > Board.CurrentTick && canExecute)
                     data.Skill.Execute(this, data.Arguments, relativeTicks, source);
 
-                if (layer.EndTick <= Board.CurrentTick)
+                if (layer.EndTick <= Board.CurrentTick || !canExecute)
                 {
-                    CancelSkill(data.Id, false);
+                    CancelSkill(data.Id, !canExecute);
                     cancelled = true;
                 }
             }

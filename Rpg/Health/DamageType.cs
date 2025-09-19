@@ -7,6 +7,7 @@ public class DamageType : ISerializable
 {
     private static readonly List<DamageType> dts = new();
     private static readonly Dictionary<string, DamageType> dtsByName = new();
+    public static IEnumerable<DamageType> All => dts;
     public static readonly DamageType Physical = new DamageType("Físico", InjuryType.Generic, InjuryType.Generic, null).WithColor(System.Drawing.Color.Gray);
     public static readonly DamageType Sharp = new DamageType("Afiado", InjuryType.Cut, InjuryType.Crack, Physical).HardMod(-0.1f);
     public static readonly DamageType Slash = new DamageType("Corte", InjuryType.Cut, InjuryType.Crack, Sharp).HardMod(-0.1f);

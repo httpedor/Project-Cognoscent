@@ -77,6 +77,18 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
         };
     }
 
+    private JsonObject CopyObjBase()
+    {
+        JsonObject newObj = new JsonObject
+        {
+            ["type"] = json["type"],
+            ["name"] = json["name"],
+            ["description"] = json["description"],
+            ["icon"] = json["icon"]
+        };
+        return newObj;
+    }
+
     protected override void OnClick()
     {
         switch (json["type"]!.ToString())
@@ -89,10 +101,15 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
             case "damage_over_time":
             {
                 //TODO: Dmg type and actually updating
-                Modal.OpenFormDialog("Feature " + entryId, (results) =>
+                Modal.OpenFormDialog("DOTFeature " + entryId, (result) =>
                 {
+                    var newObj = CopyObjBase();
+                    newObj["damageType"] = result.TipoDeDano.Name;
+                    newObj["damage"] = result.Dano;
+                    newObj["interval"] = result.Intervalo;
                     
-                }, ("Tipo de Dano", DamageType.Physical, null), ("Dano", json["damage"]!.GetValue<float>(), d => ((float)d) > 0), ("Intervalo", json["interval"]?.GetValue<uint>() ?? 0, null));
+                    NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj));
+                }, (TipoDeDano: DamageType.Physical, Dano: 1f, Intervalo: json["interval"]?.GetValue<int>() ?? 0));
                 break;
             }
         }
@@ -110,14 +127,8 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
             {
                 if (type == null)
                     return;
-                
-                JsonObject newObj = new JsonObject
-                {
-                    ["type"] = type,
-                    ["name"] = json["name"],
-                    ["description"] = json["description"],
-                    ["icon"] = json["icon"]
-                };
+
+                var newObj = CopyObjBase();
                 if (json.ContainsKey("toggleable"))
                     newObj["toggleable"] = json["toggleable"];
                 

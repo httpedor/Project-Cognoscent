@@ -7,10 +7,13 @@ using Rpg;
 public enum StatModifierType
 {
     Flat,
+    FlatPostMods,
     Percent,
     Multiplier,
     Capmax,
-    Capmin
+    Capmin,
+    OverrideBase,
+    OverrideFinal
 }
 public struct StatModifier : ISerializable
 {
@@ -194,6 +197,8 @@ public class Stat : ISerializable
     public static float ApplyModifiers(IEnumerable<StatModifier> modifiers, float baseValue = 0, float min = float.MinValue, float max = float.MaxValue, bool overCap = true, bool underCap = true)
     {
         float newBase = baseValue;
+        var flatModifiers = new List<StatModifier>();
+        var flatPostMods = new List<StatModifier>();
         var percentModifiers = new List<StatModifier>();
         var multiplierModifiers = new List<StatModifier>();
         var minModifiers = new List<StatModifier>();
@@ -203,7 +208,10 @@ public class Stat : ISerializable
             switch (modifier.Type)
             {
                 case StatModifierType.Flat:
-                    newBase += modifier.Value;
+                    flatModifiers.Add(modifier);
+                    break;
+                case StatModifierType.FlatPostMods:
+                    flatPostMods.Add(modifier);
                     break;
                 case StatModifierType.Percent:
                     percentModifiers.Add(modifier);
@@ -217,24 +225,32 @@ public class Stat : ISerializable
                 case StatModifierType.Capmin:
                     minModifiers.Add(modifier);
                     break;
+                case StatModifierType.OverrideFinal:
+                    return modifier.Value;
+                case StatModifierType.OverrideBase:
+                    newBase = modifier.Value;
+                    break;
             }
         }
+
+        foreach (var mod in flatModifiers)
+            newBase += mod.Value;
         float finalValue = newBase;
         foreach (StatModifier modifier in percentModifiers)
-        {
             finalValue += newBase * modifier.Value;
-        }
         foreach (StatModifier modifier in multiplierModifiers)
-        {
             finalValue *= 1 + modifier.Value;
-        }
+        foreach (var mod in flatPostMods)
+            finalValue += mod.Value;
 
-        float minValue = minModifiers.Select(modifier => modifier.Value).Prepend(min).Max();
-        float maxValue = maxModifiers.Select(modifier => modifier.Value).Prepend(max).Min();
         if (overCap)
-            finalValue = Math.Min(finalValue, maxValue);
+            finalValue = Math.Min(finalValue, max);
         if (underCap)
-            finalValue = Math.Max(finalValue, minValue);
+            finalValue = Math.Max(finalValue, min);
+        float minValue = minModifiers.Select(modifier => modifier.Value).Max();
+        float maxValue = maxModifiers.Select(modifier => modifier.Value).Min();
+
+        finalValue = Math.Clamp(finalValue, minValue, maxValue);
 
         return finalValue;
     }
