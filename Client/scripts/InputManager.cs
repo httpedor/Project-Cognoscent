@@ -392,7 +392,7 @@ public partial class InputManager : SubViewportContainer
 				var targetPos = creature.Position.ToGodot().ToV2() + (move_dir * 0.5f);
 				var dir = targetPos - creature.Position.ToGodot().ToV2();
 				var angle = Mathf.Atan2(dir.Y, dir.X);
-				if (creature.Rotation != angle)
+				if (Math.Abs(creature.Rotation - angle) > 0.02)
 					NetworkManager.Instance.SendPacket(new EntityRotationPacket(creature, angle));
 				else
 					NetworkManager.Instance.SendPacket(new EntityMovePacket(creature, targetPos.ToNumerics()));

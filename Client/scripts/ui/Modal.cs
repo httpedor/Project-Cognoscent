@@ -89,7 +89,7 @@ public static class Modal
         dialog.PopupCentered();
     }
 
-    public static void OpenStringDialog(string title, Action<string?> onSelect, bool cancelable = false)
+    public static void OpenStringDialog(string title, Action<string?> onSelect, bool cancelable = false, string @default = "")
     {
         var dialog = new AcceptDialog
         {
@@ -97,7 +97,10 @@ public static class Modal
             DialogCloseOnEscape = cancelable,
             DialogHideOnOk = true
         };
-        var input = new TextEdit();
+        var input = new TextEdit
+        {
+            Text = @default
+        };
         dialog.AddChild(input);
         dialog.Canceled += () => {
             onSelect(null);

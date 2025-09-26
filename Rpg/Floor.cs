@@ -182,4 +182,17 @@ public abstract class Floor
     public IEnumerable<Line> BroadPhaseOBB(OBB obb){
         return PossibleOBBIntersections(obb);
     }
+
+    public bool OBBWallIntersection(OBB obb)
+    {
+        foreach (var wall in BroadPhaseOBB(obb))
+        {
+            if (Geometry.OBBLineIntersection(obb, wall, out Vector2 _))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

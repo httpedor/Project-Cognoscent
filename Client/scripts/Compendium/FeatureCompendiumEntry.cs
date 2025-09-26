@@ -114,7 +114,6 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                 break;
             }
         }
-        
     }
 
     public override void AddGMContextMenuOptions()
@@ -146,5 +145,31 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                 NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj));
             });
         });
+        ContextMenu.AddOption("Mudar Nome", (_) =>
+        {
+            Modal.OpenStringDialog("Mudar nome de " + entryId, (name) =>
+            {
+                if (string.IsNullOrWhiteSpace(name) || name == entryId)
+                    return;
+                if (Compendium.GetEntryOrNull<Feature>(name) != null)
+                {
+                    Modal.OpenAcceptDialog("Erro", "Uma feature com esse id já existe.");
+                    return;
+                }
+                json["name"] = name;
+                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.UpdateEntry(folder, entryId, json));
+            }, true);
+        });
+        ContextMenu.AddOption("Mudar Descrição", (_) =>
+        {
+            Modal.OpenStringDialog("Mudar descrição de " + entryId, (desc) =>
+            {
+                if (desc == null || desc == json["description"]!.ToString())
+                    return;
+                json["description"] = desc;
+                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.UpdateEntry(folder, entryId, json));
+            }, false, json["description"]!.ToString());
+        });
+        
     }
 }

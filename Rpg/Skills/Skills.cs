@@ -4,6 +4,8 @@ public static class Skills
 {
     private static Dictionary<string, Skill> skills = new();
     public static IEnumerable<(string id, Skill skill)> All => skills.Select(t => (t.Key, t.Value));
+    
+    public static readonly ParrySkill Parry = register("parry", new ParrySkill());
 
     private static T register<T>(string id, T skill) where T : Skill
     {

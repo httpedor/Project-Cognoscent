@@ -31,6 +31,21 @@ public partial class CompendiumControl : ScrollContainer
             JsonObject json = new JsonObject();
             json["text"] = "";
             return [("New Note", json)];
+        }},
+        {"Features", () =>
+        {
+            int i = 0;
+            string id = "Nova Feature";
+            while (Compendium.GetEntryOrNull<Feature>(id) != null)
+                id = "Nova Feature " + ++i;
+            
+            JsonObject json = new JsonObject
+            {
+                ["name"] = id,
+                ["description"] = "Descrição da feature",
+                ["type"] = "arbitrary"
+            };
+            return [(id, json)];
         }}
     };
 

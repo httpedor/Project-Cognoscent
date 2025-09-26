@@ -425,6 +425,14 @@ public class Body : ISerializable
     {
         return partsCovered[bp];
     }
+
+    public bool IsEquipped(Item item)
+    {
+        var ep = item.GetProperty<EquipmentProperty>();
+        if (ep == null)
+            return false;
+        return GetPartsWithSlot(ep.Slot).Any(part => part.GetEquippedItem(ep.Slot) == item);
+    }
     
     public static Body? NewBody(JsonObject json)
     {

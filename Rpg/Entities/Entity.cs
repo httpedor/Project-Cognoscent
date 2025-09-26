@@ -87,6 +87,7 @@ public abstract class Entity : ISerializable, IFeatureSource
             field = value;
         }
     }
+    public Vector2 Direction => new(MathF.Cos(Rotation), MathF.Sin(Rotation));
 
     public int FloorIndex => (int)Position.Z;
     public Floor Floor => Board.GetFloor(FloorIndex);
@@ -201,6 +202,15 @@ public abstract class Entity : ISerializable, IFeatureSource
         foreach (Stat stat in stats.Values)
             stat.ToBytes(stream);
         Display.ToBytes(stream);
+    }
+
+    public bool CanSee(Vector2 target)
+    {
+        var targetDir = Vector2.Normalize(target - Position.XY());
+        if (Vector2.Dot(Direction, targetDir) <= 0)
+            return false;
+        OBB LOS = new((Position.XY() + target) / 2, new Vector2((target - Position.XY()).Length() / 2, 0.1f), MathF.Atan2(targetDir.Y, targetDir.X));
+        return Floor.OBBWallIntersection(LOS);
     }
 
     public Stat? GetStat(string id)

@@ -1054,6 +1054,11 @@ public class CompendiumUpdatePacket : Packet
         return new CompendiumUpdatePacket(false, regName, entryName, json);
     }
 
+    public static CompendiumUpdatePacket UpdateEntry(string regName, string entryName, JsonObject json)
+    {
+        return AddEntry(regName, entryName, json);
+    }
+
     protected CompendiumUpdatePacket(bool remove, string registryName, string dataName, JsonObject? json)
     {
         Remove = remove;
