@@ -10,9 +10,9 @@ public partial class CodeCompendiumEntry : CompendiumEntry
 {
     public class TabInfo
     {
-        public string JsonKey;
-        public string TabTitle;
-        public Dictionary<string, Type> Globals;
+        public required string JsonKey;
+        public string TabTitle = "";
+        public Dictionary<string, Type> Globals = new();
     }
     protected TabInfo[] tabs;
     public CodeCompendiumEntry(string folder, string entryId, JsonObject json, TabInfo[] tabs) : base(folder, entryId, json)
@@ -29,26 +29,33 @@ public partial class CodeCompendiumEntry : CompendiumEntry
     {
         base.OnClick();
 
+        var displayToId = new Dictionary<string, string>();
         var tabsContent = new (string, Control)[tabs.Length];
         for (int i = 0; i < tabs.Length; i++)
         {
             var tabInfo = tabs[i];
             var code = new CSharpCodeEdit();
             if (json.ContainsKey(tabInfo.JsonKey))
-                code.Text = json[tabInfo.JsonKey]!.ToString();
-            
-            tabsContent[i] = (tabs[i].TabTitle, code);
+                code.Text = json[tabInfo.JsonKey]!.ToString().Replace("\\n", "\n");
+            foreach (var global in tabInfo.Globals)
+            {
+                //TODO: This
+                //code.AddCodeCompletionOption();
+            }
+            displayToId[tabInfo.TabTitle] = tabInfo.JsonKey;
+            tabsContent[i] = (tabInfo.TabTitle, code);
         }
         Modal.OpenTabs(entryId, tabsContent, () =>
         {
             foreach (var tabContent in tabsContent)
             {
                 var code = (tabContent.Item2 as CodeEdit)!;
+                string jsonKey = displayToId[tabContent.Item1];
                 
                 if (code.Text == "")
-                    json.Remove(tabContent.Item1);
+                    json.Remove(jsonKey);
                 else
-                    json[tabContent.Item1] = code.Text;
+                    json[jsonKey] = code.Text;
             }
             NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, json));
         });

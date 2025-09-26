@@ -402,6 +402,22 @@ public partial class NetworkManager : Node
                 
                 break;
             }
+            case ProtocolId.SHOW_MIDIA:
+            {
+	            var smp = (ShowMidiaPacket)packet;
+	            switch (smp.Midia.Type)
+	            {
+		            case MidiaType.Video:
+		            case MidiaType.Image:
+			            Modal.OpenMedia(smp.Midia);
+			            break;
+		            case MidiaType.Audio:
+			            GameManager.Instance.PlayAudio(smp.Midia);
+			            break;
+	            }
+
+	            break;
+            }
             default:
                 GD.Print("Unknown packet with id " + packet.Id);
                 break;

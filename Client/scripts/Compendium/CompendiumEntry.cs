@@ -12,7 +12,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
         {
             "Midia" => new MidiaCompendiumEntry(entryId, entry),
             "Notes" => new NoteCompendiumEntry(entryId, entry),
-            "Features" => new CodeCompendiumEntry(folder, entryId, entry, []),
+            "Features" => new FeatureCompendiumEntry(entryId, entry),
             _ => new CompendiumEntry(folder, entryId, entry)
         };
     }
@@ -90,6 +90,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
     {
         base._Ready();
         CustomMinimumSize = new Vector2(0, 24);
+        Name = entryId;
     }
 
     public virtual Texture2D GetIcon()

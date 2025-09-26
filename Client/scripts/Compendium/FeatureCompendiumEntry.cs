@@ -70,6 +70,8 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
     ];
     public FeatureCompendiumEntry(string entryId, JsonObject json) : base(Compendium.GetFolderName<Feature>(), entryId, json)
     {
+        if (!json.ContainsKey("type"))
+            json["type"] = "arbitrary";
         tabs = json["type"]!.ToString() switch
         {
             "arbitrary" => arbitraryTabs,
@@ -81,10 +83,10 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
     {
         JsonObject newObj = new JsonObject
         {
-            ["type"] = json["type"],
-            ["name"] = json["name"],
-            ["description"] = json["description"],
-            ["icon"] = json["icon"]
+            ["type"] = json["type"]!.DeepClone(),
+            ["name"] = json["name"]!.DeepClone(),
+            ["description"] = json["description"]!.DeepClone(),
+            ["icon"] = json["icon"]!.DeepClone()
         };
         return newObj;
     }
@@ -100,7 +102,6 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
             }
             case "damage_over_time":
             {
-                //TODO: Dmg type and actually updating
                 Modal.OpenFormDialog("DOTFeature " + entryId, (result) =>
                 {
                     var newObj = CopyObjBase();

@@ -66,7 +66,6 @@ public class Midia : ISerializable
                 return MidiaType.Image;
             case "ogg":
             case "wav":
-            case "mp3":
                 return MidiaType.Audio;
             default:
                 return MidiaType.Binary;

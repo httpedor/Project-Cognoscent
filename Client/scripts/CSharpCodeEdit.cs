@@ -1,16 +1,20 @@
 ﻿using Godot;
 using Godot.Collections;
+using Rpg;
 
 namespace TTRpgClient.scripts;
 
 public partial class CSharpCodeEdit : CodeEdit
 {
+    private static readonly string[] KEYWORDS =
+        ["void", "string", "static", "int", "var", "float", " bool", "if", "else", "return", "is", "not"];
+    private static readonly Color pink = Color.FromHtml("#FF79C6");
     private static readonly Color purple = Color.FromHtml("#644AC9");
     private static readonly Color cyan = Color.FromHtml("#036A96");
     private static readonly Color yellow = Color.FromHtml("#F1FA8C");
-    private static readonly CodeHighlighter codeHighlighter = new CodeHighlighter()
+    private readonly CodeHighlighter codeHighlighter = new CodeHighlighter()
     {
-        NumberColor = Color.FromHtml("#FFB86C"),
+        NumberColor = purple,
         FunctionColor = Color.FromHtml("#50FA7B"),
         SymbolColor = Color.FromHtml("#FFEE0F"),
         MemberVariableColor = Color.FromHtml("#FFB86C"),
@@ -21,16 +25,6 @@ public partial class CSharpCodeEdit : CodeEdit
         },
         KeywordColors = new Dictionary()
         {
-            {"void", purple},
-            {"string", purple},
-            {"static", purple},
-            {"int", purple},
-            {"var", purple},
-            {"float", purple},
-            {"bool", purple},
-            {"if", purple},
-            {"else", purple},
-            {"return", purple},
             {"Creature", cyan},
             {"Entity", cyan}
         },
@@ -38,6 +32,10 @@ public partial class CSharpCodeEdit : CodeEdit
 
     public CSharpCodeEdit()
     {
+        foreach (string keyword in KEYWORDS)
+        {
+            codeHighlighter.KeywordColors[keyword] = pink;
+        }
         HighlightCurrentLine = true;
         HighlightAllOccurrences = true;
         GuttersDrawLineNumbers = true;

@@ -29,6 +29,14 @@ public partial class CreatureNode : EntityNode
             AddChild(sprite);
             limbs[hand.Path] = sprite;
         }*/
+
+        ent.Body.OnInjuryAdded += (part, injury) =>
+        {
+            if (injury.Type == InjuryType.Cut)
+            {
+                
+            }
+        };
     }
     
     public override void AddGMContextMenuOptions()

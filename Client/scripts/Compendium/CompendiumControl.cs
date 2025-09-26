@@ -34,10 +34,7 @@ public partial class CompendiumControl : ScrollContainer
         }}
     };
 
-    private static readonly Dictionary<string, Func<string, JsonObject, (Action, string)[]>> contextMenuFunctions = new()
-    {
-
-    };
+    private readonly Dictionary<string, CompendiumEntry> _entries = new();
 
     private Control? dragging;
     private VBoxContainer folderContainer;
@@ -103,7 +100,16 @@ public partial class CompendiumControl : ScrollContainer
                 return;
             }
 
-            main.AddChild(CompendiumEntry.GetEntryFor(folder, entry, json));
+            int index = -1;
+            if (_entries.TryGetValue(entry, out CompendiumEntry? oldEntry))
+            {
+                oldEntry.QueueFree();
+                index = oldEntry.GetIndex();
+            }
+            var node = CompendiumEntry.GetEntryFor(folder, entry, json);
+            _entries[entry] = node;
+            main.AddChild(node);
+            main.MoveChild(node, index);
         };
         Compendium.OnEntryRemoved += (folder, entry) =>
         {
@@ -121,6 +127,7 @@ public partial class CompendiumControl : ScrollContainer
                 return;
             }
 
+            _entries.Remove(entry);
             main.RemoveChild(child);
             child.QueueFree();
         };

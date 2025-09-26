@@ -4,6 +4,7 @@ using System.Runtime.Serialization;
 using System.Text.Json.Nodes;
 using Rpg;
 using Rpg.Inventory;
+// ReSharper disable UnusedMember.Global
 
 namespace Rpg;
 
@@ -39,7 +40,7 @@ public enum ProtocolId{
     CREATURE_SKILLTREE_UPDATE,
     EXECUTE_COMMAND,
     COMPENDIUM_UPDATE,
-    
+    SHOW_MIDIA
 }
 
 public enum DeviceType {
@@ -118,8 +119,8 @@ public class DisconnectPacket : Packet
 
 public class ChatPacket : Packet
 {
-    public string Message;
-    public string BoardName;
+    public readonly string Message;
+    public readonly string BoardName;
     public override ProtocolId Id => ProtocolId.CHAT;
 
     public ChatPacket(Board board, string message){
@@ -225,7 +226,7 @@ public class BoardAddPacket : Packet
 
 public class BoardRemovePacket : Packet
 {
-    public string Name;
+    public readonly string Name;
     public override ProtocolId Id => ProtocolId.BOARD_REMOVE;
 
     public BoardRemovePacket(Board board)
@@ -248,8 +249,8 @@ public class BoardRemovePacket : Packet
 
 public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : Packet
 {
-    public string BoardName = boardName;
-    public int FloorIndex = floorIndex;
+    public readonly string BoardName = boardName;
+    public readonly int FloorIndex = floorIndex;
     public Midia Data{get; private set;} = midia;
 
     public override ProtocolId Id => ProtocolId.FLOOR_IMAGE;
@@ -271,8 +272,8 @@ public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : P
 
 public class DoorUpdatePacket : Packet
 {
-    public DoorEntity Door;
-    public DoorRef @ref;
+    public readonly DoorEntity Door;
+    public readonly DoorRef @ref;
 
     public override ProtocolId Id => ProtocolId.DOOR_UPDATE;
 
@@ -299,7 +300,7 @@ public class DoorUpdatePacket : Packet
 
 public class DoorInteractPacket : Packet
 {
-    public DoorRef Door;
+    public readonly DoorRef Door;
 
     public override ProtocolId Id => ProtocolId.DOOR_INTERACT;
 
@@ -323,10 +324,10 @@ public class DoorInteractPacket : Packet
 public class CombatModePacket : Packet
 {
     private bool tickInfo;
-    public string BoardName;
-    public bool CombatMode;
-    public uint Tick;
-    public uint PauseAt;
+    public readonly string BoardName;
+    public readonly bool CombatMode;
+    public readonly uint Tick;
+    public readonly uint PauseAt;
 
     public override ProtocolId Id => ProtocolId.COMBAT_MODE;
 
@@ -375,8 +376,8 @@ public class CombatModePacket : Packet
 
 public class EntityCreatePacket : Packet
 {
-    public string BoardName;
-    public Entity Entity;
+    public readonly string BoardName;
+    public readonly Entity Entity;
 
     public override ProtocolId Id => ProtocolId.ENTITY_CREATE;
 
@@ -404,7 +405,7 @@ public class EntityCreatePacket : Packet
 public class EntityMidiaPacket : Packet
 {
     public EntityRef Ref;
-    public Midia Midia;
+    public readonly Midia Midia;
 
     public override ProtocolId Id => ProtocolId.ENTITY_MIDIA;
 
@@ -513,7 +514,7 @@ public class EntityPositionPacket : Packet
 public class EntityRotationPacket : Packet
 {
     public EntityRef EntityRef;
-    public float Rotation;
+    public readonly float Rotation;
 
     public override ProtocolId Id => ProtocolId.ENTITY_ROTATION;
 
@@ -542,8 +543,8 @@ public class EntityRotationPacket : Packet
 public class EntityBodyPartPacket : Packet
 {
     public CreatureRef CreatureRef;
-    public string Path;
-    public BodyPart? Part;
+    public readonly string Path;
+    public readonly BodyPart? Part;
 
     public override ProtocolId Id => ProtocolId.ENTITY_BODY_PART;
 
@@ -587,9 +588,9 @@ public class EntityBodyPartPacket : Packet
 public class EntityBodyPartInjuryPacket : Packet
 {
     public CreatureRef CreatureRef;
-    public string Path;
-    public Injury Injury;
-    public bool Remove;
+    public readonly string Path;
+    public readonly Injury Injury;
+    public readonly bool Remove;
 
     public override ProtocolId Id => ProtocolId.ENTITY_BODY_PART_INJURY;
 
@@ -622,7 +623,7 @@ public class EntityBodyPartInjuryPacket : Packet
 public class EntityStatCreatePacket : Packet
 {
     public EntityRef EntityRef;
-    public Stat Stat;
+    public readonly Stat Stat;
     public override ProtocolId Id => ProtocolId.ENTITY_STAT_CREATE;
 
     public EntityStatCreatePacket(Entity entity, Stat stat)
@@ -648,8 +649,8 @@ public class EntityStatCreatePacket : Packet
 public class EntityStatBasePacket : Packet
 {
     public EntityRef EntityRef;
-    public string StatId;
-    public float Value;
+    public readonly string StatId;
+    public readonly float Value;
 
     public override ProtocolId Id => ProtocolId.ENTITY_STAT_BASE;
 
@@ -679,7 +680,7 @@ public class EntityStatBasePacket : Packet
 public class EntityStatModifierPacket : Packet
 {
     public EntityRef EntityRef;
-    public string StatId;
+    public readonly string StatId;
     public StatModifier Modifier;
 
     public override ProtocolId Id => ProtocolId.ENTITY_STAT_MODIFIER_UPDATE;
@@ -710,8 +711,8 @@ public class EntityStatModifierPacket : Packet
 public class EntityStatModifierRemovePacket : Packet
 {
     public EntityRef EntityRef;
-    public string StatId;
-    public string ModifierId;
+    public readonly string StatId;
+    public readonly string ModifierId;
 
     public override ProtocolId Id => ProtocolId.ENTITY_STAT_MODIFIER_REMOVE;
 
@@ -828,10 +829,10 @@ public class FeatureUpdatePacket : Packet
 public class CreatureEquipItemPacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_EQUIP_ITEM;
-    public BodyPartRef BPRef;
-    public string? Slot;
+    public readonly BodyPartRef BPRef;
+    public readonly string? Slot;
     public ItemRef ItemRef;
-    public bool Equipped;
+    public readonly bool Equipped;
 
     public CreatureEquipItemPacket(BodyPart bp, string slot, Item item)
     {
@@ -886,7 +887,7 @@ public class CreatureSkillUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_SKILL_UPDATE;
     public CreatureRef CreatureRef;
-    public SkillData Data;
+    public readonly SkillData Data;
 
     public CreatureSkillUpdatePacket(Creature entity, SkillData skill)
     {
@@ -911,7 +912,7 @@ public class CreatureSkillRemovePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_SKILL_REMOVE;
     public CreatureRef CreatureRef;
-    public int SkillId;
+    public readonly int SkillId;
 
     public CreatureSkillRemovePacket(Creature creature, int id)
     {
@@ -935,7 +936,7 @@ public class ActionLayerUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_ACTION_LAYER_UPDATE;
     public CreatureRef CreatureRef;
-    public ActionLayer Layer;
+    public readonly ActionLayer Layer;
 
     public ActionLayerUpdatePacket(Creature entity, ActionLayer layer)
     {
@@ -960,7 +961,7 @@ public class ActionLayerRemovePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_ACTION_LAYER_REMOVE;
     public CreatureRef CreatureRef;
-    public string LayerId;
+    public readonly string LayerId;
 
     public ActionLayerRemovePacket(Creature entity, string id)
     {
@@ -1010,7 +1011,7 @@ public class ExecuteCommandPacket : Packet
 {
     public override ProtocolId Id => ProtocolId.EXECUTE_COMMAND;
 
-    public string[] Commands;
+    public readonly string[] Commands;
 
     public ExecuteCommandPacket(params string[] commands)
     {
@@ -1038,10 +1039,10 @@ public class CompendiumUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.COMPENDIUM_UPDATE;
 
-    public bool Remove;
-    public string RegistryName;
-    public string DataName;
-    public JsonObject? Json;
+    public readonly bool Remove;
+    public readonly string RegistryName;
+    public readonly string DataName;
+    public readonly JsonObject? Json;
 
     public static CompendiumUpdatePacket RemoveEntry(string regName, string entryName)
     {
@@ -1073,7 +1074,8 @@ public class CompendiumUpdatePacket : Packet
         {
             ulong count = stream.ReadUInt64();
             byte[] data = stream.ReadExactly((uint)count);
-            Json = JsonNode.Parse(new string(data.Select(b => (char)b).ToArray()))?.AsObject();
+            string str = new (data.Select(b => (char)b).ToArray());
+            Json = JsonNode.Parse(str)?.AsObject();
         }
     }
 
@@ -1088,9 +1090,36 @@ public class CompendiumUpdatePacket : Packet
             stream.WriteByte(0);
             return;
         }
+
         stream.WriteByte(1);
         string str = Json.ToJsonString();
         stream.WriteUInt64((ulong)str.Length);
         stream.Write(str.ToBytes());
+    }
+}
+
+public class ShowMidiaPacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.SHOW_MIDIA;
+    public readonly Board Board;
+    public readonly Midia Midia;
+
+    public ShowMidiaPacket(Board board, Midia midia)
+    {
+        Board = board;
+        Midia = midia;
+    }
+
+    public ShowMidiaPacket(Stream stream)
+    {
+        Board = new BoardRef(stream).Board!;
+        Midia = new Midia(stream);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        new BoardRef(Board).ToBytes(stream);
+        Midia.ToBytes(stream);
     }
 }

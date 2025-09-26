@@ -211,7 +211,33 @@ public partial class GameManager : Node
     {
         if (midia.Type != MidiaType.Audio)
             return;
-        //TODO: Play audio
+        AudioStream stream;
+        try
+        {
+            stream = new AudioStreamWav();
+            ((AudioStreamWav)stream).SetData(midia.Bytes);
+        }
+        catch (Exception)
+        {
+            try
+            {
+                stream = AudioStreamOggVorbis.LoadFromBuffer(midia.Bytes);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
+        PlayAudio(stream);
+    }
+
+    public void PlayAudio(AudioStream stream)
+    {
+        var player = new AudioStreamPlayer();
+        player.Stream = stream;
+        UINode.AddChild(player);
+        player.Play();
+        player.Finished += () => player.QueueFree();
     }
 
     public void ExecuteCommand(string command)
@@ -268,31 +294,6 @@ public partial class GameManager : Node
                 if (entity == null)
                     break;
                 CurrentBoard.CenterOn(entity);
-                break;
-            }
-            case "entanim":
-            {
-                if (CurrentBoard == null)
-                {
-                    ChatControl.Instance.AddMessage("No board selected");
-                    break;
-                }
-                int id = int.Parse(args[0]);
-                Entity? entity = CurrentBoard.GetEntityById(id);
-                if (entity == null)
-                    break;
-                var entityNode = CurrentBoard.GetEntityNode(entity);
-                switch (args[1])
-                {
-                    case "attack":
-                    {
-                        string[] pos = args[2].Split(",");
-                        var target = new Vector2(float.Parse(pos[0]), float.Parse(pos[1]));
-                        //TODO: Tween
-                        break;
-                    }
-                }
-
                 break;
             }
         }

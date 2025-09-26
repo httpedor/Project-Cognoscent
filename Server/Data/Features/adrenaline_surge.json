@@ -1,7 +1,1 @@
-﻿{
-  "name": "Adrenalina",
-  "icon": "unknown",
-  "description": "Seu corpo de mamífero solta adrenalina ao ser machucado, temporariamente negando dor. Todavia isso também significa que se algum órgão interno ou osso for danificado, você não sentirá até a adrenalina passar.",
-  "tick": "if (source is not Creature creature) return; creature.GetStat(CreatureStats.ADRENALINE).BaseValue -= 1f / (50f * 3600);",
-  "attacked": "if (injury.Severity >= injured.MaxHealth * 0.20 || injured.Health / injured.MaxHealth <= 0.5) ;"
-}
+{"name":"Adrenalina","icon":"unknown","type":"arbitrary","description":"Seu corpo de mam\u00EDfero solta adrenalina ao ser machucado, temporariamente negando dor. Todavia isso tamb\u00E9m significa que se algum \u00F3rg\u00E3o interno ou osso for danificado, voc\u00EA n\u00E3o sentir\u00E1 at\u00E9 a adrenalina passar.","tick":"if (source is not Creature creature) return;\ncreature.GetStat(CreatureStats.ADRENALINE).BaseValue -= 1f / (50f * 3600);","attacked":"if (injury.Severity \u003E= injured.MaxHealth * 0.20 || injured.Health / injured.MaxHealth \u003C= 0.5) ;","OnTick":"if (source is not Creature creature) return;\\n\\n\\n\\n\\ncreature.GetStat(CreatureStats.ADRENALINE).BaseValue -= 1f / (50f * 3600);","OnAttacked":"if (injury.Severity \u003E= injured.MaxHealth * 0.20 || injured.Health / injured.MaxHealth \u003C= 0.5) ;"}

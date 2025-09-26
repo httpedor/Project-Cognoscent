@@ -1,6 +1,1 @@
-﻿{
-  "name": "Street Fighter",
-  "icon": "unknown",
-  "description": "O dano de seus ataques desarmados escala com seu atributo de 'Combate Desarmado'",
-  "attackingDamage": "if (damage.SkillUsed.Is(\"unnarmed\")) return amount * creature.GetStatValue(\"unnarmed_combat\", 1); return amount;"
-}
+{"name":"Street Fighter","icon":"unknown","description":"O dano de seus ataques desarmados escala com seu atributo de \u0027Combate Desarmado\u0027","attackingDamage":"if (damage.SkillUsed.Is(\u0022unnarmed\u0022)) return amount * creature.GetStatValue(\u0022unnarmed_combat\u0022, 1); return amount;","type":"arbitrary","ModifyAttackingDamage":"if (damage.SkillUsed.Is(\u0022unnarmed\u0022)) return amount * creature.GetStatValue(\u0022unnarmed_combat\u0022, 1); return amount;"}

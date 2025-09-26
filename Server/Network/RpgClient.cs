@@ -316,6 +316,14 @@ public class RpgClient
                 
                 break;
             }
+            case ProtocolId.SHOW_MIDIA:
+            {
+                var smp = (ShowMidiaPacket)packet;
+                if (!IsGm)
+                    break;
+                Manager.SendToBoard(smp, smp.Board.Name);
+                break;
+            }
             default:
                 Console.WriteLine("Unknown/unsupported packet type " + packet.Id);
                 break;
