@@ -251,14 +251,14 @@ public abstract class Feature : ISerializable
         return Array.Empty<StatModifier>();
     }
     
-    public virtual double ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
+    public virtual (double, string?) ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
     {
-        return damage;
+        return (damage, null);
     }
     
-    public virtual double ModifyAttackingDamage(Creature attacker, IDamageable target, DamageSource source, double damage)
+    public virtual (double, string?) ModifyAttackingDamage(Creature attacker, IDamageable target, DamageSource source, double damage)
     {
-        return damage;
+        return (damage, null);
     }
 
     public virtual void OnAttacked(IDamageable attacked, DamageSource source, double damage, bool hit)

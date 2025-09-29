@@ -430,12 +430,22 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
         }
 
         double damage = Stat.ApplyModifiers(dmgMods, (float)amount);
-
+        string formula = damage.ToString("0.##") + " após modificadores";
         if (Owner != null)
         {
             foreach (Feature feat in Owner.Features)
-                damage = feat.ModifyReceivingDamage(this, source, damage);
+            {
+                var info = feat.ModifyReceivingDamage(this, source, damage);
+                if (damage == info.Item1)
+                    continue;
+                formula += "\n" + info.Item1;
+                if (info.Item2 != null)
+                    formula += info.Item2;
+                damage = info.Item1;
+            }
         }
+        
+        Owner.Log($"{BBLink} recebeu [hint={formula}]{damage}[/hint] de dano {type.BBHint}.");
         
         if (damage <= 0)
             return 0;
