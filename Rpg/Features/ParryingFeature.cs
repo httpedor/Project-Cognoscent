@@ -47,7 +47,7 @@ public class ParryingFeature : ConditionFeature
         return "Essa entidade irá bloquear o próximo ataque corpo-a-corpo ou de projetil não-mágico que receber, desde que consiga ver o atacante.";
     }
 
-    public override double ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
+    public override (double, string?) ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
     {
         if (source.SkillUsed is { } skill && 
             (skill.HasTag("melee") || skill.HasTag("projectile")) && 
@@ -59,7 +59,7 @@ public class ParryingFeature : ConditionFeature
             var fs = (IFeatureSource)attacked;
             fs.Board.RunTaskLater(() => fs.RemoveFeature(this), 0);
             
-            return 0;
+            return (0, " [hint=defendeu com " + (used.IsLeft ? used.Left!.Name : used.Right!.Name) + "]defendeu[/hint] o ataque de " + source.ContactEntity.BBLink);
         }
         return base.ModifyReceivingDamage(attacked, source, damage);
     }

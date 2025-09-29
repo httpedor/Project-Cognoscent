@@ -162,20 +162,20 @@ public class ArbitraryFeature : Feature
         onInjured?.Invoke(new Context() {creature = creature, injured = injured, injury = injury});
     }
 
-    public override double ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
+    public override (double, string?) ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
     {
         if (modifyReceivingDamage != null)
         {
-            return modifyReceivingDamage(new Context { source = attacked as IFeatureSource, damage = source, amount = damage });
+            return (modifyReceivingDamage(new Context { source = (attacked as IFeatureSource)!, damage = source, amount = damage }), GetName());
         }
         return base.ModifyReceivingDamage(attacked, source, damage);
     }
 
-    public override double ModifyAttackingDamage(Creature attacker, IDamageable target, DamageSource source, double damage)
+    public override (double, string?) ModifyAttackingDamage(Creature attacker, IDamageable target, DamageSource source, double damage)
     {
         if (modifyAttackingDamage != null)
         {
-            return modifyAttackingDamage(new Context { creature = attacker, injured = target, damage = source, amount = damage });
+            return (modifyAttackingDamage(new Context { creature = attacker, injured = target, damage = source, amount = damage }), GetName());
         }
         return base.ModifyAttackingDamage(attacker, target, source, damage);
     }

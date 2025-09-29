@@ -72,11 +72,15 @@ public class ArbitraryAttackSkill : AttackSkill
             ?? base.GetCooldown(executor, arguments, source);
     }
 
-    public override (float damage, DamageType type) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target)
+    public override (float damage, DamageType type, string? formula) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target)
     {
         if (code.damage != null)
-            return code.damage(new SkillJson.Context { creature = executor, arguments = arguments, source = source, target = target });
-        return (0, DamageType.Physical);
+        {
+            var ret = code.damage(new SkillJson.Context
+                { creature = executor, arguments = arguments, source = source, target = target });
+            return (ret.Item1, ret.Item2, null);
+        }
+        return (0, DamageType.Physical, null);
     }
 
     public override void OnAttack(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target, bool hit)

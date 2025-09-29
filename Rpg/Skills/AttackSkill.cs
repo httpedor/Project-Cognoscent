@@ -10,7 +10,7 @@ public abstract class AttackSkill : Skill
     {
     }
 
-    public abstract (float damage, DamageType type) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target);
+    public abstract (float damage, DamageType type, string? formula) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target);
 
     /// <summary>
     /// Checks if this attack hits a damageable target
@@ -75,17 +75,28 @@ public abstract class AttackSkill : Skill
 
         OnAttack(executor, arguments, source, target, hitInfo.Item1);
         double dmg = dmgInfo.damage;
+        string formula = dmg.ToString("0.##");
+        if (dmgInfo.formula != null)
+            formula += " (" + dmgInfo.formula + ")";
         if (target is IFeatureSource fs2)
         {
             foreach (Feature feature in fs2.EnabledFeatures)
-                dmg = feature.ModifyAttackingDamage(executor, target, damageSource, dmg);
+            {
+                var info = feature.ModifyAttackingDamage(executor, target, damageSource, dmg);
+                if (info.Item1 == dmg)
+                    continue;
+                dmg = info.Item1;
+                formula += "\n" + dmg;
+                if (info.Item2 != null)
+                     formula += "("+info.Item2+")";
+            }
         }
 
         if (hit)
         {
             target.Damage(damageSource, dmg);
             string acertouHint = hitInfo.Item2 == null ? "acertou" : $"[hint={hitInfo.Item2}]acertou[/hint]";
-            executor.Log($"{executor.BBLink} {acertouHint} {BBHint} no(a) {target.BBLink} com {dmg} de dano {dmgInfo.type.BBHint}");
+            executor.Log($"{executor.BBLink} {acertouHint} {BBHint} no(a) {target.BBLink} com [hint={formula}]{dmg}[/hint] de dano {dmgInfo.type.BBHint}");
         }
         
         if (target is IFeatureSource f2)

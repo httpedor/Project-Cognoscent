@@ -48,11 +48,11 @@ public class SimpleAttackSkill : AttackSkill
         return (false, null);
     }
     
-    public override (float damage, DamageType type) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target)
+    public override (float damage, DamageType type, string? formula) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target)
     {
         if (Group != null)
-            return (executor.Body.GetStatByGroup(Group, Stat), DamageType);
-        return (executor.GetStatValue(Stat), DamageType);
+            return (executor.Body.GetStatByGroup(Group, Stat), DamageType, "(" + Stat + " de " + Group + ")");
+        return (executor.GetStatValue(Stat), DamageType, "(" + Stat + ")");
     }
 
     public override void ToBytes(Stream stream)
