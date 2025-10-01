@@ -50,6 +50,7 @@ public struct StatModifier : ISerializable
     }
 }
 
+//TODO: MaxBase, MinBase, MaxFinal, MinFinal
 public class Stat : ISerializable
 {
     public event Action<float, float>? ValueChanged;

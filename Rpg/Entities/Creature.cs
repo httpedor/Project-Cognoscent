@@ -184,6 +184,7 @@ public class Creature : Entity, IItemHolder, IDamageable
 
     public override void Tick()
     {
+        Body.Tick();
         base.Tick();
         foreach (var part in Body.Parts)
         {

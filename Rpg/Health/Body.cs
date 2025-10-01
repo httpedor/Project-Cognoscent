@@ -26,6 +26,7 @@ public class Body : ISerializable
     private readonly Dictionary<string, Stat> statDefs = new();
     // STAT -> (Dependency, (dependencyVal, statVal) -> (ModVal, ModType))
     private readonly Dictionary<string, StatDependency[]> statDependencies = new();
+    private readonly Dictionary<string, Either<string, float>> statRegens = new();
     private readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
 
@@ -189,6 +190,21 @@ public class Body : ISerializable
         }
         Root = new BodyPart(stream, this);
         IsReady = true;
+    }
+
+    public void Tick()
+    {
+        if (Owner == null)
+            return;
+        foreach ((string statName, var regenInfo) in statRegens)
+        {
+            var stat = Owner.GetStat(statName);
+            if (stat == null)
+                continue;
+            float regenAmount = regenInfo.IsRight ? regenInfo.Right : Owner.GetStat(regenInfo.Left)?.FinalValue ?? 0;
+            //TODO: Cap it at max(including modifiers) and min(including modifiers)
+            stat.BaseValue += regenAmount * (1/50f);
+        }
     }
 
     public void ApplyPartToOwner(BodyPart part)
@@ -458,20 +474,46 @@ public class Body : ISerializable
             JsonObject? stats = json["stats"]?.AsObject();
             if (stats != null)
             {
-                foreach (var pair in stats)
+                foreach ((string statName, JsonNode? value) in stats)
                 {
-                    JsonObject statObj = pair.Value.AsObject();
-                    string statName = pair.Key;
+                    JsonObject statObj = (JsonObject)value!;
                     float baseVal = statObj["base"]?.GetValue<float>() ?? 0;
-                    float maxVal  = statObj["max"]?.GetValue<float>() ?? float.MaxValue;
-                    float minVal = statObj["min"]?.GetValue<float>() ?? 0;
+                    float maxVal = float.MaxValue;
+                    var maxNode = statObj["max"];
+                    if (maxNode?.GetValueKind() == JsonValueKind.Number)
+                        maxVal  = maxNode.GetValue<float>();
+                    float minVal = 0;
+                    var minNode = statObj["min"];
+                    if (minNode?.GetValueKind() == JsonValueKind.Number)
+                        minVal = minNode.GetValue<float>();
                     bool overCap = statObj["overCap"]?.GetValue<bool>() ?? true;
                     bool underCap = statObj["underCap"]?.GetValue<bool>() ?? true;
                     ret.statDefs[statName] = new Stat(statName, baseVal, maxVal, minVal, overCap, underCap);
+                    
+                    List<StatDependency> deps = new();
+                    //TODO: This needs to be updated to new stat cap system, but I'm fucking stupid and didn't commit the changes at home so I can't remember how it works
+                    if (maxNode?.GetValueKind() == JsonValueKind.String)
+                    {
+                        string otherStatName = maxNode.GetValue<string>();
+                        deps.Add((statName + "_max_dep", otherStatName, (x, _) => (x, StatModifierType.Capmax)));
+                    }
+                    if (minNode?.GetValueKind() == JsonValueKind.String)
+                    {
+                        string otherStatName = minNode.GetValue<string>();
+                        deps.Add((statName + "_min_dep", otherStatName, (x, _) => (x, StatModifierType.Capmin)));
+                    }
+
+                    if (statObj.TryGetPropertyValue("regen", out JsonNode? regenNode))
+                    {
+                        if (regenNode?.GetValueKind() == JsonValueKind.String)
+                            ret.statRegens[statName] = regenNode.GetValue<string>();
+                        else if (regenNode?.GetValueKind() == JsonValueKind.Number)
+                            ret.statRegens[statName] = regenNode.GetValue<float>();
+                        else
+                            Console.WriteLine("Warning: Invalid regen value for stat " + statName);
+                    }
                     if (statObj.ContainsKey("dependsOn"))
                     {
-                        ret.statDependencies[statName] = new StatDependency[statObj["dependsOn"]!.AsObject().Count];
-                        int i = 0;
                         foreach (var depPair in statObj["dependsOn"]!.AsObject())
                         {
                             string depName = depPair.Key;
@@ -483,12 +525,13 @@ public class Body : ISerializable
                                 val = new Either<string, float>(depVal.GetValue<string>());
 
                             if (SidedLogic.Instance.IsClient() || val.IsRight)
-                                ret.statDependencies[statName][i] = (depName, val, null);
+                                deps.Add((depName, val, null));
                             else
-                                ret.statDependencies[statName][i] = (depName, val, Compile(val.Left));
-                            i++;
+                                deps.Add((depName, val, Compile(val.Left)));
                         }
                     }
+                    if (deps.Count > 0)
+                        ret.statDependencies[statName] = deps.ToArray();
                 }
 
                 foreach (var deps in ret.statDependencies)
