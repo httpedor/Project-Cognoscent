@@ -37,6 +37,12 @@ public partial class CreatureNode : EntityNode
                 
             }
         };
+
+        if (GameManager.OwnsEntity(ent))
+        {
+            NameKnown = true;
+            StatsKnown = true;
+        }
     }
     
     public override void AddGMContextMenuOptions()

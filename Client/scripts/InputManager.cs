@@ -333,7 +333,7 @@ public partial class InputManager : SubViewportContainer
 			ContextMenu.AddSeparator();
 		}
 		
-		if (board.SelectedEntity != null && (GameManager.IsGm || (board.SelectedEntity is Creature c && c.Owner == GameManager.Instance.Username)))
+		if (board.SelectedEntity != null && (GameManager.IsGm || (board.SelectedEntity is Creature c && c.Owner == GameManager.Username)))
 		{
 			var entity = board.SelectedEntity;
 			ContextMenu.AddOption("Olhar Aqui", pos => {
@@ -528,7 +528,7 @@ public partial class InputManager : SubViewportContainer
 			HandleContextMenu(board);
 		}
 
-		if (board.SelectedEntity != null && board.SelectedEntity is Creature creature && (creature.Owner.Equals(GameManager.Instance.Username) || GameManager.IsGm)){
+		if (board.SelectedEntity != null && board.SelectedEntity is Creature creature && (creature.Owner.Equals(GameManager.Username) || GameManager.IsGm)){
 			if (Input.IsActionJustPressed("radial_menu"))
 			{
 				AddActionsToRadialMenu(creature);

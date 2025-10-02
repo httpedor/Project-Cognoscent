@@ -65,7 +65,17 @@ public partial class GameManager : Node
         }
     }
 
-    public string Username = "";
+    public string _username = "";
+
+    public static string Username
+    {
+        get => Instance._username;
+        set => Instance._username = value;
+    }
+    public static bool OwnsEntity(Entity ent)
+    {
+        return IsGm || (ent is Creature c && c.Owner.Equals(Username));
+    }
     public InputManager InputManager
     {
         get;
@@ -93,7 +103,7 @@ public partial class GameManager : Node
         private set;
     }
     public static GameManager Instance {get; private set;}
-    public static bool IsGm => Instance.Username.Equals("httpedor");
+    public static bool IsGm => Username.Equals("httpedor");
 
     public static CanvasLayer UILayer => Instance.GetParent().FindChild("UILayer") as CanvasLayer;
 

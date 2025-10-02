@@ -224,12 +224,16 @@ public abstract class Entity : ISerializable, IFeatureSource
             return stat.FinalValue;
         return defaultValue;
     }
-    public float this[string id, float defaultValue=0] => GetStatValue(id, defaultValue);
+    public float this[string id, float defaultValue=0] => GetStatValue(id.ToLower(), defaultValue);
 
     public Stat CreateStat(Stat stat)
     {
-        var id = stat.Id;
+        string id = stat.Id;
         stats[id] = stat;
+        foreach (string alias in stat.Aliases)
+        {
+            stats[alias] = stat;
+        }
         OnStatCreated?.Invoke(stats[id]);
         return stats[id];
     }

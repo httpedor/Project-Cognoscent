@@ -70,11 +70,10 @@ public class Body : ISerializable
                         value.CreateStat(stat.Clone());
                     }
 
-                    foreach (var depInfo in statDependencies)
+                    foreach ((string statName, var dependencies) in statDependencies)
                     {
-                        string statName = depInfo.Key;
                         var stat = value.GetStat(statName)!;
-                        foreach (var dependency in depInfo.Value)
+                        foreach (var dependency in dependencies)
                         {
                             var depStat = value.GetStat(dependency.stat);
                             if (depStat == null)
@@ -488,7 +487,12 @@ public class Body : ISerializable
                         minVal = minNode.GetValue<float>();
                     bool overCap = statObj["overCap"]?.GetValue<bool>() ?? true;
                     bool underCap = statObj["underCap"]?.GetValue<bool>() ?? true;
-                    ret.statDefs[statName] = new Stat(statName, baseVal, maxVal, minVal, overCap, underCap);
+                    string[] aliases = statObj["aliases"]?.AsArray().Select(x => x!.GetValue<string>()).ToArray() ?? [];
+                    var stat = new Stat(statName, baseVal, maxVal, minVal, overCap, underCap)
+                    {
+                        Aliases = aliases
+                    };
+                    ret.statDefs[statName] = stat;
                     
                     List<StatDependency> deps = new();
                     //TODO: This needs to be updated to new stat cap system, but I'm fucking stupid and didn't commit the changes at home so I can't remember how it works

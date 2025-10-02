@@ -2,6 +2,7 @@ using System;
 using Godot;
 using Rpg;
 using TTRpgClient.scripts.RpgImpl;
+using TTRpgClient.scripts.ui;
 
 namespace TTRpgClient.scripts;
 
@@ -22,6 +23,9 @@ public partial class EntityNode : Node2D, IContextMenuProvider
             label.Visible = string.IsNullOrEmpty(value);
         }
     }
+
+    public bool NameKnown = false;
+    public bool StatsKnown = false;
 
     private ColorRect loadBarBgColorRect;
     private ColorRect loadBarColorRect;
@@ -199,6 +203,12 @@ public partial class EntityNode : Node2D, IContextMenuProvider
         }
 
         CircleMask = ent.Display.Type == MidiaType.Image;
+
+        if (GameManager.IsGm)
+        {
+            NameKnown = true;
+            StatsKnown = true;
+        }
     }
 
     protected void OnMove(System.Numerics.Vector3 newPos, System.Numerics.Vector3 oldPos)
@@ -267,7 +277,7 @@ public partial class EntityNode : Node2D, IContextMenuProvider
     {
         Board.SelectedEntity = Entity;
     }
-
+    
     public virtual void AddGMContextMenuOptions()
     {
         ContextMenu.AddOption("Mudar Exibição", (_) =>
@@ -310,6 +320,9 @@ public partial class EntityNode : Node2D, IContextMenuProvider
     }
     public virtual void AddContextMenuOptions()
     {
+        ContextMenu.AddOption("Mostrar Ficha", (_) => {
+            EntitySheetWindow.Open(Entity);
+        });
     }
 
     public virtual void HideLoadBar()

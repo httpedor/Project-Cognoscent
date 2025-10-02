@@ -80,7 +80,7 @@ public partial class NetworkManager : Node
 	private void OnConnect(){
 		GD.Print("Connected to host");
 
-		SendPacket(new LoginPacket(GameManager.Instance.Username, DeviceType.DESKTOP));
+		SendPacket(new LoginPacket(GameManager.Username, DeviceType.DESKTOP));
 	}
 
 	public void SendPacket(Packet packet){

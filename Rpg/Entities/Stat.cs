@@ -66,6 +66,7 @@ public class Stat : ISerializable
     public bool UnderCap { get; private set; }
     private float baseValue;
     private float finalValue;
+    public string[] Aliases = [];
     private readonly Dictionary<string, StatModifier> modifiers;
 
     public float BaseValue
@@ -105,6 +106,10 @@ public class Stat : ISerializable
         MaxValue = stream.ReadFloat();
         OverCap = stream.ReadBoolean();
         UnderCap = stream.ReadBoolean();
+        byte aliasCount = (byte)stream.ReadByte();
+        Aliases = new string[aliasCount];
+        for (int i = 0; i < aliasCount; i++)
+            Aliases[i] = stream.ReadString();
         modifiers = new Dictionary<string, StatModifier>();
         byte count = (byte)stream.ReadByte();
         for (int i = 0; i < count; i++)
@@ -166,11 +171,12 @@ public class Stat : ISerializable
         stream.WriteFloat(MaxValue);
         stream.WriteBoolean(OverCap);
         stream.WriteBoolean(UnderCap);
+        stream.WriteByte((byte)Aliases.Length);
+        foreach (string alias in Aliases)
+            stream.WriteString(alias);
         stream.WriteByte((byte)modifiers.Count);
         foreach (StatModifier modifier in modifiers.Values)
-        {
             modifier.ToBytes(stream);
-        }
     }
 
     public virtual void ClearEvents()
@@ -192,6 +198,7 @@ public class Stat : ISerializable
         var ret = new Stat(Id, baseValue, MinValue, MaxValue, OverCap, UnderCap);
         foreach (var mod in GetModifiers())
             ret.AddModifier(mod);
+        ret.Aliases = (string[])Aliases.Clone();
         return ret;
     }
 
@@ -248,8 +255,13 @@ public class Stat : ISerializable
             finalValue = Math.Min(finalValue, max);
         if (underCap)
             finalValue = Math.Max(finalValue, min);
-        float minValue = minModifiers.Select(modifier => modifier.Value).Max();
-        float maxValue = maxModifiers.Select(modifier => modifier.Value).Min();
+        
+        float minValue = float.MinValue;
+        float maxValue = float.MaxValue;
+        if (minModifiers.Count > 0)
+            minValue = minModifiers.Select(modifier => modifier.Value).Max();
+        if (maxModifiers.Count > 0)
+            maxValue = maxModifiers.Select(modifier => modifier.Value).Min();
 
         finalValue = Math.Clamp(finalValue, minValue, maxValue);
 

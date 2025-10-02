@@ -194,7 +194,7 @@ public class Creature : Entity, IItemHolder, IDamageable
             }
         }
 
-        if (TargetPos != Vector2.NaN)
+        if (!float.IsNaN(TargetPos.X) && !float.IsNaN(TargetPos.Y))
         {
             var result = Position + new Vector3((TargetPos - Position.XY()) * (MovementSpeed / 50), 0);
             bool canProceed = true;

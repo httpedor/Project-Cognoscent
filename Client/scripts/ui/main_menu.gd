@@ -21,7 +21,7 @@ func _on_connect(username: String, ip: String):
 		return
 	var ip_address = ip.split(":")[0]
 	var port = int(ip.split(":")[1])
-	game_manager.Username = username
+	game_manager._username = username
 	var err = network_manager.ConnectToHost(ip_address, port)
 	if err != OK:
 		error_label.text = "Error connecting: " + error_string(err)

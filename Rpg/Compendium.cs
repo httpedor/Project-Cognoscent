@@ -64,22 +64,39 @@ public static class Compendium
 
         void AddOrMerge(JsonNode? node)
         {
-            if (node is JsonObject obj && obj["name"] is JsonValue nameVal && nameVal.GetValue<string>() is string name)
+
+            if (node is JsonObject obj)
             {
-                if (map.TryGetValue(name, out var existing))
+                JsonValue? idVal = null;
+                string[] possibleKeys = ["name", "id"];
+                foreach (var key in possibleKeys)
                 {
-                    map[name] = Merge(existing, obj);
+                    if (obj[key] is JsonValue val && val.GetValueKind() == JsonValueKind.String)
+                    {
+                        idVal = val;
+                        break;
+                    }
+                }
+                if (idVal is { } nameVal && nameVal.GetValue<string>() is { } name)
+                {
+                    if (map.TryGetValue(name, out var existing))
+                    {
+                        map[name] = Merge(existing, obj);
+                    }
+                    else
+                    {
+                        map[name] = (JsonObject)obj.DeepClone();
+                    }
                 }
                 else
-                {
-                    map[name] = (JsonObject)obj.DeepClone();
-                }
+                    merged.Add(node.DeepClone());
             }
             else
             {
                 if (node is not null)
                     merged.Add(node.DeepClone());
             }
+
         }
 
         foreach (var item in first) AddOrMerge(item);

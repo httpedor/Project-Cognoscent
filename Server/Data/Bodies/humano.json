@@ -4,47 +4,94 @@
   "icon": "humanoid",
   "stats": {
     "strength": {
-      "base": 1,
+      "aliases": [
+        "str",
+        "força",
+        "for"
+      ],
+      "base": 25,
       "dependsOn": {
         "consciousness": 0.15,
         "blood_flow": 0.5,
-        "respiration": 0.5,
-        "adrenaline": "(x, StatModifierType.Percent)"
+        "respiration": 0.5
       }
     },
     "agility": {
-      "base": 1,
+        "aliases": [
+            "agi",
+            "agilidade",
+            "agi"
+        ],
+      "base": 25,
       "dependsOn": {
-        "consciousness": 1
+        "consciousness": 0.15,
+        "blood_flow": 0.5,
+        "respiration": 0.5
+      }
+    },
+    "dexterity": {
+      "aliases": [
+        "dex",
+        "destreza",
+        "des"
+      ],
+      "base": 25,
+      "dependsOn": {
+        "consciousness": 1,
+        "respiration": 0.5
       }
     },
     "intelligence": {
+      "aliases": [
+        "int",
+        "inteligência"
+      ],
+      "base": 25,
       "dependsOn": {
         "consciousness": 1.2
       }
     },
+    "constitution": {
+      "aliases": [
+        "con",
+        "constituição"
+      ],
+      "base": 25,
+      "dependsOn": {
+        "blood_flow": 0.5,
+        "respiration": 0.5
+      }
+    },
     "movement": {
-      "base": 7
+      "aliases": [
+        "mov",
+        "movimento",
+        "velocidade de movimento"
+      ],
+      "base": 5,
+      "dependsOn": {
+        "agility": "((x-25f)/7f, StatModifierType.Flat)"
+      }
     },
     "sight": {
       "max": 1
     },
+    "hearing": {
+      "max": 1
+    },
     "perception": {
-      "base": 1,
       "dependsOn": {
-        "sight": 0.8
+        "sight": 0.8,
+        "hearing": 0.2,
+        "dexterity": "(x, StatModifierType.Flat)"
       },
       "max": 1
     },
     "pain": {
       "max": 1,
       "dependsOn": {
-        "adrenaline": "(Max(-(x*0.7f), -0.7f), StatModifierType.Percent)"
+        "constitution": "(-((x-25f)/100f), StatModifierType.Percent)"
       }
-    },
-    "adrenaline": {
-      "max": 1,
-      "overCap": false
     },
     "respiration": {
       "max": 1
@@ -53,8 +100,7 @@
       "dependsOn": {
         "blood_flow": 0.3,
         "respiration": 0.3,
-        "pain": "(x <= 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)",
-        "adrenaline": "(Min((x*0.15f), 0.15f), StatModifierType.Percent)"
+        "pain": "(x \u003c\u003d 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)"
       },
       "overCap": false,
       "max": 1

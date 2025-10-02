@@ -102,10 +102,12 @@ public class ServerFloor : Floor, ISerializable
 
     public void UpdateEntityCollisionGrid(Entity entity)
     {
-        //TODO: Remove old entity positions before updating
         var obb = entity.Hitbox;
         var corners = obb.Corners;
-
+        
+        foreach (var cell in entityCollisionGrid)
+            cell.Remove(entity);
+        
         // Compute AABB bounds from OBB corners
         float minX = corners.Min(c => c.X);
         float maxX = corners.Max(c => c.X);

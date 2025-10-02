@@ -44,7 +44,7 @@ public class ClientBoard : Board
 			    {
 				    if (GameManager.IsGm)
 					    GameManager.Instance.VisionManager.AddVisionPoint(new VisionPoint(selectedCreature));
-				    if (GameManager.IsGm || selectedCreature.Owner == GameManager.Instance.Username)
+				    if (GameManager.IsGm || selectedCreature.Owner == GameManager.Username)
 				    {
 					    ActionBar.Clear();
 					    ActionBar.PopulateWithSkills(selectedCreature);
@@ -67,7 +67,7 @@ public class ClientBoard : Board
 	{
 		get
 		{
-			if (SelectedEntity is Creature c && (c.Owner.Equals(GameManager.Instance.Username) || GameManager.IsGm))
+			if (SelectedEntity is Creature c && (c.Owner.Equals(GameManager.Username) || GameManager.IsGm))
 				return c;
 			return null;
 		}
@@ -195,7 +195,7 @@ public class ClientBoard : Board
 
 	public override List<Creature> GetCreaturesByOwner(string owner)
 	{
-		if (!owner.Equals(GameManager.Instance.Username)) return base.GetCreaturesByOwner(owner);
+		if (!owner.Equals(GameManager.Username)) return base.GetCreaturesByOwner(owner);
 		
 		var ret = new List<Creature>();
 		foreach (int id in localEntityIds)
@@ -264,11 +264,11 @@ public class ClientBoard : Board
 				InitiativeBar.PopulateWithBoard(this);
 			if (!GameManager.IsGm)
 			{
-				if (creature.Owner.Equals(GameManager.Instance.Username))
+				if (creature.Owner.Equals(GameManager.Username))
 				{
 					foreach (var e in entities)
 					{
-						if (e is Creature c && c.Owner.Equals(GameManager.Instance.Username))
+						if (e is Creature c && c.Owner.Equals(GameManager.Username))
 							GameManager.Instance.VisionManager.RemoveVisionPoint(creature);
 					}
 					VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));

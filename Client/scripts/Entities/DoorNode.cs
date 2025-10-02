@@ -93,7 +93,7 @@ public partial class DoorNode : EntityNode
     public override void OnClick()
     {
 		if (GameManager.Instance.CurrentBoard != null
-		&& GameManager.Instance.CurrentBoard.SelectedEntity is Creature c && (c.Owner == GameManager.Instance.Username || GameManager.IsGm)
+		&& GameManager.Instance.CurrentBoard.SelectedEntity is Creature c && (c.Owner == GameManager.Username || GameManager.IsGm)
 		&& Door.CanBeOpenedBy(c))
 			NetworkManager.Instance.SendPacket(new DoorInteractPacket(Door));
     }
@@ -126,7 +126,7 @@ public partial class DoorNode : EntityNode
 		base.AddContextMenuOptions();
 
 		var selected = GameManager.Instance.CurrentBoard.SelectedEntity;
-		if (selected != null && selected is Creature creature && (GameManager.IsGm || creature.Owner == GameManager.Instance.Username))
+		if (selected is Creature creature && (GameManager.IsGm || creature.Owner == GameManager.Username))
 		{
 			if (Door.CanBeOpenedBy(creature))
 			{
