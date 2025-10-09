@@ -261,7 +261,18 @@ public partial class NetworkManager : Node
 				if (stat == null)
 					break;
 
-				stat.BaseValue = esup.Value;
+                switch (esup.ValueType)
+                {
+                    case Rpg.StatValueType.Min:
+                        stat.MinValue = esup.Value;
+                        break;
+                    case Rpg.StatValueType.Max:
+                        stat.MaxValue = esup.Value;
+                        break;
+                    default:
+                        stat.BaseValue = esup.Value;
+                        break;
+                }
 				break;
 			}
 			case ProtocolId.ENTITY_STAT_MODIFIER_UPDATE:

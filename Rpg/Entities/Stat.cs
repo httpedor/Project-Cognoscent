@@ -50,7 +50,6 @@ public struct StatModifier : ISerializable
     }
 }
 
-//TODO: MaxBase, MinBase, MaxFinal, MinFinal
 public class Stat : ISerializable
 {
     public event Action<float, float>? ValueChanged;
@@ -58,10 +57,45 @@ public class Stat : ISerializable
     public event Action<StatModifier>? ModifierAdded;
     public event Action<StatModifier>? ModifierUpdated;
     public event Action<StatModifier>? ModifierRemoved;
+    public event Action<float, float>? MinValueChanged;
+    public event Action<float, float>? MaxValueChanged;
 
     public string Id { get; }
-    public float MinValue { get; private set; }
-    public float MaxValue { get; private set; }
+    private float minValue;
+    private float maxValue;
+    public float MinValue
+    {
+        get => minValue;
+        set
+        {
+            var old = minValue;
+            minValue = value;
+            // if under cap is enabled, ensure baseValue respects new min
+            if (UnderCap)
+                baseValue = Math.Max(baseValue, minValue);
+            if (old == value)
+                return;
+            MinValueChanged?.Invoke(minValue, old);
+            CalculateFinalValue();
+        }
+    }
+
+    public float MaxValue
+    {
+        get => maxValue;
+        set
+        {
+            var old = maxValue;
+            maxValue = value;
+            // if over cap is enabled, ensure baseValue respects new max
+            if (OverCap)
+                baseValue = Math.Min(baseValue, maxValue);
+            if (old == value)
+                return;
+            MaxValueChanged?.Invoke(maxValue, old);
+            CalculateFinalValue();
+        }
+    }
     public bool OverCap { get; private set; }
     public bool UnderCap { get; private set; }
     private float baseValue;
@@ -80,6 +114,8 @@ public class Stat : ISerializable
                 baseValue = Math.Min(baseValue, MaxValue);
             if (UnderCap)
                 baseValue = Math.Max(baseValue, MinValue);
+            if (old == value)
+                return;
             BaseValueChanged?.Invoke(baseValue, old);
             CalculateFinalValue();
         }
@@ -90,8 +126,9 @@ public class Stat : ISerializable
     public Stat(string id, float baseValue, float min = 0, float max = float.MaxValue, bool overCap = true, bool underCap = true)
     {
         Id = id;
-        MinValue = min;
-        MaxValue = max;
+        // assign backing fields directly to avoid firing change events during construction
+        minValue = min;
+        maxValue = max;
         OverCap = overCap;
         UnderCap = underCap;
         this.baseValue = baseValue;
@@ -102,8 +139,9 @@ public class Stat : ISerializable
     {
         Id = stream.ReadString();
         baseValue = stream.ReadFloat();
-        MinValue = stream.ReadFloat();
-        MaxValue = stream.ReadFloat();
+        // read backing fields directly to avoid firing change events during deserialization
+        minValue = stream.ReadFloat();
+        maxValue = stream.ReadFloat();
         OverCap = stream.ReadBoolean();
         UnderCap = stream.ReadBoolean();
         byte aliasCount = (byte)stream.ReadByte();
@@ -124,8 +162,9 @@ public class Stat : ISerializable
     {
         if (!modifiers.ContainsKey(id)) return;
         
+        var mod = modifiers[id];
         modifiers.Remove(id);
-        ModifierRemoved?.Invoke(modifiers[id]);
+        ModifierRemoved?.Invoke(mod);
         CalculateFinalValue();
     }
     public void RemoveModifier(StatModifier modifier)
@@ -186,6 +225,8 @@ public class Stat : ISerializable
         ModifierAdded = null;
         ModifierUpdated = null;
         ModifierRemoved = null;
+        MinValueChanged = null;
+        MaxValueChanged = null;
     }
 
     public IEnumerable<StatModifier> GetModifiers()

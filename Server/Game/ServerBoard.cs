@@ -84,6 +84,8 @@ public class ServerBoard : Board, ISerializable
             stat.BaseValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue), Name);
             stat.ModifierUpdated += modifier => Network.Manager.SendToBoard(new EntityStatModifierPacket(entity, stat.Id, modifier), Name);
             stat.ModifierRemoved += modifier => Network.Manager.SendToBoard(new EntityStatModifierRemovePacket(entity, stat.Id, modifier.Id), Name);
+            stat.MinValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue, Rpg.StatValueType.Min), Name);
+            stat.MaxValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue, Rpg.StatValueType.Max), Name);
         }
         foreach (Stat stat in entity.Stats)
         {

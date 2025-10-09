@@ -23,10 +23,23 @@ public class Body : ISerializable
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
     private readonly HashSet<BodyPart> parts = new();
-    private readonly Dictionary<string, Stat> statDefs = new();
-    // STAT -> (Dependency, (dependencyVal, statVal) -> (ModVal, ModType))
-    private readonly Dictionary<string, StatDependency[]> statDependencies = new();
-    private readonly Dictionary<string, Either<string, float>> statRegens = new();
+    // Consolidated stat information: definition + runtime relationships (dependencies, regen, max dependency)
+    private sealed class StatEntry
+    {
+        public Stat Def;
+        public StatDependency[]? Dependencies;
+        // regen can be either a constant float or a dependency stat name
+        public Either<string, float>? Regen;
+        // if non-null, this stat's MaxValue should follow the named stat's FinalValue
+        public string? MaxDependencyName;
+
+        public StatEntry(Stat def)
+        {
+            Def = def;
+        }
+    }
+
+    private readonly Dictionary<string, StatEntry> stats = new();
     private readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
 
@@ -46,7 +59,8 @@ public class Body : ISerializable
                         field.RemoveFeature(feature);
                     }
                     
-                    foreach (var depInfo in statDependencies)
+                    // clear any events/hooks we attached to the owner's stats
+                    foreach (var depInfo in stats.Where(kv => kv.Value.Dependencies != null))
                     {
                         string statName = depInfo.Key;
                         var stat = field.GetStat(statName)!;
@@ -65,15 +79,17 @@ public class Body : ISerializable
                     {
                         value.AddFeature(feature);
                     }
-                    foreach (var stat in statDefs.Values)
+                    // create stats on the owner from our stat entries
+                    foreach (var entry in stats.Values)
                     {
-                        value.CreateStat(stat.Clone());
+                        value.CreateStat(entry.Def.Clone());
                     }
 
-                    foreach ((string statName, var dependencies) in statDependencies)
+                    // wire up dependencies
+                    foreach ((string statName, var entry) in stats.Where(kv => kv.Value.Dependencies != null))
                     {
                         var stat = value.GetStat(statName)!;
-                        foreach (var dependency in dependencies)
+                        foreach (var dependency in entry.Dependencies!)
                         {
                             var depStat = value.GetStat(dependency.stat);
                             if (depStat == null)
@@ -83,7 +99,7 @@ public class Body : ISerializable
                                 string modId = dependency.stat + "_dep";
                                 if (dependency.val.IsLeft)
                                 {
-                                    var res = dependency.compiled(newVal, stat.FinalValue);
+                                    var res = dependency.compiled!(newVal, stat.FinalValue);
                                     stat.AddModifier(new StatModifier(modId, res.Item1, res.Item2));
                                 }
                                 else
@@ -156,10 +172,11 @@ public class Body : ISerializable
         Name = stream.ReadString();
         IsHumanoid = stream.ReadByte() != 0;
         int count = stream.ReadByte();
+        // read stat definitions
         for (int i = 0; i < count; i++)
         {
             var stat = new Stat(stream);
-            statDefs[stat.Id] = stat;
+            stats[stat.Id] = new StatEntry(stat);
         }
 
         count = stream.ReadByte();
@@ -167,7 +184,7 @@ public class Body : ISerializable
         {
             string stat = stream.ReadString();
             int depCount = stream.ReadByte();
-            statDependencies[stat] = new StatDependency[depCount];
+            var deps = new StatDependency[depCount];
             for (int j = 0; j < depCount; j++)
             {
                 var depStat = stream.ReadString();
@@ -177,15 +194,20 @@ public class Body : ISerializable
                     val = new Either<string, float>(stream.ReadFloat());
                 else
                 {
-                    val = new Either<string, float>(stream.ReadString());
+                    var code = stream.ReadString();
+                    val = new Either<string, float>(code);
                     if (!SidedLogic.Instance.IsClient())
                     {
-                        compiled = Compile(val.Left);
+                        compiled = Compile(code);
                     }
                 }
-
-                statDependencies[stat][j] = (depStat, val, compiled);
+ 
+                deps[j] = (depStat, val, compiled);
             }
+            if (stats.TryGetValue(stat, out StatEntry? entry))
+                entry.Dependencies = deps;
+            else
+                stats[stat] = new StatEntry(new Stat(stat, 0)) { Dependencies = deps };
         }
         Root = new BodyPart(stream, this);
         IsReady = true;
@@ -195,14 +217,27 @@ public class Body : ISerializable
     {
         if (Owner == null)
             return;
-        foreach ((string statName, var regenInfo) in statRegens)
+        // apply max dependencies and regen from consolidated stat entries
+        foreach (var kv in stats)
         {
+            var statName = kv.Key;
+            var entry = kv.Value;
             var stat = Owner.GetStat(statName);
-            if (stat == null)
-                continue;
-            float regenAmount = regenInfo.IsRight ? regenInfo.Right : Owner.GetStat(regenInfo.Left)?.FinalValue ?? 0;
-            //TODO: Cap it at max(including modifiers) and min(including modifiers)
-            stat.BaseValue += regenAmount * (1/50f);
+            if (stat == null) continue;
+
+            if (!string.IsNullOrEmpty(entry.MaxDependencyName))
+            {
+                var depStat = Owner.GetStat(entry.MaxDependencyName);
+                if (depStat != null)
+                    stat.MaxValue = depStat.FinalValue;
+            }
+
+            if (entry.Regen != null)
+            {
+                var regenInfo = entry.Regen;
+                float regenAmount = regenInfo.IsRight ? regenInfo.Right : Owner.GetStat(regenInfo.Left!)?.FinalValue ?? 0;
+                stat.BaseValue = Math.Clamp(stat.BaseValue + (regenAmount * (1/50f)), stat.MinValue, stat.MaxValue);
+            }
         }
     }
 
@@ -307,9 +342,9 @@ public class Body : ISerializable
         partsCovered[part].Add(ep);
         foreach (string partName in ep.Coverage)
         {
-            if (!partsByName.TryGetValue(partName, out HashSet<BodyPart>? parts))
+            if (!partsByName.TryGetValue(partName, out HashSet<BodyPart>? partsSet))
                 continue;
-            foreach (BodyPart coveredPart in parts)
+            foreach (BodyPart coveredPart in partsSet)
                 partsCovered[coveredPart].Add(ep);
         }
     }
@@ -319,9 +354,9 @@ public class Body : ISerializable
         
         foreach (string partName in ep.Coverage)
         {
-            if (!partsByName.TryGetValue(partName, out HashSet<BodyPart>? parts))
+            if (!partsByName.TryGetValue(partName, out HashSet<BodyPart>? partsSet))
                 continue;
-            foreach (BodyPart coveredPart in parts)
+            foreach (BodyPart coveredPart in partsSet)
                 partsCovered[coveredPart].Remove(ep);
         }
     }
@@ -373,15 +408,17 @@ public class Body : ISerializable
     {
         stream.WriteString(Name);
         stream.WriteByte(IsHumanoid ? (byte)1 : (byte)0);
-        stream.WriteByte((byte)statDefs.Count);
-        foreach (var statDef in statDefs)
-            statDef.Value.ToBytes(stream);
-        stream.WriteByte((byte)statDependencies.Count);
-        foreach (var depInfo in statDependencies)
+        // preserve original wire format: write the stat definitions first, then dependencies
+        stream.WriteByte((byte)stats.Count);
+        foreach (var statDef in stats)
+            statDef.Value.Def.ToBytes(stream);
+        var depsList = stats.Where(kv => kv.Value.Dependencies != null).ToArray();
+        stream.WriteByte((byte)depsList.Length);
+        foreach (var depInfo in depsList)
         {
             stream.WriteString(depInfo.Key);
-            stream.WriteByte((byte)depInfo.Value.Length);
-            foreach (var dep in depInfo.Value)
+            stream.WriteByte((byte)depInfo.Value.Dependencies!.Length);
+            foreach (var dep in depInfo.Value.Dependencies)
             {
                 stream.WriteString(dep.stat);
                 stream.WriteBoolean(dep.val.IsRight);
@@ -401,14 +438,14 @@ public class Body : ISerializable
 
     public BodyPart? GetBodyPartByName(string name)
     {
-        if (partsByName.TryGetValue(name, out HashSet<BodyPart>? parts))
-            return parts.First();
+        if (partsByName.TryGetValue(name, out HashSet<BodyPart>? partsSet))
+            return partsSet.First();
         return null;
     }
-
+ 
     public IEnumerable<BodyPart> GetPartsThatCanEquip(string slot)
     {
-        return equipmentSlots.TryGetValue(slot, out HashSet<BodyPart>? parts) ? parts : [];
+        return equipmentSlots.TryGetValue(slot, out HashSet<BodyPart>? partsSet) ? partsSet : Array.Empty<BodyPart>();
     }
 
     public IEnumerable<BodyPart> GetPartsWithSlot(string slot)
@@ -425,15 +462,14 @@ public class Body : ISerializable
 
     public float GetStatByGroup(string group, string stat, float baseValue = 0, bool onlySelfStats = false)
     {
-        List<StatModifier> stats = new();
+        List<StatModifier> statMods = new();
         foreach (BodyPart part in GetPartsOnGroup(group))
         {
             if (!part.Stats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
                 continue;
-            stats.AddRange(partStat.Where(mod => !onlySelfStats || !mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
+            statMods.AddRange(partStat.Where(mod => !onlySelfStats || !mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
         }
-
-        return Stat.ApplyModifiers(stats, baseValue);
+        return Stat.ApplyModifiers(statMods, baseValue);
     }
 
     public IEnumerable<EquipmentProperty> GetCoveringEquipment(BodyPart bp)
@@ -492,32 +528,32 @@ public class Body : ISerializable
                     {
                         Aliases = aliases
                     };
-                    ret.statDefs[statName] = stat;
-                    
-                    List<StatDependency> deps = new();
-                    //TODO: This needs to be updated to new stat cap system, but I'm fucking stupid and didn't commit the changes at home so I can't remember how it works
+                    var entry = new StatEntry(stat);
                     if (maxNode?.GetValueKind() == JsonValueKind.String)
                     {
                         string otherStatName = maxNode.GetValue<string>();
-                        deps.Add((statName + "_max_dep", otherStatName, (x, _) => (x, StatModifierType.Capmax)));
+                        entry.MaxDependencyName = otherStatName;
                     }
                     if (minNode?.GetValueKind() == JsonValueKind.String)
                     {
+                        Console.WriteLine("Warning: Stat min dependency is not fully supported yet!");
                         string otherStatName = minNode.GetValue<string>();
-                        deps.Add((statName + "_min_dep", otherStatName, (x, _) => (x, StatModifierType.Capmin)));
+                        // represent min dependency as a dependency that applies a Capmin modifier
+                        entry.Dependencies = new[] { (statName + "_min_dep", new Either<string, float>(otherStatName), (Func<float, float, (float, StatModifierType)>?)((x, _) => (x, StatModifierType.Capmin))) };
                     }
 
                     if (statObj.TryGetPropertyValue("regen", out JsonNode? regenNode))
                     {
                         if (regenNode?.GetValueKind() == JsonValueKind.String)
-                            ret.statRegens[statName] = regenNode.GetValue<string>();
+                            entry.Regen = regenNode.GetValue<string>();
                         else if (regenNode?.GetValueKind() == JsonValueKind.Number)
-                            ret.statRegens[statName] = regenNode.GetValue<float>();
+                            entry.Regen = regenNode.GetValue<float>();
                         else
                             Console.WriteLine("Warning: Invalid regen value for stat " + statName);
                     }
                     if (statObj.ContainsKey("dependsOn"))
                     {
+                        var deps = new List<StatDependency>();
                         foreach (var depPair in statObj["dependsOn"]!.AsObject())
                         {
                             string depName = depPair.Key;
@@ -533,16 +569,18 @@ public class Body : ISerializable
                             else
                                 deps.Add((depName, val, Compile(val.Left)));
                         }
+                        if (deps.Count > 0)
+                            entry.Dependencies = deps.ToArray();
                     }
-                    if (deps.Count > 0)
-                        ret.statDependencies[statName] = deps.ToArray();
+
+                    ret.stats[statName] = entry;
                 }
 
-                foreach (var deps in ret.statDependencies)
+                foreach (var deps in ret.stats.Where(kv => kv.Value.Dependencies != null))
                 {
-                    foreach (var dep in deps.Value)
+                    foreach (var dep in deps.Value.Dependencies!)
                     {
-                        if (!ret.statDefs.ContainsKey(dep.stat))
+                        if (!ret.stats.ContainsKey(dep.stat))
                         {
                             Console.WriteLine($"Warning: stat {deps.Key} depends on stat {dep.stat} but it wasn't defined in this body!");
                         }
@@ -560,11 +598,14 @@ public class Body : ISerializable
         }
     }
 
-    public void _invokeInjuryEvent(BodyPart bp, Injury inj, bool added)
-    {
-        if (added)
-            OnInjuryAdded?.Invoke(bp, inj);
-        else
-            OnInjuryRemoved?.Invoke(bp, inj);
-    }
-}
+    // helper to access stat definitions map similar to previous API
+    private IEnumerable<Stat> StatDefinitions => stats.Values.Select(e => e.Def);
+ 
+     public void _invokeInjuryEvent(BodyPart bp, Injury inj, bool added)
+     {
+         if (added)
+             OnInjuryAdded?.Invoke(bp, inj);
+         else
+             OnInjuryRemoved?.Invoke(bp, inj);
+     }
+ }

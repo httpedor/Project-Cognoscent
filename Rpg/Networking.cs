@@ -48,6 +48,12 @@ public enum DeviceType {
     MOBILE
 }
 
+public enum StatValueType {
+    Base = 0,
+    Min = 1,
+    Max = 2
+}
+
 public abstract class Packet : ISerializable {
     private static readonly Dictionary<ProtocolId, Type> packetTypes = new();
     static Packet(){
@@ -651,20 +657,23 @@ public class EntityStatBasePacket : Packet
     public EntityRef EntityRef;
     public readonly string StatId;
     public readonly float Value;
+    public readonly StatValueType ValueType;
 
     public override ProtocolId Id => ProtocolId.ENTITY_STAT_BASE;
 
-    public EntityStatBasePacket(Entity entity, string stat, float value)
+    public EntityStatBasePacket(Entity entity, string stat, float value, StatValueType type = StatValueType.Base)
     {
         EntityRef = new EntityRef(entity);
         StatId = stat;
         Value = value;
+        ValueType = type;
     }
 
     public EntityStatBasePacket(Stream stream)
     {
         EntityRef = new EntityRef(stream);
         StatId = stream.ReadString();
+        ValueType = (StatValueType)stream.ReadByte();
         Value = stream.ReadFloat();
     }
 
@@ -673,6 +682,7 @@ public class EntityStatBasePacket : Packet
         base.ToBytes(stream);
         EntityRef.ToBytes(stream);
         stream.WriteString(StatId);
+        stream.WriteByte((byte)ValueType);
         stream.WriteFloat(Value);
     }
 }
