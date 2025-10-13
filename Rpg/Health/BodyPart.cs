@@ -433,7 +433,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
         string formula = damage.ToString("0.##") + " após modificadores";
         if (Owner != null)
         {
-            foreach (Feature feat in Owner.Features)
+            foreach (Feature feat in Owner.Features.Concat(Features))
             {
                 var info = feat.ModifyReceivingDamage(this, source, damage);
                 if (damage == info.Item1)

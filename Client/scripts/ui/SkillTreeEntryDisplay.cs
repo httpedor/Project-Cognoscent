@@ -1,14 +1,13 @@
 ﻿using System;
-using System.Linq;
 using Godot;
 using Rpg;
 using TTRpgClient.scripts.ui;
 
 public partial class SkillTreeEntryDisplay : Sprite2D
 {
-    private Node2D bg;
-    private PanelContainer tooltipPanel;
-    private Label tooltipLabel;
+    private Node2D? bg;
+    private PanelContainer? tooltipPanel;
+    private Label? tooltipLabel;
     private double existedTime = 0;
     private double xFreq = 1;
     private double yFreq = 1;
@@ -66,29 +65,45 @@ public partial class SkillTreeEntryDisplay : Sprite2D
     public override void _Process(double delta)
     {
         existedTime += delta;
+        // Try to find a DiagramCanvas parent and set its Hovered property. Fall back to SkillTreeDisplay bridge if needed.
+        DiagramCanvas? canvas = GetParent() as DiagramCanvas;
         if (GetRect().HasPoint(GetLocalMousePosition()))
         {
             mouseOverTime += delta;
-            SkillTreeDisplay.Hovered = Entry;
+            if (canvas != null)
+                canvas.Hovered = Entry;
+            else
+                SkillTreeDisplay.HoveredEntry = Entry;
         }
         else
         {
             mouseOverTime = 0;
-            if (SkillTreeDisplay.Hovered == Entry)
-                SkillTreeDisplay.Hovered = null;
+            if (canvas != null)
+            {
+                if (canvas.Hovered == Entry)
+                    canvas.Hovered = null;
+            }
+            else
+            {
+                if (SkillTreeDisplay.HoveredEntry == Entry)
+                    SkillTreeDisplay.HoveredEntry = null;
+            }
         }
 
         if (mouseOverTime >= 1)
         {
-            tooltipPanel.Visible = true;
-            tooltipPanel.Position = Position + new Vector2(GetRect().Size.X/2, -GetRect().Size.Y/2);
+            if (tooltipPanel != null)
+            {
+                tooltipPanel.Visible = true;
+                tooltipPanel.Position = Position + new Vector2(GetRect().Size.X/2, -GetRect().Size.Y/2);
+            }
         }
-        else
+        else if (tooltipPanel != null)
             tooltipPanel.Visible = false;
 
         Position = StartPos + (new Vector2((float)Math.Sin((existedTime*xFreq)+xOffset), (float)Math.Cos((existedTime*yFreq)+yOffset)) * 5);
         
-        bg.QueueRedraw();
+        bg?.QueueRedraw();
     }
 
     private void _DrawBehind(Node2D node)

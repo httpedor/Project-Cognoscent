@@ -98,12 +98,13 @@
     },
     "consciousness": {
       "dependsOn": {
-        "blood_flow": 0.3,
-        "respiration": 0.3,
+        "blood_flow": 0.5,
+        "respiration": 0.5,
         "pain": "(x \u003c\u003d 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)"
       },
       "overCap": false,
-      "max": 1
+      "max": 1,
+      "vital": true
     },
     "blood_flow": {
       "max": 1

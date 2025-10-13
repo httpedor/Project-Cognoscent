@@ -281,6 +281,11 @@ public abstract class Feature : ISerializable
         
     }
     
+    public virtual bool CanBeSeenBy(Entity viewer)
+    {
+        return true;
+    }
+    
     public virtual bool IsToggleable(Entity entity)
     {
         return false;

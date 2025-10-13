@@ -266,8 +266,14 @@ public partial class EntitySheetWindow : Window
         foreach (var kv in currentEntity.FeaturesDict)
         {
             var f = kv.Value.feature;
+            bool onlyGm = false;
             if (!CharacterKnowledgeManager.KnowsFeature(currentEntity, f))
-                continue;
+            {
+                if (GameManager.IsGm)
+                    onlyGm = true;
+                else
+                    continue;
+            }
             found = true;
             bool enabled = kv.Value.enabled;
             var tag = new Button
@@ -280,6 +286,8 @@ public partial class EntitySheetWindow : Window
             tag.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
             tag.AddThemeColorOverride("font_color", enabled ? Colors.White : Colors.Gray);
             tag.AddThemeColorOverride("font_color_pressed", enabled ? Colors.White : Colors.Gray);
+            if (onlyGm)
+                tag.Text += " (GM only)";
             featuresFlow.AddChild(tag);
         }
         if (!found)

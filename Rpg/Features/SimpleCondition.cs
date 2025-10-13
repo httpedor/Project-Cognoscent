@@ -5,13 +5,15 @@ public class SimpleCondition : ConditionFeature
     private readonly string id;
     private readonly string description;
     private readonly bool toggleable;
+    private readonly bool hidden;
     
-    public SimpleCondition(string id, string name, string description, bool toggleable, uint ticks = 0) : base(ticks)
+    public SimpleCondition(string id, string name, string description, bool toggleable, uint ticks = 0, bool hidden = false) : base(ticks)
     {
         this.id = id;
         CustomName = name;
         this.description = description;
         this.toggleable = toggleable;
+        this.hidden = hidden;
     }
 
     public SimpleCondition(Stream stream) : base(stream)
@@ -19,6 +21,7 @@ public class SimpleCondition : ConditionFeature
         id = stream.ReadString();
         description = stream.ReadLongString();
         toggleable = stream.ReadBoolean();
+        hidden = stream.ReadBoolean();
     }
 
     public override void ToBytes(Stream stream)
@@ -27,6 +30,7 @@ public class SimpleCondition : ConditionFeature
         stream.WriteString(id);
         stream.WriteLongString(description);
         stream.WriteBoolean(toggleable);
+        stream.WriteBoolean(hidden);
     }
 
     public SimpleCondition WithDuration(uint ticks)
@@ -47,5 +51,10 @@ public class SimpleCondition : ConditionFeature
     public override bool IsToggleable(Entity entity)
     {
         return toggleable;
+    }
+
+    public override bool CanBeSeenBy(Entity viewer)
+    {
+        return !hidden;
     }
 }

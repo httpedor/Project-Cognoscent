@@ -8,7 +8,16 @@ using Rpg.Inventory;
 namespace Rpg;
 
 using StatDependency = (string stat, Either<string, float> val, Func<float, float, (float, StatModifierType)>? compiled);
+using StatThreshold = (float min, float max, Action<StatThresholdGlobals>? onEnter, Action<StatThresholdGlobals>? onLeave);
+//TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
 
+public class StatThresholdGlobals
+{
+    public Body body;
+    public Creature creature;
+    public float value;
+    public Stat stat;
+}
 public class StatDepCodeGlobals
 {
     public float x;
@@ -28,10 +37,12 @@ public class Body : ISerializable
     {
         public Stat Def;
         public StatDependency[]? Dependencies;
+        public StatThreshold[]? Thresholds;
         // regen can be either a constant float or a dependency stat name
         public Either<string, float>? Regen;
         // if non-null, this stat's MaxValue should follow the named stat's FinalValue
         public string? MaxDependencyName;
+        public bool Vital = false;
 
         public StatEntry(Stat def)
         {
@@ -82,7 +93,15 @@ public class Body : ISerializable
                     // create stats on the owner from our stat entries
                     foreach (var entry in stats.Values)
                     {
-                        value.CreateStat(entry.Def.Clone());
+                        var created = value.CreateStat(entry.Def.Clone());
+                        if (value is Creature creature && entry.Vital)
+                        {
+                            created.ValueChanged += (old, newVal) =>
+                            {
+                                if (newVal <= 0 && creature.Alive)
+                                    creature.Kill($"{created.Id} dropped to 0");
+                            };
+                        }
                     }
 
                     // wire up dependencies
@@ -529,6 +548,8 @@ public class Body : ISerializable
                         Aliases = aliases
                     };
                     var entry = new StatEntry(stat);
+                    if (statObj["vital"]?.GetValue<bool>() ?? false)
+                        entry.Vital = true;
                     if (maxNode?.GetValueKind() == JsonValueKind.String)
                     {
                         string otherStatName = maxNode.GetValue<string>();

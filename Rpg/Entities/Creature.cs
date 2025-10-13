@@ -30,7 +30,7 @@ public readonly struct CreatureRef(string board, int id)
     }
 }
 
-public class ActionLayer(string name, string id, uint startTick, uint delay, uint duration, uint cooldown, bool cancelable = true) : ISerializable
+public class ActionLayer(string name, string id, uint startTick, uint delay, uint duration, uint cooldown, float concentration, bool cancelable = true) : ISerializable
 {
     public string Name = name;
     public string Id = id;
@@ -39,11 +39,13 @@ public class ActionLayer(string name, string id, uint startTick, uint delay, uin
     public uint Duration = duration;
     public uint Cooldown = cooldown;
     public bool Cancelable = cancelable;
+
+    public float Concentration = concentration;
     
     public uint ExecutionStartTick => StartTick + Delay + 1;
     public uint ExecutionEndTick => ExecutionStartTick + Duration;
     public uint EndTick => StartTick + Delay + Duration + Cooldown;
-    
+
     public ActionLayer(Stream stream) : this(
         stream.ReadString(),
         stream.ReadString(),
@@ -51,6 +53,7 @@ public class ActionLayer(string name, string id, uint startTick, uint delay, uin
         stream.ReadUInt32(),
         stream.ReadUInt32(),
         stream.ReadUInt32(),
+        stream.ReadFloat(),
         stream.ReadByte() != 0
         )
     {
@@ -64,6 +67,7 @@ public class ActionLayer(string name, string id, uint startTick, uint delay, uin
         stream.WriteUInt32(Delay);
         stream.WriteUInt32(Duration);
         stream.WriteUInt32(Cooldown);
+        stream.WriteFloat(Concentration);
         stream.WriteByte((byte)(Cancelable ? 1 : 0));
     }
 }
@@ -145,6 +149,8 @@ public class Creature : Entity, IItemHolder, IDamageable
     public float MovementSpeed => this[CreatureStats.MOVEMENT];
 
     public Vector2 TargetPos = Vector2.NaN;
+    public bool Alive { get; private set; }
+    public bool Dead => !Alive;
 
     public Creature(Body body)
     {
@@ -251,18 +257,6 @@ public class Creature : Entity, IItemHolder, IDamageable
             }
         }
     }
-    private void SetVital(string id)
-    {
-        Stat? stat = GetStat(id);
-        if (stat == null) return;
-        stat.ValueChanged += (_, newVal) => {
-            if (newVal <= 0 && Body.IsReady)
-            {
-                Kill();
-            }
-        };
-    }
-
     public bool HasOwner()
     {
         return !Owner.Equals("");
@@ -373,7 +367,7 @@ public class Creature : Entity, IItemHolder, IDamageable
         foreach (string layer in data.Layers)
         {
             ActiveSkills[data.Id] = data;
-            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, Math.Max(skill.GetDelay(this, args, source), 0), Math.Max(skill.GetDuration(this, args, source), 0), Math.Max(skill.GetCooldown(this, args, source), 0), skill.CanCancel(this, args, source)));
+            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, Math.Max(skill.GetDelay(this, args, source), 0), Math.Max(skill.GetDuration(this, args, source), 0), Math.Max(skill.GetCooldown(this, args, source), 0), 100, skill.CanCancel(this, args, source)));
         }
         skill.Start(this, args, source);
         OnSkillStart?.Invoke(data);
@@ -444,9 +438,10 @@ public class Creature : Entity, IItemHolder, IDamageable
         OnSkillCancel = null;
     }
 
-    public void Kill()
+    public void Kill(string? cause = null)
     {
-        Console.WriteLine(Id + "(" + Name + ") died.");
+        Console.WriteLine(Id + "(" + Name + ") died by " + cause);
+        Alive = false;
     }
 
     public double Damage(DamageSource source, double damage)

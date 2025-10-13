@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Rpg;
-using TTRpgClient.scripts.extensions;
 
 namespace TTRpgClient.scripts.ui;
 
@@ -12,14 +11,12 @@ public static class SkillTreeDisplay
     private class SkillNode(SkillTreeEntry entry, SkillTreeEntryDisplay display)
     {
         public List<SkillNode> Dependencies = new();
-        public List<SkillNode> Dependents = new();
         public SkillTreeEntry Entry = entry;
         public SkillTreeEntryDisplay Display = display;
     }
 
-    private static Dictionary<string, SkillTreeEntryDisplay> displays = new();
     private static PanelContainer panel;
-    private static Node2D container;
+    private static DiagramCanvas container;
     
     private static List<SkillNode> TopologicalSort(IEnumerable<SkillNode> nodes) {
         var visited = new HashSet<SkillNode>();
@@ -97,7 +94,6 @@ public static class SkillTreeDisplay
                     };
                     var node = new SkillNode(entry, display);
                     nodes[entry.Name] = node;
-                    displays[entry.Name] = display;
                     container.AddChild(display);
                 }
 
@@ -109,7 +105,6 @@ public static class SkillTreeDisplay
                         if (found != null)
                         {
                             node.Dependencies.Add(nodes[dep]);
-                            nodes[dep].Dependents.Add(node);
                         }
                     }
                 }
@@ -122,6 +117,15 @@ public static class SkillTreeDisplay
                 {
                     entry.Key.Display.StartPos = entry.Value;
                 }
+
+                // Update the diagram: build connection map and refresh the diagram's internal display map
+                container.UpdateDisplays();
+                var conn = new Dictionary<string, IEnumerable<string>>();
+                foreach (var kv in nodes)
+                    conn[kv.Key] = kv.Value.Entry.Dependencies;
+                // Make skill-tree nodes draggable by default so users can rearrange them; can be toggled per-node later.
+                container.SetDraggableNodes(nodes.Keys);
+                container.SetConnections(conn);
             }
             
             container.QueueRedraw();
@@ -140,11 +144,10 @@ public static class SkillTreeDisplay
             Visible = false
         };
         panel.GuiInput += _GuiInput;
-        container = new Node2D()
+        container = new DiagramCanvas()
         {
             Scale = new Vector2(0.5f, 0.5f)
         };
-        container.Draw += _Draw;
         panel.AddChild(container);
         
         GameManager.UILayer.AddChild(panel);
@@ -152,44 +155,35 @@ public static class SkillTreeDisplay
     }
 
     public static SkillTreeEntry? Hovered;
+    // Bridge Hovered to the DiagramCanvas so child displays can set it directly on the diagram
+    public static SkillTreeEntry? HoveredEntry
+    {
+        get => container.Hovered as SkillTreeEntry;
+        set => container.Hovered = value;
+    }
     public static bool Visible
     {
         get => panel.Visible;
         set => panel.Visible = value;
     }
 
-    private static void _Draw()
-    {
-        foreach (var display in displays.Values)
-        {
-            foreach (string depName in display.Entry?.Dependencies ?? Enumerable.Empty<string>())
-            {
-                var depDisplay  = displays[depName];
-                container.DrawLine(display.StartPos, depDisplay.StartPos, Colors.White, 8, true);
-            }
-        }
-    }
+    // Diagram drawing/panning/zooming handled by DiagramCanvas. Keep GUI input handler to handle skill-specific actions.
 
     private static void _GuiInput(InputEvent @event)
     {
-        if (@event is InputEventMouseMotion motionEvent)
-        {
-            if (Input.IsMouseButtonPressed(MouseButton.Middle))
-            {
-                container.Position += motionEvent.ScreenRelative;
-            }
-        }
-        else if (@event is InputEventMouseButton mouseEvent)
-        {
-            if (mouseEvent.ButtonIndex == MouseButton.WheelUp)
-                container.Scale *= 1.1f;
-            else if (mouseEvent.ButtonIndex == MouseButton.WheelDown)
-                container.Scale /= 1.1f;
-            container.Scale = new Vector2(Mathf.Clamp(container.Scale.X, 0.2f, 0.8f), Mathf.Clamp(container.Scale.Y, 0.2f, 0.8f));
+        // forward panning/zooming to the diagram
+        container.HandleGuiInput(@event);
 
-            if (mouseEvent is { ButtonIndex: MouseButton.Left, Pressed: false } && Hovered is { CanEnable: true })
+        if (@event is InputEventMouseButton mouseEvent)
+        {
+            // DiagramCanvas already applied zoom; handle skill-specific click action here
+            if (mouseEvent is { ButtonIndex: MouseButton.Left, Pressed: false })
             {
-                NetworkManager.Instance.SendPacket(new SkillTreeUpdatePacket(Hovered, !Hovered.Enabled));
+                var hovered = HoveredEntry;
+                if (hovered is { CanEnable: true })
+                {
+                    NetworkManager.Instance.SendPacket(new SkillTreeUpdatePacket(hovered, !hovered.Enabled));
+                }
             }
         }
     }

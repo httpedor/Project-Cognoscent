@@ -19,6 +19,8 @@ public static class CharacterKnowledgeManager
             return true;
         if (target is not Creature creature)
             return false;
-        return GameManager.OwnsEntity(target);
+        if (GameManager.OwnsEntity(target))
+            return feature.CanBeSeenBy(target);
+        return false;
     }
 }
