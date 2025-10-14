@@ -1,7 +1,7 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj": {}
+    "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj": {}
   },
   "projects": {
     "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj": {
@@ -87,14 +87,14 @@
         }
       }
     },
-    "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj": {
+    "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
+        "projectUniqueName": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
         "projectName": "Server",
-        "projectPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
+        "projectPath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
         "packagesPath": "C:\\Users\\pedro.alvares\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\obj\\",
+        "outputPath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\pedro.alvares\\AppData\\Roaming\\NuGet\\NuGet.Config"

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "BrR9hZ9TXnU=",
+  "dgSpecHash": "ZrFMNbkP7JU=",
   "success": true,
-  "projectFilePath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
+  "projectFilePath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.0-rc.1.25451.107\\microsoft.aspnetcore.app.internal.assets.10.0.0-rc.1.25451.107.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.11.0\\microsoft.codeanalysis.analyzers.3.11.0.nupkg.sha512",

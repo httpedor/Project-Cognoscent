@@ -6,11 +6,11 @@ namespace Server.Web;
 
 public static class WebHost
 {
-    public static async Task<IHost> StartAsync(CancellationToken cancellationToken = default)
+    public static Task<IHost> StartAsync(CancellationToken cancellationToken = default)
     {
         var builder = WebApplication.CreateBuilder();
 
-        // Enable Razor Pages and Server-side Blazor
+        // Enable Razor Pages and Server-side Blazor. Pages are located in the project's default "Pages" folder.
         builder.Services.AddRazorPages();
         builder.Services.AddServerSideBlazor();
 
@@ -21,7 +21,7 @@ public static class WebHost
 
         app.MapRazorPages();
         app.MapBlazorHub();
-        app.MapFallbackToPage("/_Host");
+        // No fallback mapping — the Razor page at '/' (Server/Pages/_Host.cshtml) will be served directly.
 
         // Health endpoint as a convenience
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
@@ -30,6 +30,6 @@ public static class WebHost
         _ = app.RunAsync(cancellationToken);
 
         // Return the built application as an IHost so caller can StopAsync if desired.
-        return app;
+        return Task.FromResult((IHost)app);
     }
 }
