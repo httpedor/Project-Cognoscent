@@ -10,15 +10,25 @@ public static class Compendium
     public static event Action<string>? OnFolderRegistered;
     public static event Action<string, string, JsonObject>? OnEntryRegistered;
     public static event Action<string, string>? OnEntryRemoved;
-    //Typename, Type
-    private static readonly Dictionary<string, Type> types = new();
-    private static readonly Dictionary<Type, string> names = new();
+
+    private class CompendiumEntry
+    {
+        public JsonObject? Data { get; set; }
+        public object? Loaded { get; set; }
+        public string? Note { get; set; }
+    }
+
+    private class FolderData
+    {
+        public Type Type { get; set; } = typeof(object);
+        public Dictionary<string, CompendiumEntry> Entries { get; } = new();
+        public Func<string, JsonObject, object?>? Builder { get; set; }
+    }
+
+    private static readonly Dictionary<string, FolderData> folders = new();
+    private static readonly Dictionary<Type, string> typeToFolder = new();
     
-    private static Dictionary<string, Dictionary<string, JsonObject>> files = new();
-    private static Dictionary<string, Dictionary<string, object>> loaded = new();
-    private static Dictionary<string, Func<string, JsonObject, object?>> builders = new();
-    
-    public static IEnumerable<string> Folders => types.Keys;
+    public static IEnumerable<string> Folders => folders.Keys;
 
     private static JsonObject Merge(JsonObject first, JsonObject second)
     {
@@ -191,62 +201,64 @@ public static class Compendium
     }
     public static void RegisterFolder<T>(string folder, Func<string, JsonObject, T?>? builder = null) where T : class
     {
-        types[folder] = typeof(T);
-        names[typeof(T)] = folder;
+        folders[folder] = new FolderData { Type = typeof(T) };
+        if (builder != null)
+            folders[folder].Builder = builder;
+        
+        typeToFolder[typeof(T)] = folder;
         foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
         {
             if (!type.IsSubclassOf(typeof(T))) continue;
             
-            names[type] = folder;
+            typeToFolder[type] = folder;
         }
-
-        files[folder] = new Dictionary<string, JsonObject>();
-        loaded[folder] = new Dictionary<string, object>();
-        if (builder != null)
-            RegisterFolderBuilder(builder);
         
         OnFolderRegistered?.Invoke(folder);
     }
 
     public static void RegisterFolderBuilder<T>(Func<string, JsonObject, T?> builder) where T : class
     {
-        builders[GetFolderName<T>()] = builder;
+        folders[GetFolderName<T>()].Builder = builder;
     }
 
     public static object? RegisterEntry(string folder, string name, JsonObject data)
     {
-        files[folder][name] = data;
-        OnEntryRegistered?.Invoke(folder, name, data);
-        if (!builders.TryGetValue(folder, out Func<string, JsonObject, object?>? builder)) return null;
-
         if (data == null)
         {
+            if (folders[folder].Builder is not { } builder) return null;
             object? ret = builder(name, data);
-            files[folder].Remove(name);
-            loaded[folder][name] = ret;
+            folders[folder].Entries[name] = new CompendiumEntry { Data = null, Loaded = ret };
             return ret;
         }
         else
         {
-            try
+            CompendiumEntry entry = new() { Data = data };
+            if (data["_note"] is JsonValue noteVal && noteVal.GetValueKind() == JsonValueKind.String)
+                entry.Note = noteVal.GetValue<string>();
+            folders[folder].Entries[name] = entry;
+            OnEntryRegistered?.Invoke(folder, name, data);
+            if (folders[folder].Builder is { } builder)
             {
-                object? ret = builder(name, data);
-                if (ret != null && ret.GetType().IsAssignableTo(types[folder]))
+                try
                 {
-                    loaded[folder][name] = ret;
-                    return ret;
+                    object? ret = builder(name, data);
+                    if (ret != null && ret.GetType().IsAssignableTo(folders[folder].Type))
+                    {
+                        entry.Loaded = ret;
+                        return ret;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                    // ignored
                 }
             }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                // ignored
-            }
-        }
 
-        Console.WriteLine("Failed to load data: " + folder + "/" + name);
-        files[folder].Remove(name);
-        return null;
+            Console.WriteLine("Failed to load data: " + folder + "/" + name);
+            folders[folder].Entries.Remove(name);
+            return null;
+        }
     }
     public static T? RegisterEntry<T>(string name, JsonObject data) where T : class
     {
@@ -255,13 +267,9 @@ public static class Compendium
 
     public static void RemoveEntry(string folder, string name)
     {
-        if (files.TryGetValue(folder, out var value))
+        if (folders.TryGetValue(folder, out var fd))
         {
-            value.Remove(name);
-        }
-        if (loaded.TryGetValue(folder, out var loadedValue))
-        {
-            loadedValue.Remove(name);
+            fd.Entries.Remove(name);
         }
         OnEntryRemoved?.Invoke(folder, name);
     }
@@ -274,18 +282,20 @@ public static class Compendium
     public static T? GetEntryObject<T>(string name) where T : class
     {
         string folder = GetFolderName<T>();
-        object? found = loaded[folder].GetValueOrDefault(name);
+        if (!folders.TryGetValue(folder, out var fd)) return null;
+        if (!fd.Entries.TryGetValue(name, out var entry)) return null;
+        object? found = entry.Loaded;
         if (found != null && !found.GetType().IsSubclassOf(typeof(T)) && found.GetType() != typeof(T))
         {
             Console.WriteLine("Data type mismatch: " + folder + "/" + name + " is not of type " + typeof(T));
             return null;
         }
-        return (T?)loaded[folder].GetValueOrDefault(name);
+        return (T?)found;
     }
 
     public static JsonObject? GetEntryOrNull(string folder, string name)
     {
-        return files.TryGetValue(folder, out var value) ? value.GetValueOrDefault(name) : null;
+        return folders.TryGetValue(folder, out var fd) && fd.Entries.TryGetValue(name, out var entry) ? entry.Data : null;
     }
 
     public static JsonObject? GetEntryOrNull<T>(string name)
@@ -294,41 +304,38 @@ public static class Compendium
     }
     public static JsonObject GetEntry(string folder, string name)
     {
-        return files[folder].GetValueOrDefault(name) ?? throw new Exception("Data not found: " + folder + "/" + name);
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid folder: " + folder);
+        if (!fd.Entries.TryGetValue(name, out var entry) || entry.Data == null) throw new Exception("Data not found: " + folder + "/" + name);
+        return entry.Data;
     }
     public static JsonObject GetEntry<T>(string name)
     {
         string folder = GetFolderName<T>();
-        return files[folder].GetValueOrDefault(name) ?? throw new Exception("Data not found: " + folder + "/" + name);
+        return GetEntry(folder, name);
     }
 
     public static IEnumerable<string> GetEntryNames(string folder)
     {
-        if (!files.TryGetValue(folder, out var value))
-            throw new Exception("Invalid data type: " + folder);
-        return value.Keys.ToArray();
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + folder);
+        return fd.Entries.Keys.ToArray();
     }
 
     public static IEnumerable<string> GetEntryNames<T>()
     {
-        string folder = names[typeof(T)];
-        if (!files.TryGetValue(folder, out var value))
-            throw new Exception("Invalid data type: " + typeof(T));
-
-        return value.Keys.ToArray();
+        string folder = GetFolderName<T>();
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
+        return fd.Entries.Keys.ToArray();
     }
     
     public static string GetFolderName<T>()
     {
-        if (!names.ContainsKey(typeof(T)))
-            throw new Exception("Invalid data type: " + typeof(T));
-        return names[typeof(T)];
+        if (!typeToFolder.TryGetValue(typeof(T), out var folder)) throw new Exception("Invalid data type: " + typeof(T));
+        return folder;
     }
 
     public static int GetEntryCount(string folderName)
     {
-        files.TryGetValue(folderName, out var value);
-        return value?.Count ?? 0;
+        return folders.TryGetValue(folderName, out var fd) ? fd.Entries.Count : 0;
     }
 
     public static int GetEntryCount<T>()
@@ -338,12 +345,13 @@ public static class Compendium
 
     public static void ClearFolder(string folder)
     {
-        foreach (string entry in GetEntryNames(folder))
+        if (!folders.TryGetValue(folder, out var fd)) return;
+        foreach (string entry in fd.Entries.Keys.ToArray())
             RemoveEntry(folder, entry);
     }
     public static void Clear()
     {
-        foreach (string folder in Folders)
+        foreach (string folder in Folders.ToArray())
         {
             ClearFolder(folder);
         }
