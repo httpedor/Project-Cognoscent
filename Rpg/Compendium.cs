@@ -124,14 +124,14 @@ public static class Compendium
             (id, json) => Skills.Exists(id) ? Skills.Get(id) : Skill.FromJson(id, json));
         RegisterFolder<Feature>("Features",
             (name, json) => Features.Exists(name) ? Features.Get(name) : Feature.FromJson(name, json));
-        RegisterFolder<Body>("Bodies", (_, json) => Body.NewBody(json));
+        RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json));
         RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
         RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
         RegisterFolder<Midia>("Midia", (fName, json) =>
         {
-            string fileName = json["fileName"].GetValue<string>();
+            string fileName = json["fileName"]!.GetValue<string>();
             bool parsed = Enum.TryParse(json["type"]?.GetValue<string>(), out MidiaType type);
-            byte[] data = Convert.FromBase64String(json["data"].GetValue<string>());
+            byte[] data = Convert.FromBase64String(json["data"]!.GetValue<string>());
             Midia ret;
             if (parsed)
                 ret = new Midia(data, type);
@@ -216,11 +216,6 @@ public static class Compendium
         OnFolderRegistered?.Invoke(folder);
     }
 
-    public static void RegisterFolderBuilder<T>(Func<string, JsonObject, T?> builder) where T : class
-    {
-        folders[GetFolderName<T>()].Builder = builder;
-    }
-
     public static object? RegisterEntry(string folder, string name, JsonObject data)
     {
         if (data == null)
@@ -279,7 +274,7 @@ public static class Compendium
         RemoveEntry(folder, name);
     }
 
-    public static T? GetEntryObject<T>(string name) where T : class
+    public static T? GetEntry<T>(string name) where T : class
     {
         string folder = GetFolderName<T>();
         if (!folders.TryGetValue(folder, out var fd)) return null;
@@ -293,25 +288,25 @@ public static class Compendium
         return (T?)found;
     }
 
-    public static JsonObject? GetEntryOrNull(string folder, string name)
+    public static JsonObject? GetEntryJsonOrNull(string folder, string name)
     {
         return folders.TryGetValue(folder, out var fd) && fd.Entries.TryGetValue(name, out var entry) ? entry.Data : null;
     }
 
-    public static JsonObject? GetEntryOrNull<T>(string name)
+    public static JsonObject? GetEntryJsonOrNull<T>(string name)
     {
-        return GetEntryOrNull(GetFolderName<T>(), name);
+        return GetEntryJsonOrNull(GetFolderName<T>(), name);
     }
-    public static JsonObject GetEntry(string folder, string name)
+    public static JsonObject GetEntryJson(string folder, string name)
     {
         if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid folder: " + folder);
         if (!fd.Entries.TryGetValue(name, out var entry) || entry.Data == null) throw new Exception("Data not found: " + folder + "/" + name);
         return entry.Data;
     }
-    public static JsonObject GetEntry<T>(string name)
+    public static JsonObject GetEntryJson<T>(string name)
     {
         string folder = GetFolderName<T>();
-        return GetEntry(folder, name);
+        return GetEntryJson(folder, name);
     }
 
     public static IEnumerable<string> GetEntryNames(string folder)

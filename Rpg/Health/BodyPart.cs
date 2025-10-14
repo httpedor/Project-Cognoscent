@@ -66,7 +66,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     public Body? Body
     {
         get;
-        private set
+        internal set
         {
             field = value;
             foreach (BodyPart child in Children)
@@ -445,7 +445,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
             }
         }
         
-        Owner.Log($"{BBLink} recebeu [hint={formula}]{damage}[/hint] de dano {type.BBHint}.");
+        Owner?.Log($"{BBLink} recebeu [hint={formula}]{damage}[/hint] de dano {type.BBHint}.");
         
         if (damage <= 0)
             return 0;
@@ -819,191 +819,14 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
 
     public static BodyPart? NewBody(JsonObject json)
     {
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
         try
         {
-            var builder = new Builder(json["name"].ToString());
-
-            // Required fields
-            builder.Health((int)json["maxHealth"].GetValue<float>());
-            float area = json["area"].GetValue<float>();
-            builder.Size(area * 100f); // Convert from fraction to percentage
-
-            // Optional group
-            if (json.TryGetPropertyValue("group", out JsonNode? groupNode))
-                builder.Group(groupNode.ToString());
-
-            // Equipment slots
-            if (json.TryGetPropertyValue("slots", out JsonNode? slotsNode))
-            {
-                string[] slots = slotsNode.AsArray().Select(s => s.ToString()).ToArray();
-                builder.Equipment(slots);
-            }
-            
-            // Stats (Modifiers)
-            if (json.TryGetPropertyValue("stats", out JsonNode? statsNode))
-            {
-                foreach (JsonNode? statJson in statsNode.AsArray())
-                {
-                    if (statJson is JsonObject statObject)
-                    {
-                        if (statObject.TryGetPropertyValue("stat", out JsonNode? statNameNode) &&
-                            statObject.TryGetPropertyValue("atFull", out JsonNode? atFullNode))
-                        {
-                            float zero = 0;
-                            bool sho = false;
-                            StatModifierType op = StatModifierType.Flat;
-                            if (statObject.TryGetPropertyValue("atZero", out JsonNode? atZeroNode))
-                                zero = atZeroNode.GetValue<float>();
-                            if (statObject.TryGetPropertyValue("standaloneHPOnly", out JsonNode? standaloneHPOnlyNode))
-                                sho = standaloneHPOnlyNode.GetValue<bool>();
-                            if (statObject.TryGetPropertyValue("operation", out JsonNode? operationNode) &&
-                                Enum.TryParse<StatModifierType>(operationNode.ToString(), true, out var operation))
-                                op = operation;
-
-                            builder.Stat(statNameNode.GetValue<string>(), atFullNode.GetValue<float>(), zero, op, sho);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Warning: Invalid stat modifier in JSON: " + statJson);
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Warning: Expected object for stat modifier, got: " + statJson);
-                    }
-                }
-            }
-            
-            //Damage Modifiers
-            if (json.TryGetPropertyValue("damageModifiers", out JsonNode? damageModsNode))
-            {
-                foreach (JsonNode? modJson in damageModsNode.AsArray())
-                {
-                    if (modJson is JsonObject modObject)
-                    {
-                        DamageType dt = DamageType.FromName(modObject["damageType"].GetValue<string>());
-                        if (dt == null)
-                        {
-                            Console.WriteLine("Warning: Invalid damage type: " + modObject["damageType"].GetValue<string>());
-                            continue;
-                        }
-                        float value = modObject["value"].GetValue<float>();
-                        StatModifierType operation = StatModifierType.Percent;
-                        if (modObject.ContainsKey("operation"))
-                            operation = Enum.Parse<StatModifierType>(modObject["operation"].GetValue<string>());
-                        builder.DamageModifier(dt, value, operation);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Warning: Invalid damage modifier in JSON: " + modJson);
-                    }
-                }
-            }
-
-            // Flags
-            if (json.TryGetPropertyValue("flags", out JsonNode? flagsNode))
-            {
-                List<byte> flagBytes = new();
-                foreach (JsonNode? flag in flagsNode.AsArray())
-                {
-                    switch (flag.ToString())
-                    {
-                        case "HasBone": flagBytes.Add(Flag.HasBone); break;
-                        case "Hard": flagBytes.Add(Flag.Hard); break;
-                        case "Internal": flagBytes.Add(Flag.Internal); break;
-                        case "Overlaps": flagBytes.Add(Flag.Overlaps); break;
-                    }
-                }
-
-                builder.Flags(flagBytes.ToArray());
-            }
-
-            if (json.TryGetPropertyValue("skills", out JsonNode? skillsNode))
-            {
-                List<Skill> skills = new();
-                foreach (JsonNode? skillJson in skillsNode.AsArray())
-                {
-                    string skillName = skillJson.GetValue<string>();
-                    var skill = Compendium.GetEntryObject<Skill>(skillName);
-                    if (skill != null)
-                        skills.Add(skill);
-                    else
-                        Console.WriteLine("Warning: Invalid skill name in BodyPart JSON: " + skillJson);
-                }
-                builder.Skills(skills.ToArray());
-            }
-
-            if (json.TryGetPropertyValue("selfFeatures", out JsonNode? featuresNode))
-            {
-                List<Feature> features = new();
-                foreach (JsonNode? featureJson in featuresNode.AsArray())
-                {
-                    string name = featureJson.GetValue<string>();
-                    Feature? feature = Compendium.GetEntryObject<Feature>(name);
-                    if (feature == null)
-                        Console.WriteLine("Warning: Invalid feature in JSON: " + name);
-                    else
-                        features.Add(feature);
-                }
-                builder.Features(features.ToArray());
-            }
-
-            if (json.TryGetPropertyValue("features", out JsonNode? creatureFeaturesNode))
-            {
-                foreach (JsonNode? featureJson in creatureFeaturesNode.AsArray())
-                {
-                    string name = featureJson.GetValue<string>();
-                    Feature? feature = Compendium.GetEntryObject<Feature>(name);
-                    if (feature == null)
-                        Console.WriteLine("Warning: Invalid creature feature in JSON: " + name);
-                    else
-                        builder.OwnerFeatures(feature);
-                }
-            }
-
-            // Recursive children
-            if (json.TryGetPropertyValue("children", out JsonNode? childrenNode))
-            {
-                foreach (JsonNode? childJson in childrenNode.AsArray())
-                {
-                    BodyPart? child = NewBody(childJson.AsObject());
-                    if (child == null)
-                        throw new JsonException("Invalid child: " + childJson);
-                    builder.Child(child);
-                }
-            }
-
-            var ret = builder.Build();
-            //CustomData
-            if (json.TryGetPropertyValue("metadata", out JsonNode? metadataNode))
-                ret.CustomDataFromJson(metadataNode.AsObject());
-            return ret;
+            return new BodyPartModel(json).Build();
         }
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
-        catch (JsonException e)
+        catch
         {
-            Console.WriteLine("Error reading json body: " + json);
-            Console.WriteLine(e);
+            return null;
         }
-        catch (NullReferenceException e)
-        {
-            Console.WriteLine("Error reading json body: " + json);
-            Console.WriteLine(e);
-        }
-
-        return null;
-    }
-         
-    public static string BuildPath(params string[] names)
-    {
-        var result = new StringBuilder();
-        foreach (string part in names)
-        {
-            result.Append(part);
-            result.Append('.');
-        }
-        return result.ToString(0, result.Length-1);
     }
 
     public float GetStat(string id, float defaultValue = 0)

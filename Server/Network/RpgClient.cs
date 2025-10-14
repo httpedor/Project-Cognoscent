@@ -56,7 +56,7 @@ public class RpgClient
                 {
                     foreach (var entry in Compendium.GetEntryNames(folder))
                     {
-                        Send(CompendiumUpdatePacket.AddEntry(folder, entry, Compendium.GetEntryOrNull(folder, entry)));
+                        Send(CompendiumUpdatePacket.AddEntry(folder, entry, Compendium.GetEntryJsonOrNull(folder, entry)));
                     }
                 }
                 if (Game.Game.GetBoards().Count == 0)

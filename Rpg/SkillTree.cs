@@ -53,7 +53,7 @@ public class SkillTreeEntry : ISerializable, ISkillSource
         if (json.ContainsKey("feature"))
         {
             string featureName = json["feature"]!.GetValue<string>();
-            var feature = Compendium.GetEntryObject<Feature>(featureName);
+            var feature = Compendium.GetEntry<Feature>(featureName);
             if (feature == null)
                 Console.WriteLine("Invalid feature name: " + featureName);
             else
@@ -67,7 +67,7 @@ public class SkillTreeEntry : ISerializable, ISkillSource
         if (json.ContainsKey("skill"))
         {
             string skillName = json["skill"]!.GetValue<string>();
-            var skill = Compendium.GetEntryObject<Skill>(skillName);
+            var skill = Compendium.GetEntry<Skill>(skillName);
             if (skill == null)
                 Console.WriteLine("Invalid skill name: " + skillName);
             else
@@ -133,7 +133,7 @@ public class SkillTreeEntry : ISerializable, ISkillSource
             return this;
         foreach (var skillName in skills)
         {
-            var skill = Compendium.GetEntryObject<Skill>(skillName);
+            var skill = Compendium.GetEntry<Skill>(skillName);
             if (skill == null)
             {
                 Console.WriteLine("Invalid skill name: " + skillName);
@@ -157,7 +157,7 @@ public class SkillTreeEntry : ISerializable, ISkillSource
             return this;
         foreach  (var featureName in features)
         {
-            var feature = Compendium.GetEntryObject<Feature>(featureName);
+            var feature = Compendium.GetEntry<Feature>(featureName);
             if (feature == null)
             {
                 Console.WriteLine("Invalid feature name: " + featureName);

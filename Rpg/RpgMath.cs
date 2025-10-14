@@ -4,10 +4,12 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 
 namespace Rpg;
+
 public static class RpgMath
 {
     const double EPSILON = 0.00001;
-    private static bool IsEqualAprox(float a, float b){
+    private static bool IsEqualAprox(float a, float b)
+    {
         if (a == b)
             return true;
         return Math.Abs(a - b) < EPSILON;
@@ -18,7 +20,7 @@ public static class RpgMath
         Vector2 B = toA - fromA;
         Vector2 C = fromB - fromA;
         Vector2 D = toB - fromB;
-    
+
         // TIL the dot product of a vector with itself is the square of its length
         float ABLen = B.X * B.X + B.Y * B.Y;
         if (ABLen <= 0)
@@ -39,14 +41,15 @@ public static class RpgMath
         }
 
         // Fail if segments are parallel or colinear.
-		// (when A x B == zero, i.e (C - D) x B == zero, i.e C x B == D x B)
-        if (IsEqualAprox(C.Y, D.Y)){
+        // (when A x B == zero, i.e (C - D) x B == zero, i.e C x B == D x B)
+        if (IsEqualAprox(C.Y, D.Y))
+        {
             intersection = null;
             return false;
         }
 
         float ABPos = D.X + (C.X - D.X) * D.Y / (D.Y - C.Y);
-        
+
         // Fail if segment C-D intersects line A-B outside segment A-B.
         if ((ABPos < 0) || (ABPos > 1))
         {
@@ -73,7 +76,7 @@ public static class RpgMath
 
     public static float RandomFloat()
     {
-        return (float) new Random().NextDouble();
+        return (float)new Random().NextDouble();
     }
     public static float RandomFloat(float min, float max)
     {
@@ -91,10 +94,26 @@ public static class RpgMath
     public static double RandomGaussian(double mean, double stdDev = 0)
     {
         Random rand = new Random(); //reuse this if you are generating many
-        double u1 = 1.0-rand.NextDouble(); //uniform(0,1] random doubles
-        double u2 = 1.0-rand.NextDouble();
+        double u1 = 1.0 - rand.NextDouble(); //uniform(0,1] random doubles
+        double u2 = 1.0 - rand.NextDouble();
         double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
                     Math.Sin(2.0 * Math.PI * u2); //random normal(0,1)
         return mean + stdDev * randStdNormal; //random normal(mean,stdDev^2)
+    }
+
+    public static int RollDice(int number, int sides)
+    {
+        int total = 0;
+        for (int i = 0; i < number; i++)
+            total += RandomInt(1, sides + 1);
+        return total;
+    }
+    public static int RollDice(string dice)
+    {
+        var parts = dice.Split('d');
+        if (parts.Length != 2) throw new Exception("Invalid dice format: " + dice);
+        int number = int.Parse(parts[0]);
+        int sides = int.Parse(parts[1]);
+        return RollDice(number, sides);
     }
 }

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
     <ProjectReference Include="..\Rpg\Rpg.csproj" />
   </ItemGroup>
@@ -12,5 +12,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+  <!-- Enable or disable building the web/Blazor part quickly via -p:EnableWeb=false -->
+  <PropertyGroup>
+    <EnableWeb>true</EnableWeb>
+  </PropertyGroup>
+
+  <!-- When EnableWeb is true, define the ENABLE_WEB symbol for conditional compilation -->
+  <PropertyGroup Condition="'$(EnableWeb)' == 'true'">
+    <DefineConstants>$(DefineConstants);ENABLE_WEB</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Control Razor compilation so .razor/.cshtml files are skipped when EnableWeb is false -->
+  <PropertyGroup>
+    <RazorCompileOnBuild>$(EnableWeb)</RazorCompileOnBuild>
+    <RazorCompileOnPublish>$(EnableWeb)</RazorCompileOnPublish>
   </PropertyGroup>
 </Project>

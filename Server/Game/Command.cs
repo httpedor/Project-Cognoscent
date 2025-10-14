@@ -1000,7 +1000,7 @@ public class Command
                     return $"Folder {folder} not found";
                 
                 string fName = fPath.Substring(fPath.LastIndexOf('\\'), fPath.LastIndexOf('.') - fPath.LastIndexOf('\\'));
-                if (Compendium.GetEntryOrNull(folder, fName) != null)
+                if (Compendium.GetEntryJsonOrNull(folder, fName) != null)
                     return $"Entry {fName} already exists in folder {folder}";
 
                 var json = JsonNode.Parse(File.ReadAllText(fPath));

@@ -151,7 +151,7 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
             {
                 if (string.IsNullOrWhiteSpace(name) || name == entryId)
                     return;
-                if (Compendium.GetEntryOrNull<Feature>(name) != null)
+                if (Compendium.GetEntryJsonOrNull<Feature>(name) != null)
                 {
                     Modal.OpenAcceptDialog("Erro", "Uma feature com esse id já existe.");
                     return;

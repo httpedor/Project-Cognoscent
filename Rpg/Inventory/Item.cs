@@ -123,7 +123,7 @@ public class Item : ISerializable, ISkillSource
         {
             foreach (var featJson in featsJson.AsArray())
             {
-                var feat = Compendium.GetEntryObject<Feature>(featJson!.GetValue<string>());
+                var feat = Compendium.GetEntry<Feature>(featJson!.GetValue<string>());
                 if (feat == null)
                 {
                     Console.WriteLine($"WARNING: Feat {featJson} does not exist!");

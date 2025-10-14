@@ -308,8 +308,8 @@ public partial class InputManager : SubViewportContainer
 						string name = (info["Nome"] as string)!;
 						string btName = (info["Corpo"] as string)!;
 						Midia img = (Midia)info["Imagem"];
-						var bodyJson = Compendium.GetEntry<Body>(btName);
-						var body = Body.NewBody(bodyJson);
+						var bodyModel = Compendium.GetEntry<BodyModel>(btName)!;
+						var body = bodyModel.Build();
 						if (body == null)
 							return;
 						Creature created = new Creature(body)
@@ -319,7 +319,7 @@ public partial class InputManager : SubViewportContainer
 							Display = img
 						};
 						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, created));
-					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<Body>().ToArray(), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
+					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<BodyModel>().ToArray(), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
 				});
 				ContextMenu.AddOption(board.TurnMode ? "Sair do modo de turnos" : "Entrar no modo de turnos", _ =>
 				{
@@ -484,7 +484,7 @@ public partial class InputManager : SubViewportContainer
 		if (Input.IsActionJustPressed("debug"))
 		{
 			GD.Print("Toggling SkillTreeDisplay");
-			SkillTreeDisplay.Tree = Compendium.GetEntryObject<SkillTree>("humanoid_skill_tree");
+			SkillTreeDisplay.Tree = Compendium.GetEntry<SkillTree>("humanoid_skill_tree");
 			SkillTreeDisplay.Visible = !SkillTreeDisplay.Visible;
 			//GD.Print("Toggling BodyViewer");
 			//((Control)BodyViewer.Instance.GetParent()).Visible = !((Control)BodyViewer.Instance.GetParent()).Visible;

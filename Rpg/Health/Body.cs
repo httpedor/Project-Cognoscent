@@ -33,7 +33,7 @@ public class Body : ISerializable
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
     private readonly HashSet<BodyPart> parts = new();
     // Consolidated stat information: definition + runtime relationships (dependencies, regen, max dependency)
-    private sealed class StatEntry
+    public sealed class StatEntry
     {
         public Stat Def;
         public StatDependency[]? Dependencies;
@@ -50,8 +50,8 @@ public class Body : ISerializable
         }
     }
 
-    private readonly Dictionary<string, StatEntry> stats = new();
-    private readonly List<Feature> features = new();
+    internal readonly Dictionary<string, StatEntry> stats = new();
+    internal readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
 
     public Creature? Owner
@@ -170,7 +170,7 @@ public class Body : ISerializable
 
     public IEnumerable<BodyPart> Parts => parts;
 
-    private static Func<float, float, (float, StatModifierType)> Compile(string code)
+    public static Func<float, float, (float, StatModifierType)> Compile(string code)
     {
         var script = CSharpScript.Create<(float, StatModifierType)>(code,
             ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly, typeof(Math).Assembly)
@@ -178,7 +178,7 @@ public class Body : ISerializable
         return (x, y) => script(new StatDepCodeGlobals{x = x, y=y}).Result;
     }
 
-    private Body(string name, BodyPart root, bool isHumanoid = false)
+    public Body(string name, BodyPart root, bool isHumanoid = false)
     {
         IsHumanoid = isHumanoid;
         Name = name;
@@ -386,7 +386,7 @@ public class Body : ISerializable
         {
             foreach (var entry in item.StatModifiers)
             {
-                Stat stat = Owner.GetStat(entry.Key);
+                Stat? stat = Owner.GetStat(entry.Key);
                 if (stat == null)
                     continue;
                 foreach (StatModifier mod in entry.Value)
@@ -408,7 +408,7 @@ public class Body : ISerializable
         {
             foreach (var entry in item.StatModifiers)
             {
-                Stat stat = Owner.GetStat(entry.Key);
+                Stat? stat = Owner.GetStat(entry.Key);
                 if (stat == null)
                     continue;
                 foreach (StatModifier mod in entry.Value)
@@ -504,121 +504,6 @@ public class Body : ISerializable
         return GetPartsWithSlot(ep.Slot).Any(part => part.GetEquippedItem(ep.Slot) == item);
     }
     
-    public static Body? NewBody(JsonObject json)
-    {
-        try
-        {
-            BodyPart? root = BodyPart.NewBody(json["root"]!.AsObject());
-            if (root == null)
-                return null;
-            var ret = new Body(json["name"]!.ToString(), root,
-                json.ContainsKey("humanoid") && json["humanoid"]!.GetValue<bool>());
-            if (json.TryGetPropertyValue("features", out JsonNode? featuresNode))
-            {
-                foreach (JsonNode? featureJson in featuresNode.AsArray())
-                {
-                    string name = featureJson.GetValue<string>();
-                    Feature? feature = Compendium.GetEntryObject<Feature>(name);
-                    if (feature == null)
-                        Console.WriteLine("Warning: Invalid creature feature in JSON: " + name);
-                    else
-                        ret.features.Add(feature);
-                }
-            }
-            JsonObject? stats = json["stats"]?.AsObject();
-            if (stats != null)
-            {
-                foreach ((string statName, JsonNode? value) in stats)
-                {
-                    JsonObject statObj = (JsonObject)value!;
-                    float baseVal = statObj["base"]?.GetValue<float>() ?? 0;
-                    float maxVal = float.MaxValue;
-                    var maxNode = statObj["max"];
-                    if (maxNode?.GetValueKind() == JsonValueKind.Number)
-                        maxVal  = maxNode.GetValue<float>();
-                    float minVal = 0;
-                    var minNode = statObj["min"];
-                    if (minNode?.GetValueKind() == JsonValueKind.Number)
-                        minVal = minNode.GetValue<float>();
-                    bool overCap = statObj["overCap"]?.GetValue<bool>() ?? true;
-                    bool underCap = statObj["underCap"]?.GetValue<bool>() ?? true;
-                    string[] aliases = statObj["aliases"]?.AsArray().Select(x => x!.GetValue<string>()).ToArray() ?? [];
-                    var stat = new Stat(statName, baseVal, maxVal, minVal, overCap, underCap)
-                    {
-                        Aliases = aliases
-                    };
-                    var entry = new StatEntry(stat);
-                    if (statObj["vital"]?.GetValue<bool>() ?? false)
-                        entry.Vital = true;
-                    if (maxNode?.GetValueKind() == JsonValueKind.String)
-                    {
-                        string otherStatName = maxNode.GetValue<string>();
-                        entry.MaxDependencyName = otherStatName;
-                    }
-                    if (minNode?.GetValueKind() == JsonValueKind.String)
-                    {
-                        Console.WriteLine("Warning: Stat min dependency is not fully supported yet!");
-                        string otherStatName = minNode.GetValue<string>();
-                        // represent min dependency as a dependency that applies a Capmin modifier
-                        entry.Dependencies = new[] { (statName + "_min_dep", new Either<string, float>(otherStatName), (Func<float, float, (float, StatModifierType)>?)((x, _) => (x, StatModifierType.Capmin))) };
-                    }
-
-                    if (statObj.TryGetPropertyValue("regen", out JsonNode? regenNode))
-                    {
-                        if (regenNode?.GetValueKind() == JsonValueKind.String)
-                            entry.Regen = regenNode.GetValue<string>();
-                        else if (regenNode?.GetValueKind() == JsonValueKind.Number)
-                            entry.Regen = regenNode.GetValue<float>();
-                        else
-                            Console.WriteLine("Warning: Invalid regen value for stat " + statName);
-                    }
-                    if (statObj.ContainsKey("dependsOn"))
-                    {
-                        var deps = new List<StatDependency>();
-                        foreach (var depPair in statObj["dependsOn"]!.AsObject())
-                        {
-                            string depName = depPair.Key;
-                            var depVal = depPair.Value!;
-                            Either<string, float> val;
-                            if (depPair.Value!.GetValueKind() == JsonValueKind.Number)
-                                val = new Either<string, float>(depVal.GetValue<float>());
-                            else
-                                val = new Either<string, float>(depVal.GetValue<string>());
-
-                            if (SidedLogic.Instance.IsClient() || val.IsRight)
-                                deps.Add((depName, val, null));
-                            else
-                                deps.Add((depName, val, Compile(val.Left)));
-                        }
-                        if (deps.Count > 0)
-                            entry.Dependencies = deps.ToArray();
-                    }
-
-                    ret.stats[statName] = entry;
-                }
-
-                foreach (var deps in ret.stats.Where(kv => kv.Value.Dependencies != null))
-                {
-                    foreach (var dep in deps.Value.Dependencies!)
-                    {
-                        if (!ret.stats.ContainsKey(dep.stat))
-                        {
-                            Console.WriteLine($"Warning: stat {deps.Key} depends on stat {dep.stat} but it wasn't defined in this body!");
-                        }
-                    }
-                }
-            }
-
-            return ret;
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine("Error while creating body from json: " + json);
-            Console.WriteLine(e);
-            return null;
-        }
-    }
-
     // helper to access stat definitions map similar to previous API
     private IEnumerable<Stat> StatDefinitions => stats.Values.Select(e => e.Def);
  

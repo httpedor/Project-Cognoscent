@@ -21,7 +21,7 @@ public abstract class Skill : ISerializable
         if (type != null && (type.IsAssignableTo(typeof(ArbitrarySkill)) ||
                              type.IsAssignableTo(typeof(ArbitraryAttackSkill))))
         {
-            return Compendium.GetEntryObject<Skill>(bytes.ReadString());
+            return Compendium.GetEntry<Skill>(bytes.ReadString());
         }
 
         if (type == null)

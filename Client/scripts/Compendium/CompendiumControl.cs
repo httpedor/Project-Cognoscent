@@ -36,7 +36,7 @@ public partial class CompendiumControl : ScrollContainer
         {
             int i = 0;
             string id = "Nova Feature";
-            while (Compendium.GetEntryOrNull<Feature>(id) != null)
+            while (Compendium.GetEntryJsonOrNull<Feature>(id) != null)
                 id = "Nova Feature " + ++i;
             
             JsonObject json = new JsonObject

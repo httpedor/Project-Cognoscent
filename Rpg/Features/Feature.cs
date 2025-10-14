@@ -14,7 +14,7 @@ public abstract class Feature : ISerializable
         var type = Type.GetType(path);
         if (type != null && (type.IsAssignableTo(typeof(ArbitraryFeature))))
         {
-            return Compendium.GetEntryObject<Feature>(bytes.ReadString());
+            return Compendium.GetEntry<Feature>(bytes.ReadString());
         }
 
         if (type == null)
