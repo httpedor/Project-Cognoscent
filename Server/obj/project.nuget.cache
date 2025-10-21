@@ -1,16 +1,21 @@
 {
   "version": 2,
-  "dgSpecHash": "ZrFMNbkP7JU=",
+  "dgSpecHash": "g62VcNLnJes=",
   "success": true,
   "projectFilePath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\consolerenderer\\0.7.1\\consolerenderer.0.7.1.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.aspnetcore.app.internal.assets\\10.0.0-rc.1.25451.107\\microsoft.aspnetcore.app.internal.assets.10.0.0-rc.1.25451.107.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.aspnetcore.components.webassembly\\9.0.10\\microsoft.aspnetcore.components.webassembly.9.0.10.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.aspnetcore.components.webassembly.server\\9.0.10\\microsoft.aspnetcore.components.webassembly.server.9.0.10.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.11.0\\microsoft.codeanalysis.analyzers.3.11.0.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.codeanalysis.common\\4.14.0\\microsoft.codeanalysis.common.4.14.0.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.codeanalysis.csharp\\4.14.0\\microsoft.codeanalysis.csharp.4.14.0.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.codeanalysis.csharp.scripting\\4.14.0\\microsoft.codeanalysis.csharp.scripting.4.14.0.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.codeanalysis.scripting.common\\4.14.0\\microsoft.codeanalysis.scripting.common.4.14.0.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.jsinterop.webassembly\\9.0.10\\microsoft.jsinterop.webassembly.9.0.10.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.win32.systemevents\\8.0.0\\microsoft.win32.systemevents.8.0.0.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\mudblazor\\8.13.0\\mudblazor.8.13.0.nupkg.sha512",
     "C:\\Users\\pedro.alvares\\.nuget\\packages\\system.drawing.common\\8.0.3\\system.drawing.common.8.0.3.nupkg.sha512"
   ],
   "logs": []

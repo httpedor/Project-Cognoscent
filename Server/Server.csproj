@@ -6,6 +6,12 @@
     <Folder Include="Data\Midia\" />
     <Folder Include="Data\Notes\" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ConsoleRenderer" Version="0.7.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.10" />
+    <PackageReference Include="MudBlazor" Version="8.13.0" />
+  </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -17,12 +23,10 @@
   <PropertyGroup>
     <EnableWeb>true</EnableWeb>
   </PropertyGroup>
-
   <!-- When EnableWeb is true, define the ENABLE_WEB symbol for conditional compilation -->
   <PropertyGroup Condition="'$(EnableWeb)' == 'true'">
     <DefineConstants>$(DefineConstants);ENABLE_WEB</DefineConstants>
   </PropertyGroup>
-
   <!-- Control Razor compilation so .razor/.cshtml files are skipped when EnableWeb is false -->
   <PropertyGroup>
     <RazorCompileOnBuild>$(EnableWeb)</RazorCompileOnBuild>

@@ -3,11 +3,14 @@ using System.Net.Sockets;
 using Server;
 using Server.AI;
 using Server.Game;
+using Server.TUI;
 using System.Threading;
+using Rpg;
 #if ENABLE_WEB
 using Server.Web;
 #endif
 
+TUI.Init();
 ServerSidedLogic.Init();
 Game.Init();
 Command.Init();
@@ -25,10 +28,9 @@ server.Bind(iPEndPoint);
 server.Listen(100);
 
 #if ENABLE_WEB
-Console.WriteLine("Server started on " + iPEndPoint + " and web host started.");
-#else
-Console.WriteLine("Server started on " + iPEndPoint + " (web disabled)");
+Loggers.Web.Log("Web Server started on localhost:5000");
 #endif
+Loggers.Console.Log("Server started on " + iPEndPoint);
 
 try
 {

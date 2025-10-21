@@ -2,6 +2,15 @@
   "version": 3,
   "targets": {
     "net10.0": {
+      "ConsoleRenderer/0.7.1": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/ConsoleRenderer.dll": {}
+        },
+        "runtime": {
+          "lib/net6.0/ConsoleRenderer.dll": {}
+        }
+      },
       "Microsoft.AspNetCore.App.Internal.Assets/10.0.0-rc.1.25451.107": {
         "type": "package",
         "build": {
@@ -10,6 +19,44 @@
         },
         "buildMultiTargeting": {
           "buildMultiTargeting/Microsoft.AspNetCore.App.Internal.Assets.targets": {}
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly/9.0.10": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.JSInterop.WebAssembly": "9.0.10"
+        },
+        "compile": {
+          "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/net9.0/Microsoft.AspNetCore.Components.WebAssembly.props": {}
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly.Server/9.0.10": {
+        "type": "package",
+        "compile": {
+          "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.Server.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.Server.dll": {
+            "related": ".xml"
+          }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ],
+        "build": {
+          "build/Microsoft.AspNetCore.Components.WebAssembly.Server.targets": {}
         }
       },
       "Microsoft.CodeAnalysis.Analyzers/3.11.0": {
@@ -252,6 +299,19 @@
           }
         }
       },
+      "Microsoft.JSInterop.WebAssembly/9.0.10": {
+        "type": "package",
+        "compile": {
+          "lib/net9.0/Microsoft.JSInterop.WebAssembly.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/Microsoft.JSInterop.WebAssembly.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Microsoft.Win32.SystemEvents/8.0.0": {
         "type": "package",
         "compile": {
@@ -272,6 +332,26 @@
             "assetType": "runtime",
             "rid": "win"
           }
+        }
+      },
+      "MudBlazor/8.13.0": {
+        "type": "package",
+        "compile": {
+          "lib/net9.0/MudBlazor.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/MudBlazor.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/MudBlazor.targets": {},
+          "buildTransitive/MudBlazor.props": {}
+        },
+        "buildMultiTargeting": {
+          "buildMultiTargeting/MudBlazor.props": {}
         }
       },
       "System.Drawing.Common/8.0.3": {
@@ -310,6 +390,20 @@
     }
   },
   "libraries": {
+    "ConsoleRenderer/0.7.1": {
+      "sha512": "F+56eN66fLr6zR8q9R/ydC0Wqqetd4D5uOQJLUKPUjKxjUPsX/Q94PI82ooh2Tw6OV59LDjX7fWClNFxZ8kX2w==",
+      "type": "package",
+      "path": "consolerenderer/0.7.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE",
+        "README.md",
+        "consolerenderer.0.7.1.nupkg.sha512",
+        "consolerenderer.nuspec",
+        "lib/net6.0/ConsoleRenderer.dll"
+      ]
+    },
     "Microsoft.AspNetCore.App.Internal.Assets/10.0.0-rc.1.25451.107": {
       "sha512": "saHZmaki09UpTCvEmNCXusVjg7wRnu631ilOHdaVsrmS/mFrof7cnImFVkdtc3iu7jd59+3zTqp77dq+7P17fA==",
       "type": "package",
@@ -331,6 +425,51 @@
         "buildTransitive/Microsoft.AspNetCore.App.Internal.Assets.targets",
         "microsoft.aspnetcore.app.internal.assets.10.0.0-rc.1.25451.107.nupkg.sha512",
         "microsoft.aspnetcore.app.internal.assets.nuspec"
+      ]
+    },
+    "Microsoft.AspNetCore.Components.WebAssembly/9.0.10": {
+      "sha512": "mmK0fTe5XaDLbPWZmejz8iLUdvlbIo19Iy9VtPkuW51XRDoGCv8dtsmTjFxNTi9v5+TnwO2hpcRIOHfdzkgQ4w==",
+      "type": "package",
+      "path": "microsoft.aspnetcore.components.webassembly/9.0.10",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "THIRD-PARTY-NOTICES.txt",
+        "build/net9.0/Microsoft.AspNetCore.Components.WebAssembly.props",
+        "build/net9.0/blazor.webassembly.js",
+        "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.dll",
+        "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.xml",
+        "microsoft.aspnetcore.components.webassembly.9.0.10.nupkg.sha512",
+        "microsoft.aspnetcore.components.webassembly.nuspec"
+      ]
+    },
+    "Microsoft.AspNetCore.Components.WebAssembly.Server/9.0.10": {
+      "sha512": "Lm2v3FZTs4BFVHlhI96NER1xQexyjVrTYfe6zeISgvWOlJt6JsBLFKM+L4u3GxE92VXDL9+dkIvTpoCvYUFUeA==",
+      "type": "package",
+      "path": "microsoft.aspnetcore.components.webassembly.server/9.0.10",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "THIRD-PARTY-NOTICES.txt",
+        "build/Microsoft.AspNetCore.Components.WebAssembly.Server.targets",
+        "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.Server.dll",
+        "lib/net9.0/Microsoft.AspNetCore.Components.WebAssembly.Server.xml",
+        "microsoft.aspnetcore.components.webassembly.server.9.0.10.nupkg.sha512",
+        "microsoft.aspnetcore.components.webassembly.server.nuspec",
+        "tools/BlazorDebugProxy/BrowserDebugHost.dll",
+        "tools/BlazorDebugProxy/BrowserDebugHost.runtimeconfig.json",
+        "tools/BlazorDebugProxy/BrowserDebugProxy.dll",
+        "tools/BlazorDebugProxy/Microsoft.CodeAnalysis.CSharp.Scripting.dll",
+        "tools/BlazorDebugProxy/Microsoft.CodeAnalysis.CSharp.dll",
+        "tools/BlazorDebugProxy/Microsoft.CodeAnalysis.Scripting.dll",
+        "tools/BlazorDebugProxy/Microsoft.CodeAnalysis.dll",
+        "tools/BlazorDebugProxy/Microsoft.FileFormats.dll",
+        "tools/BlazorDebugProxy/Microsoft.NET.WebAssembly.Webcil.dll",
+        "tools/BlazorDebugProxy/Microsoft.SymbolStore.dll",
+        "tools/BlazorDebugProxy/Newtonsoft.Json.dll"
       ]
     },
     "Microsoft.CodeAnalysis.Analyzers/3.11.0": {
@@ -1279,6 +1418,21 @@
         "microsoft.codeanalysis.scripting.common.nuspec"
       ]
     },
+    "Microsoft.JSInterop.WebAssembly/9.0.10": {
+      "sha512": "hzhT7wMOucoFuEpFdS5nZt8BNgaZEct8X9FwEW/EJZDyZAhQI4nsOjS/UI5H+VSWayd6KUYqGWd+omLqOEU3sg==",
+      "type": "package",
+      "path": "microsoft.jsinterop.webassembly/9.0.10",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "THIRD-PARTY-NOTICES.txt",
+        "lib/net9.0/Microsoft.JSInterop.WebAssembly.dll",
+        "lib/net9.0/Microsoft.JSInterop.WebAssembly.xml",
+        "microsoft.jsinterop.webassembly.9.0.10.nupkg.sha512",
+        "microsoft.jsinterop.webassembly.nuspec"
+      ]
+    },
     "Microsoft.Win32.SystemEvents/8.0.0": {
       "sha512": "9opKRyOKMCi2xJ7Bj7kxtZ1r9vbzosMvRrdEhVhDz8j8MoBGgB+WmC94yH839NPH+BclAjtQ/pyagvi/8gDLkw==",
       "type": "package",
@@ -1312,6 +1466,33 @@
         "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.dll",
         "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.xml",
         "useSharedDesignerContext.txt"
+      ]
+    },
+    "MudBlazor/8.13.0": {
+      "sha512": "Y6JW93zf8tiVhMSkkL0mZ3ruqjOTNftvVoX3sik6NEnIye+Gs0FXI8rhXfrH2LU79Mw/fOtT5ms3L/Q4TKx2kA==",
+      "type": "package",
+      "path": "mudblazor/8.13.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE",
+        "Nuget.png",
+        "README.md",
+        "analyzers/dotnet/cs/MudBlazor.Analyzers.dll",
+        "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+        "build/Microsoft.AspNetCore.StaticWebAssets.props",
+        "build/MudBlazor.props",
+        "build/MudBlazor.targets",
+        "buildMultiTargeting/MudBlazor.props",
+        "buildTransitive/MudBlazor.props",
+        "lib/net8.0/MudBlazor.dll",
+        "lib/net8.0/MudBlazor.xml",
+        "lib/net9.0/MudBlazor.dll",
+        "lib/net9.0/MudBlazor.xml",
+        "mudblazor.8.13.0.nupkg.sha512",
+        "mudblazor.nuspec",
+        "staticwebassets/MudBlazor.min.css",
+        "staticwebassets/MudBlazor.min.js"
       ]
     },
     "System.Drawing.Common/8.0.3": {
@@ -1362,7 +1543,11 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "ConsoleRenderer >= 0.7.1",
       "Microsoft.AspNetCore.App.Internal.Assets >= 10.0.0-rc.1.25451.107",
+      "Microsoft.AspNetCore.Components.WebAssembly >= 9.0.10",
+      "Microsoft.AspNetCore.Components.WebAssembly.Server >= 9.0.10",
+      "MudBlazor >= 8.13.0",
       "Rpg >= 1.0.0"
     ]
   },
@@ -1413,11 +1598,27 @@
       "net10.0": {
         "targetAlias": "net10.0",
         "dependencies": {
+          "ConsoleRenderer": {
+            "target": "Package",
+            "version": "[0.7.1, )"
+          },
           "Microsoft.AspNetCore.App.Internal.Assets": {
             "suppressParent": "All",
             "target": "Package",
             "version": "[10.0.0-rc.1.25451.107, )",
             "autoReferenced": true
+          },
+          "Microsoft.AspNetCore.Components.WebAssembly": {
+            "target": "Package",
+            "version": "[9.0.10, )"
+          },
+          "Microsoft.AspNetCore.Components.WebAssembly.Server": {
+            "target": "Package",
+            "version": "[9.0.10, )"
+          },
+          "MudBlazor": {
+            "target": "Package",
+            "version": "[8.13.0, )"
           }
         },
         "imports": [

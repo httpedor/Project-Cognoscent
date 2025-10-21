@@ -51,7 +51,7 @@ public class RpgClient
                 Device = loginPacket.Device;
                 Manager.Disconnect(Username);
                 Manager.Clients.Add(Username, this);
-                Console.WriteLine(loginPacket.Username + " logged in with ip " + socket.RemoteEndPoint);
+                Logger.Log(loginPacket.Username + " logged in with ip " + socket.RemoteEndPoint);
                 foreach (string folder in Compendium.Folders)
                 {
                     foreach (var entry in Compendium.GetEntryNames(folder))
@@ -247,7 +247,7 @@ public class RpgClient
                     ISkillSource? source = csu.Data.Source.SkillSource;
                     if (source == null)
                     {
-                        Console.WriteLine($"[WARNING] Execute Skill from {Username} doesn't have a valid SkillSource.");
+                        Logger.LogWarning($"Execute Skill from {Username} doesn't have a valid SkillSource.");
                         return;
                     }
                     creature.ExecuteSkill(csu.Data.Skill, csu.Data.Arguments, source);
@@ -325,7 +325,7 @@ public class RpgClient
                 break;
             }
             default:
-                Console.WriteLine("Unknown/unsupported packet type " + packet.Id);
+                Logger.LogError("Unknown/unsupported packet type " + packet.Id);
                 break;
         }
     }
@@ -339,7 +339,7 @@ public class RpgClient
             socket.Send(buffer);
         } catch (Exception e)
         {
-            Console.WriteLine("Failed to send packet to " + Username + ": " + e);
+            Logger.LogError("Failed to send packet to " + Username + ": " + e);
         }
     }
 

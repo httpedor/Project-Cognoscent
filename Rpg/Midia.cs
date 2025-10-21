@@ -13,6 +13,7 @@ public enum MidiaType
 public class Midia : ISerializable
 {
     public byte[] Bytes;
+    public string Base64 => Convert.ToBase64String(Bytes);
     public MidiaType Type;
     public Vector2 Scale = Vector2.One;
     public Midia() : this([])

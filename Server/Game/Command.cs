@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Text;
@@ -18,6 +19,7 @@ public class Command
     private static int registeredCommands = 0;
     private static Dictionary<string, Command?> commands = new Dictionary<string, Command?>();
     private static List<string> nonAliases = new List<string>();
+    private const int MaxSuggestionCount = 8;
     public string Name
     {
         get;
@@ -48,13 +50,17 @@ public class Command
         private set;
     }
     
+    // Optional, per-command string-argument suggestion providers.
+    // Key: argument index (0-based), Value: provider that returns candidates
+    public Dictionary<int, Func<IEnumerable<string>>>? Suggestions { get; private set; }
+    
     public Func<RpgClient?, object[], string> Callback
     {
         get;
         private set;
     }
     
-    public Command(string name, string description, string? usage, string[]? aliases, Type[]? arguments, Func<RpgClient?, object[], string> callback)
+    public Command(string name, string description, string? usage, string[]? aliases, Type[]? arguments, Func<RpgClient?, object[], string> callback, Dictionary<int, Func<IEnumerable<string>>>? suggestions = null)
     {
         Name = name;
         Description = description;
@@ -64,12 +70,178 @@ public class Command
         Aliases = aliases;
         arguments ??= Type.EmptyTypes;
         Arguments = arguments;
+        Suggestions = suggestions;
         Callback = callback;
     }
 
     private static Command? GetCommand(string name)
     {
         return commands.TryGetValue(name, out Command? command) ? command : null;
+    }
+
+    public static IReadOnlyList<string> GetSuggestions(string? input)
+    {
+        input ??= string.Empty;
+        string[] tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool endsWithSpace = input.EndsWith(' ');
+
+        string currentToken;
+        int tokenIndex;
+
+        if (tokens.Length == 0)
+        {
+            tokenIndex = 0;
+            currentToken = input;
+        }
+        else if (endsWithSpace)
+        {
+            tokenIndex = tokens.Length;
+            currentToken = string.Empty;
+        }
+        else
+        {
+            tokenIndex = tokens.Length - 1;
+            currentToken = tokens[^1];
+        }
+
+        if (tokenIndex == 0 && !endsWithSpace)
+        {
+            return GetCommandNameSuggestions(currentToken);
+        }
+
+        if (tokens.Length == 0)
+        {
+            return GetCommandNameSuggestions(currentToken);
+        }
+
+        string commandToken = tokens[0].ToLowerInvariant();
+
+        if (!endsWithSpace && tokenIndex == 0)
+        {
+            return GetCommandNameSuggestions(currentToken);
+        }
+
+        Command? command = GetCommand(commandToken);
+        if (command == null)
+        {
+            return GetCommandNameSuggestions(currentToken);
+        }
+
+        int argumentIndex = tokenIndex - 1;
+        if (argumentIndex < 0)
+        {
+            return GetCommandNameSuggestions(currentToken);
+        }
+
+        var argumentSuggestions = GetArgumentSuggestions(command, argumentIndex, currentToken, tokens);
+
+        // Do NOT fall back to command name suggestions when asking for argument completions.
+        // If there are no argument suggestions available, return an empty list so the UI shows nothing.
+        return argumentSuggestions;
+    }
+
+    private static IReadOnlyList<string> GetCommandNameSuggestions(string prefix)
+    {
+        prefix ??= string.Empty;
+        var candidates = nonAliases
+            .Concat(commands.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        return FilterCandidates(candidates, prefix);
+    }
+
+    private static IReadOnlyList<string> GetArgumentSuggestions(Command command, int argumentIndex, string currentToken, string[] tokens)
+    {
+        Type argumentType = GetArgumentType(command, argumentIndex);
+
+        if (argumentType == typeof(ServerBoard))
+        {
+            return FilterCandidates(Game.GetBoards().Select(b => b.Name), currentToken);
+        }
+
+        if (argumentType == typeof(bool))
+        {
+            return FilterCandidates(new[] { "false", "true" }, currentToken);
+        }
+
+        if (argumentType == typeof(Entity))
+        {
+            ServerBoard? board = ResolveBoardContext(command, tokens, argumentIndex);
+            if (board != null)
+            {
+                return FilterCandidates(board.GetEntities().Select(e => $"{e.Id}:{e.GetType().Name}"), currentToken);
+            }
+            return Array.Empty<string>();
+        }
+
+        if (argumentType == typeof(string))
+        {
+            return GetStringSuggestionsForCommand(command, argumentIndex, currentToken, tokens);
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static Type GetArgumentType(Command command, int argumentIndex)
+    {
+        if (command.Arguments.Length == 0)
+            return typeof(string);
+        if (argumentIndex < command.Arguments.Length)
+            return command.Arguments[argumentIndex];
+        return command.Arguments[^1];
+    }
+
+    private static ServerBoard? ResolveBoardContext(Command command, string[] tokens, int currentArgumentIndex)
+    {
+        int argsAvailable = Math.Min(tokens.Length - 1, currentArgumentIndex);
+        for (int argPosition = 0; argPosition < argsAvailable; argPosition++)
+        {
+            Type type = GetArgumentType(command, argPosition);
+            if (type != typeof(ServerBoard))
+                continue;
+
+            string boardName = tokens[argPosition + 1];
+            if (string.IsNullOrEmpty(boardName))
+                continue;
+
+            ServerBoard? board = Game.GetBoard(boardName);
+            if (board != null)
+                return board;
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> GetStringSuggestionsForCommand(Command command, int argumentIndex, string currentToken, string[] tokens)
+    {
+        if (command.Suggestions != null && command.Suggestions.TryGetValue(argumentIndex, out var provider))
+        {
+            return FilterCandidates(provider(), currentToken);
+        }
+
+        if (command.Name.Equals("uvttload", StringComparison.OrdinalIgnoreCase) && argumentIndex == 2)
+        {
+            if (tokens.Length > 2 && tokens[2].Equals("append", StringComparison.OrdinalIgnoreCase))
+            {
+                return FilterCandidates(Game.GetBoards().Select(b => b.Name), currentToken);
+            }
+        }
+
+        if (command.Name.Equals("help", StringComparison.OrdinalIgnoreCase) && argumentIndex == 0)
+        {
+            return FilterCandidates(nonAliases, currentToken);
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static IReadOnlyList<string> FilterCandidates(IEnumerable<string> source, string prefix)
+    {
+        prefix ??= string.Empty;
+        return source
+            .Where(s => !string.IsNullOrEmpty(s) && (prefix.Length == 0 || s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxSuggestionCount)
+            .ToList();
     }
 
     public static void RegisterCommand(Command cmd)
@@ -110,15 +282,6 @@ public class Command
         if (cmd != null)
             UnregisterCommand(cmd);
     }
-    
-    private static void ListenForCommands()
-    {
-        while (true)
-        {
-            string? cmd = Console.ReadLine();
-            ExecuteCommand(null, cmd);
-        }
-    }
 
     public static void ExecuteCommand(RpgClient? client, string? cmdString)
     {
@@ -138,14 +301,14 @@ public class Command
         Command? cmd = GetCommand(name);
         if (cmd == null)
         {
-            Console.WriteLine("Unknown command " + name + "(" + name.Length + " chars)");
+            Logger.LogError("Unknown command " + name + "(" + name.Length + " chars)");
             return;
         }
 
         int reqArgs = cmd.Usage.Split("<").Length - 1;
         if (argStrings.Length < reqArgs)
         {
-            Console.WriteLine("Not enough arguments. Usage: " + cmd.Name + " " + cmd.Usage);
+            Logger.LogError("Not enough arguments. Usage: " + cmd.Name + " " + cmd.Usage);
             return;
         }
 
@@ -156,10 +319,15 @@ public class Command
             Type t;
             if (i >= cmd.Arguments.Length)
             {
+                if (cmd.Arguments.Length == 0)
+                {
+                    Logger.LogError("Argument present when no arguments expected.");
+                    return;
+                }
                 t = cmd.Arguments[^1]; // Last argument
                 if (!warned)
                 {
-                    Console.WriteLine("[WARNING] Argument type not specified, assuming last argument type (" + t.Name + ")");
+                    Logger.LogWarning("Argument type not specified, assuming last argument type (" + t.Name + ")");
                     warned = true;
                 }
             }
@@ -177,7 +345,7 @@ public class Command
                     }
                     catch (FormatException e)
                     {
-                        Console.WriteLine("Invalid argument " + argStrings[i] + ": " + e.Message);
+                        Logger.LogError("Invalid argument " + argStrings[i] + ": " + e.Message);
                         return;
                     }
                     break;
@@ -188,7 +356,7 @@ public class Command
                     }
                     catch (FormatException e)
                     {
-                        Console.WriteLine("Invalid argument " + argStrings[i] + ": " + e.Message);
+                        Logger.LogError("Invalid argument " + argStrings[i] + ": " + e.Message);
                         return;
                     }
                     break;
@@ -199,7 +367,7 @@ public class Command
                     }
                     catch (FormatException e)
                     {
-                        Console.WriteLine("Invalid argument " + argStrings[i] + ": " + e.Message);
+                        Logger.LogError("Invalid argument " + argStrings[i] + ": " + e.Message);
                         return;
                     }
                     break;
@@ -214,28 +382,68 @@ public class Command
                         board = Game.GetBoard(argStrings[i]);
                     if (board == null)
                     {
-                        Console.WriteLine("Unknown board " + argStrings[i]);
+                        Logger.LogError("Unknown board " + argStrings[i]);
                         return;
                     }
                     args[i] = board;
+                    break;
+                case nameof(Entity):
+                    // Try to resolve board context from previously parsed arguments
+                    ServerBoard? ctxBoard = null;
+                    for (int j = 0; j < i; j++)
+                    {
+                        if (args[j] is ServerBoard sb)
+                        {
+                            ctxBoard = sb;
+                            break;
+                        }
+                    }
+                    if (ctxBoard == null && Game.GetBoards().Count == 1)
+                    {
+                        ctxBoard = Game.GetBoards()[0];
+                    }
+                    if (ctxBoard == null)
+                    {
+                        Logger.LogError("No board context found for entity argument");
+                        return;
+                    }
+
+                    string token = argStrings[i];
+                    string idPart = token;
+                    int colonIdx = token.IndexOf(':');
+                    if (colonIdx >= 0)
+                        idPart = token.Substring(0, colonIdx);
+                    if (!int.TryParse(idPart, out int entId))
+                    {
+                        Logger.LogError("Invalid entity identifier '" + token + "'. Expecting <id> or <id>:<name>");
+                        return;
+                    }
+                    var entity = ctxBoard.GetEntityById(entId);
+                    if (entity == null)
+                    {
+                        Logger.LogError($"Entity {entId} not found in board {ctxBoard.Name}");
+                        return;
+                    }
+                    args[i] = entity;
                     break;
             }
         }
         
         try
         {
-            Console.WriteLine(cmd.Callback(client, args));
+            Logger.Log(cmd.Callback(client, args));
         }
         catch (Exception e)
         {
-            Console.WriteLine("An error occurred executing the command: " + e.Message);
-            Console.WriteLine(e.StackTrace);
+            Logger.LogError("An error occurred executing the command: " + e.Message);
+            Logger.LogError(e.ToString());
         }
     }
 
     public static void Init()
     {
-        Task.Run(ListenForCommands);
+        
+        // suggestions: argument 0 -> list of non-alias command names
         RegisterCommand(new Command(
             "help",
             "Displays a list of commands, or help for a specific command.",
@@ -250,7 +458,8 @@ public class Command
                     foreach (string name in nonAliases)
                     {
                         Command? cmd = GetCommand(name);
-                        ret += name + " " + cmd.Usage + " - " + cmd.Description + "\n";
+                        if (cmd != null)
+                            ret += name + " " + cmd.Usage + " - " + cmd.Description + "\n";
                     }
                     return ret;
                 }
@@ -262,6 +471,10 @@ public class Command
                         return "Unknown command " + cmdName;
                     return cmd.Name + " " + cmd.Usage + " - " + cmd.Description;
                 }
+            },
+            new Dictionary<int, Func<IEnumerable<string>>>
+            {
+                { 0, () => nonAliases }
             }
         ));
         RegisterCommand(new Command(
@@ -304,6 +517,8 @@ public class Command
                 string? newName = args[1] as string;
                 string oldName = board!.Name;
                 Game.RemoveBoard(oldName);
+                if (string.IsNullOrWhiteSpace(newName))
+                    return "Invalid name";
                 Game.AddBoard(board, newName);
                 return "Board " + oldName + "renamed to " + newName;
             }
@@ -423,6 +638,7 @@ public class Command
                 return "Loaded board " + boardName + " with " + board.GetFloorCount() + " floors";
             }
         ));
+        
         RegisterCommand(new Command(
             "uvttload",
             "Loads a board from a file. If [new|append] is not specified, it defaults to new. If append, the floor will be added to the [board] board.",
@@ -484,6 +700,11 @@ public class Command
                     default:
                         return "Unknown mode " + mode;
                 }
+            },
+            new Dictionary<int, Func<IEnumerable<string>>>
+            {
+                { 1, () => new [] { "new", "append" } },
+                // if append and board missing, suggestions for arg 2 come from boards - handled in GetStringSuggestionsForCommand
             }
         ));
         RegisterCommand(new Command(
@@ -504,13 +725,14 @@ public class Command
         RegisterCommand(new Command(
             "entityremove",
             "Removes an entity from a board",
-            "<board> <id>",
+            "<board> <entity>",
             new[]{"removeentity", "deleteentity", "entitydelete", "entitydestroy", "destroyentity"},
-            new[] { typeof(ServerBoard), typeof(int) },
+            new[] { typeof(ServerBoard), typeof(Entity) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                board.RemoveEntity((int)args[1]);
+                var ent = (args[1] as Entity)!;
+                board.RemoveEntity(ent.Id);
 
                 return "Entity removed";
             }
@@ -531,13 +753,13 @@ public class Command
         RegisterCommand(new Command(
             "entityowner",
             "Sets the owner of an entity",
-            "<board> <id> [owner]",
+            "<board> <entity> [owner]",
             new[]{"entitysetowner", "creatureowner", "creaturesetowner", "setcreatureowner", "creatureownerset", "entityownerset"},
-            new[] { typeof(ServerBoard), typeof(int), typeof(string) },
+            new[] { typeof(ServerBoard), typeof(Entity), typeof(string) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                Entity e = board.GetEntityById((int)args[1])!;
+                Entity e = (args[1] as Entity)!;
                 if (e is Creature c)
                 {
                     if (args.Length == 3)
@@ -554,13 +776,13 @@ public class Command
         RegisterCommand(new Command(
             "entitypos",
             "Sets an entity's position",
-            "<board> <id> [x] [y] [z]",
+            "<board> <entity> [x] [y] [z]",
             new[]{"pos", "entitysetpos", "setentitypos"},
-            new[]{typeof(ServerBoard), typeof(int), typeof(double), typeof(double), typeof(double)},
+            new[]{typeof(ServerBoard), typeof(Entity), typeof(double), typeof(double), typeof(double)},
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                Entity e = board.GetEntityById((int)args[1])!;
+                Entity e = (args[1] as Entity)!;
                 if (args.Length == 2)
                     return e.Position.ToString();
                 if (args.Length == 5)
@@ -594,15 +816,16 @@ public class Command
         RegisterCommand(new Command(
             "entityimage",
             "Sets the image of an entity",
-            "<board> <id> <image>",
+            "<board> <entity> <image>",
             new[]{"entitysetimage", "setentityimage"},
-            new[] { typeof(ServerBoard), typeof(int), typeof(string) },
+            new[] { typeof(ServerBoard), typeof(Entity), typeof(string) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                Entity e = board.GetEntityById((int)args[1])!;
+                Entity e = (args[1] as Entity)!;
                 string? str = args[2] as string;
-                Span<byte> buffer = new Span<byte>(new byte[str.Length]);
+                if (string.IsNullOrWhiteSpace(str))
+                    return "Invalid image";
                 e.Display = new Midia(str);
                 return "Image set";
             }
@@ -610,18 +833,16 @@ public class Command
         RegisterCommand(new Command(
             "entityrotation",
             "Sets or reads the rotation of an entity",
-            "<board> <id> [rot]",
+            "<board> <entity> [rot]",
             new[]{"entitysetrotation", "setentityrotation", "rotationentity", "rotationsetentity"},
-            new[] { typeof(ServerBoard), typeof(int), typeof(string) },
+            new[] { typeof(ServerBoard), typeof(Entity), typeof(int) },
             (_, args) => {
-                ServerBoard board = args[0] as ServerBoard;
-                int id = (int)args[1];
+                var entity = (args[1] as Entity)!;
                 if (args.Length == 2)
                 {
-                    return "Entity rotation: " + board.GetEntityById(id).Rotation;
+                    return "Entity rotation: " + entity.Rotation;
                 }
-
-                board.GetEntityById(id).Rotation = (int)args[2];
+                entity.Rotation = (int)args[2];
                 return "Set entity rotation.";
             }
         ));
@@ -665,13 +886,13 @@ public class Command
         RegisterCommand(new Command(
             "creatureactions",
             "Lists current actions of a creature",
-            "<board> <id>",
+            "<board> <entity>",
             new[]{"actions", "creatureaction", "listcreatureactions", "listactions"},
-            new[] { typeof(ServerBoard), typeof(int) },
+            new[] { typeof(ServerBoard), typeof(Entity) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                Entity e = board.GetEntityById((int)args[1])!;
+                Entity e = (args[1] as Entity)!;
                 if (e is Creature c)
                 {
                     string ret = "";
@@ -685,13 +906,13 @@ public class Command
         RegisterCommand(new Command(
             "creaturestats",
             "Lists creature stats",
-            "<board> <id>",
+            "<board> <entity>",
             new[]{"liststats"},
-            new[]{ typeof(ServerBoard), typeof(int) },
+            new[]{ typeof(ServerBoard), typeof(Entity) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                Entity e = board.GetEntityById((int)args[1])!;
+                Entity e = (args[1] as Entity)!;
                 if (e is Creature c)
                 {
                     string ret = "";
@@ -883,7 +1104,7 @@ public class Command
                 double y = (double)args[2];
                 double floor = (double)args[3];
                 string name = (args[4] as string)!;
-                Item item = new(null, name, "Item spawned in through command");
+                Item item = new("", name, "Item spawned in through command");
                 var e = new ItemEntity(item)
                 {
                     Position = new Vector3((float)x, (float)y, (float)floor)
@@ -892,19 +1113,21 @@ public class Command
                 return "Item spawned";
             }
         ));
+        
         RegisterCommand(new Command(
             "dooredit",
             "Edits the properties of a door",
-            "<board> <id> <vision|flip|open|close>",
+            "<board> <entity> <vision|flip|open|close>",
             new[]{"door", "editdoor"},
-            new[]{typeof(ServerBoard), typeof(int), typeof(string)},
-            (_, args) => 
+            new[]{typeof(ServerBoard), typeof(Entity), typeof(string)},
+            (_, args) =>
             {
-                var board = args[0] as ServerBoard;
-                int id = ((int)args[1]);
+                var board = (args[0] as ServerBoard)!;
                 string? operation = args[2] as string;
-
-                var door = board.GetEntityById(id) as DoorEntity;
+                var ent = (args[1] as Entity)!;
+                var door = ent as DoorEntity;
+                if (door == null)
+                    return "Entity is not a door";
 
                 switch (operation)
                 {
@@ -939,6 +1162,10 @@ public class Command
                         return "Invalid operation.";
                     }
                 }
+            },
+            new Dictionary<int, Func<IEnumerable<string>>>
+            {
+                { 2, () => new [] { "vision", "flip", "open", "close" } }
             }
         ));
         RegisterCommand(new Command(
@@ -960,7 +1187,7 @@ public class Command
                 {
                     string response = await AI.AI.ServerChat.Prompt(msg.ToString());
                     
-                    Console.WriteLine("AI response: " + response);
+                    Logger.Log("AI response: " + response);
                 });
                 return "Message sent successfully.";
             }
@@ -968,15 +1195,14 @@ public class Command
         RegisterCommand(new Command(
             "dumpbody",
             "Returns the body of a creature as JSON",
-            "<board> <id>",
+            "<board> <entity>",
             new []{"jsonbody", "body", "bodydump"},
-            new[]{typeof(ServerBoard), typeof(int)},
+            new[]{typeof(ServerBoard), typeof(Entity)},
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
-                int id = (int)args[1];
-
-                Creature? c = board.GetEntityById<Creature>(id);
+                var ent = (args[1] as Entity)!;
+                Creature? c = ent as Creature;
                 if (c == null)
                     return "Creature not found";
 
@@ -987,12 +1213,12 @@ public class Command
             "loadjson",
             "Loads a JSON file into the compendium",
             "<compendiumFolder> <path>",
-            ["json", "compendiumadd", "compendium", "addjson", "jsonload", "jsonadd", "compendiumload"],
-            new[]{typeof(ServerBoard)},
+            new[]{"json", "compendiumadd", "compendium", "addjson", "jsonload", "jsonadd", "compendiumload"},
+            new[]{typeof(string), typeof(string)},
             (_, args) =>
             {
-                string folder = args[0] as string;
-                string fPath = args[1] as string;
+                string folder = (args[0] as string)!;
+                string fPath = (args[1] as string)!;
                 fPath = fPath.Replace('/', '\\');
                 if (!File.Exists(fPath))
                     return $"File {fPath} not found";
@@ -1013,11 +1239,40 @@ public class Command
                     return "Invalid JSON Data";
                 return "Registered entry " + fName;
             }
+        ,
+            new Dictionary<int, Func<IEnumerable<string>>>
+            {
+                { 0, () => Compendium.Folders }
+            }
+        ));
+        RegisterCommand(new Command(
+            "openbrowser",
+            "Opens the web interface in the default browser",
+            "",
+            ["openweb", "webopen", "browseropen", "browser", "url", "web"],
+            Array.Empty<Type>(),
+            (_, _) =>
+            {
+                string url = "http://localhost:5000";
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = url,
+                        UseShellExecute = true
+                    });
+                    return "Opened web interface at " + url;
+                }
+                catch (Exception e)
+                {
+                    return "Failed to open browser: " + e.Message;
+                }
+            }
         ));
 
         nonAliases.Sort();
         
-        Console.WriteLine("Registered " + registeredCommands + " commands and " + (commands.Count - registeredCommands) + " aliases");
+        Logger.Log("Registered " + registeredCommands + " commands and " + (commands.Count - registeredCommands) + " aliases");
     }
 
 }

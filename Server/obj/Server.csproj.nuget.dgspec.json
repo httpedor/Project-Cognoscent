@@ -131,11 +131,27 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "dependencies": {
+            "ConsoleRenderer": {
+              "target": "Package",
+              "version": "[0.7.1, )"
+            },
             "Microsoft.AspNetCore.App.Internal.Assets": {
               "suppressParent": "All",
               "target": "Package",
               "version": "[10.0.0-rc.1.25451.107, )",
               "autoReferenced": true
+            },
+            "Microsoft.AspNetCore.Components.WebAssembly": {
+              "target": "Package",
+              "version": "[9.0.10, )"
+            },
+            "Microsoft.AspNetCore.Components.WebAssembly.Server": {
+              "target": "Package",
+              "version": "[9.0.10, )"
+            },
+            "MudBlazor": {
+              "target": "Package",
+              "version": "[8.13.0, )"
             }
           },
           "imports": [

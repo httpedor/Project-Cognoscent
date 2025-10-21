@@ -24,7 +24,7 @@ public static class Manager
             client.socket.Close();
         }
         Clients.Remove(username);
-        Console.WriteLine(username + " disconnected");
+        Logger.Log(username + " disconnected");
     }
 
     public static RpgClient? GetClient(string username)
@@ -134,7 +134,7 @@ public static class Manager
                     }
 
                 } catch (Exception e){
-                    Console.WriteLine(e);
+                    Logger.LogError(e.ToString());
                     if (e is SocketException)
                         Disconnect(client.Username);
                 }

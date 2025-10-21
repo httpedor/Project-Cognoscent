@@ -33,7 +33,7 @@ public static class Game
                 Compendium.RegisterEntry(folder, pair.fName, pair.obj);
             }
             
-            Console.WriteLine("Registered " + Compendium.GetEntryCount(folder) + " " + folder + " entries.");
+            Logger.Log("Registered " + Compendium.GetEntryCount(folder) + " " + folder + " entries.");
         }
     }
 
@@ -75,7 +75,7 @@ public static class Game
                 sw.Reset();
 
                 if (elapsed > timePerTick)
-                    Console.WriteLine("Tick took " + elapsed + "ms");
+                    Logger.LogWarning("Tick took " + elapsed + "ms");
 
                 if (elapsed < timePerTick)
                     await Task.Delay(timePerTick - (int)elapsed);

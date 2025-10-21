@@ -172,8 +172,8 @@ public static class Compendium
             }
             catch (JsonException e)
             {
-                Console.WriteLine("Couldn't read JSON file " + file);
-                Console.WriteLine(e);
+                Logger.LogError("Couldn't read JSON file " + file);
+                Logger.LogError(e.ToString());
             }
             if (fName != null && parsed != null)
                 yield return (fName, parsed);
@@ -187,7 +187,7 @@ public static class Compendium
             {
                 if (!toProcess.Select(x => x.fName).Contains(parent))
                 {
-                    Console.WriteLine($"Warning: File {next.fName} is child of {parent} but it doesn't exist.");
+                    Logger.LogWarning($"File {next.fName} is child of {parent} but it doesn't exist.");
                     toProcess.RemoveAt(0);
                 }
                 continue;
@@ -242,15 +242,24 @@ public static class Compendium
                         entry.Loaded = ret;
                         return ret;
                     }
+                    else
+                    {
+                        if (ret != null)
+                            Logger.LogError("Data type mismatch: " + folder + "/" + name + " is not of type " + folders[folder].Type);
+                        else
+                            Logger.LogError("Failed to build entry: " + folder + "/" + name);
+                    }
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message);
+
+                    Logger.LogError("Exception occurred while building entry: " + folder + "/" + name);
+                    Logger.LogError(e.Message);
                     // ignored
                 }
             }
 
-            Console.WriteLine("Failed to load data: " + folder + "/" + name);
+            Logger.LogError("Failed to load data: " + folder + "/" + name);
             folders[folder].Entries.Remove(name);
             return null;
         }
@@ -282,7 +291,7 @@ public static class Compendium
         object? found = entry.Loaded;
         if (found != null && !found.GetType().IsSubclassOf(typeof(T)) && found.GetType() != typeof(T))
         {
-            Console.WriteLine("Data type mismatch: " + folder + "/" + name + " is not of type " + typeof(T));
+            Logger.LogError("Data type mismatch: " + folder + "/" + name + " is not of type " + typeof(T));
             return null;
         }
         return (T?)found;
