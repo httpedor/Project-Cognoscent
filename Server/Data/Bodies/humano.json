@@ -14,6 +14,12 @@
         "consciousness": 0.15,
         "blood_flow": 0.5,
         "respiration": 0.5
+      },
+      "groupEffectiveness":{
+        "upper-left": 0.5,
+        "upper-right": 0.5,
+        "lower-left": 0.75,
+        "lower-right": 0.75
       }
     },
     "agility": {

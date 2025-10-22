@@ -51,6 +51,7 @@ public class StatJson
     [JsonPropertyName("vital")] public bool Vital { get; set; }
     [JsonPropertyName("regen")] public JsonElement? Regen { get; set; }
     [JsonPropertyName("dependsOn")] public Dictionary<string, JsonElement>? DependsOn { get; set; }
+    [JsonPropertyName("groupEffectiveness")] public Dictionary<string, float>? GroupEffectiveness { get; set; }
 }
 
 public class BodyJson
@@ -64,7 +65,32 @@ public class BodyJson
 
 public class BodyPartModel
 {
-    public string Name { get; set; }
+    // Small, self-documenting config types to replace raw tuples
+    public sealed class PartStatModifierConfig
+    {
+        public string StatName { get; init; } = string.Empty;
+        public JsonNode? AtFullJson { get; init; }
+        public JsonNode? AtZeroJson { get; init; }
+        public bool StandaloneHpOnly { get; init; }
+        public StatModifierType Operation { get; init; } = StatModifierType.Flat;
+        public bool ApplyToOwner { get; init; } = true;
+    }
+
+    public sealed class DamageModifierConfig
+    {
+        public DamageType Type { get; init; } = default!;
+        public JsonNode? ValueJson { get; init; }
+        public StatModifierType Operation { get; init; } = StatModifierType.Percent;
+    }
+
+    private static class JsonHelpers
+    {
+        public static JsonNode? ToNode(JsonElement el) => JsonNode.Parse(el.GetRawText());
+        public static JsonNode? ToNodeOrNull(JsonElement? el) => el.HasValue ? JsonNode.Parse(el.Value.GetRawText()) : null;
+        public static StatModifierType ParseOp(string? op, StatModifierType fallback) => Enum.TryParse<StatModifierType>(op ?? string.Empty, true, out var v) ? v : fallback;
+    }
+
+    public string Name { get; set; } = string.Empty;
     public string Group { get; set; } = "default";
     public JsonNode? MaxHealthJson { get; set; }
     public JsonNode? AreaJson { get; set; }
@@ -76,8 +102,9 @@ public class BodyPartModel
     public List<Injury> Injuries { get; set; } = new();
     public List<Feature> OwnerFeatures { get; set; } = new();
     public List<Feature> SelfFeatures { get; set; } = new();
-    public Dictionary<string, List<(JsonNode? AtFullJson, JsonNode? AtZeroJson, bool Sho, StatModifierType Op, bool ApplyToOwner)>> Stats { get; set; } = new();
-    public Dictionary<DamageType, List<(JsonNode? ValueJson, StatModifierType Operation)>> DamageModifiers { get; set; } = new();
+    // By stat name, list of modifiers defined for that part
+    public Dictionary<string, List<PartStatModifierConfig>> Stats { get; set; } = new();
+    public Dictionary<DamageType, List<DamageModifierConfig>> DamageModifiers { get; set; } = new();
     public JsonObject? Metadata { get; set; }
 
     public BodyPartModel(JsonObject json)
@@ -87,8 +114,8 @@ public class BodyPartModel
 
         Name = jsonModel.Name ?? "unnamed";
         Group = jsonModel.Group ?? "default";
-        MaxHealthJson = JsonNode.Parse(jsonModel.MaxHealth.GetRawText());
-        AreaJson = JsonNode.Parse(jsonModel.Area.GetRawText());
+        MaxHealthJson = JsonHelpers.ToNode(jsonModel.MaxHealth);
+        AreaJson = JsonHelpers.ToNode(jsonModel.Area);
         PainMultiplier = jsonModel.PainMultiplier;
         EquipmentSlots = jsonModel.Slots ?? new();
 
@@ -96,16 +123,24 @@ public class BodyPartModel
         {
             foreach (var stat in jsonModel.Stats)
             {
-                if (stat.Stat == null) continue;
-                string statName = stat.Stat;
-                JsonNode? atFullJson = JsonNode.Parse(stat.AtFull.GetRawText());
-                JsonNode? atZeroJson = stat.AtZero.HasValue ? JsonNode.Parse(stat.AtZero.Value.GetRawText()) : JsonValue.Create(0f);
-                bool sho = stat.StandaloneHPOnly;
-                StatModifierType op = Enum.TryParse<StatModifierType>(stat.Operation ?? "Flat", true, out var operation) ? operation : StatModifierType.Flat;
+                if (string.IsNullOrWhiteSpace(stat.Stat)) continue;
 
-                if (!Stats.ContainsKey(statName))
-                    Stats[statName] = new List<(JsonNode?, JsonNode?, bool, StatModifierType, bool)>();
-                Stats[statName].Add((atFullJson, atZeroJson, sho, op, true));
+                var cfg = new PartStatModifierConfig
+                {
+                    StatName = stat.Stat!,
+                    AtFullJson = JsonHelpers.ToNode(stat.AtFull),
+                    AtZeroJson = stat.AtZero.HasValue ? JsonHelpers.ToNode(stat.AtZero.Value) : JsonValue.Create(0f),
+                    StandaloneHpOnly = stat.StandaloneHPOnly,
+                    Operation = JsonHelpers.ParseOp(stat.Operation, StatModifierType.Flat),
+                    ApplyToOwner = true
+                };
+
+                if (!Stats.TryGetValue(cfg.StatName, out var list))
+                {
+                    list = new List<PartStatModifierConfig>();
+                    Stats[cfg.StatName] = list;
+                }
+                list.Add(cfg);
             }
         }
 
@@ -113,18 +148,26 @@ public class BodyPartModel
         {
             foreach (var dmg in jsonModel.DamageModifiers)
             {
-                if (dmg.DamageType == null) continue;
+                if (string.IsNullOrWhiteSpace(dmg.DamageType)) continue;
                 if (DamageType.FromName(dmg.DamageType) is not DamageType dt)
                 {
-                    Console.WriteLine("Warning: Invalid damage type: " + dmg.DamageType);
+                    Logger.LogWarning("Invalid damage type: " + dmg.DamageType);
                     continue;
                 }
-                JsonNode? valueJson = JsonNode.Parse(dmg.Value.GetRawText());
-                StatModifierType operation = string.IsNullOrEmpty(dmg.Operation) ? StatModifierType.Percent : Enum.Parse<StatModifierType>(dmg.Operation);
 
-                if (!DamageModifiers.ContainsKey(dt))
-                    DamageModifiers[dt] = new List<(JsonNode?, StatModifierType)>();
-                DamageModifiers[dt].Add((valueJson, operation));
+                var cfg = new DamageModifierConfig
+                {
+                    Type = dt,
+                    ValueJson = JsonHelpers.ToNode(dmg.Value),
+                    Operation = JsonHelpers.ParseOp(dmg.Operation, StatModifierType.Percent)
+                };
+
+                if (!DamageModifiers.TryGetValue(dt, out var list))
+                {
+                    list = new List<DamageModifierConfig>();
+                    DamageModifiers[dt] = list;
+                }
+                list.Add(cfg);
             }
         }
 
@@ -151,7 +194,7 @@ public class BodyPartModel
                 if (skill != null)
                     skills.Add(skill);
                 else
-                    Console.WriteLine("Warning: Invalid skill name in BodyPart JSON: " + skillName);
+                    Logger.LogWarning("Invalid skill name in BodyPart JSON: " + skillName);
             }
             Skills = skills.ToArray();
         }
@@ -163,7 +206,7 @@ public class BodyPartModel
             {
                 var feature = Compendium.GetEntry<Feature>(name);
                 if (feature == null)
-                    Console.WriteLine("Warning: Invalid feature in JSON: " + name);
+                    Logger.LogWarning("Invalid feature in JSON: " + name);
                 else
                     features.Add(feature);
             }
@@ -176,7 +219,7 @@ public class BodyPartModel
             {
                 var feature = Compendium.GetEntry<Feature>(name);
                 if (feature == null)
-                    Console.WriteLine("Warning: Invalid creature feature in JSON: " + name);
+                    Logger.LogWarning("Invalid creature feature in JSON: " + name);
                 else
                     OwnerFeatures.Add(feature);
             }
@@ -186,9 +229,16 @@ public class BodyPartModel
         {
             foreach (var childJson in jsonModel.Children)
             {
-                var childJsonObj = JsonNode.Parse(JsonSerializer.Serialize(childJson)).AsObject()!;
-                var child = new BodyPartModel(childJsonObj);
-                Children.Add(child);
+                var childJsonObj = JsonNode.Parse(JsonSerializer.Serialize(childJson)) as JsonObject;
+                if (childJsonObj != null)
+                {
+                    var child = new BodyPartModel(childJsonObj);
+                    Children.Add(child);
+                }
+                else
+                {
+                    Logger.LogWarning("Invalid child body part JSON structure under " + Name);
+                }
             }
         }
 
@@ -212,35 +262,32 @@ public class BodyPartModel
             .Features(SelfFeatures.ToArray());
 
         foreach (var child in Children)
-        {
             builder.Child(child.Build(body));
-        }
 
         foreach (var statEntry in Stats)
         {
-            foreach (var (atFullJson, atZeroJson, sho, op, applyToOwner) in statEntry.Value)
+            foreach (var cfg in statEntry.Value)
             {
-                float atFull = atFullJson != null ? JsonModel.GetFloat((JsonValue)atFullJson) : 0;
-                float atZero = atZeroJson != null ? JsonModel.GetFloat((JsonValue)atZeroJson) : 0;
-                builder.Stat(statEntry.Key, atFull, atZero, op, sho, applyToOwner);
+                float atFull = cfg.AtFullJson != null ? JsonModel.GetFloat((JsonValue)cfg.AtFullJson) : 0;
+                float atZero = cfg.AtZeroJson != null ? JsonModel.GetFloat((JsonValue)cfg.AtZeroJson) : 0;
+                builder.Stat(cfg.StatName, atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, cfg.ApplyToOwner);
             }
         }
 
         foreach (var dmgEntry in DamageModifiers)
         {
-            foreach (var (valueJson, operation) in dmgEntry.Value)
+            foreach (var cfg in dmgEntry.Value)
             {
-                float value = valueJson != null ? JsonModel.GetFloat((JsonValue)valueJson) : 0;
-                builder.DamageModifier(dmgEntry.Key, value, operation);
+                float value = cfg.ValueJson != null ? JsonModel.GetFloat((JsonValue)cfg.ValueJson) : 0;
+                builder.DamageModifier(cfg.Type, value, cfg.Operation);
             }
         }
 
         var ret = builder.Build();
 
-        // Apply metadata if any
+        // Apply metadata if any (future extension point)
         if (Metadata != null)
         {
-            // Assuming CustomDataFromJson exists, but since it's not shown, perhaps implement or skip
             // ret.CustomDataFromJson(Metadata);
         }
 
@@ -251,10 +298,39 @@ public class BodyPartModel
 
 public class BodyModel
 {
+    // Strongly-typed config to replace the long Stats tuple
+    public sealed class StatConfig
+    {
+        public JsonNode? BaseJson { get; init; }
+        public JsonNode? MaxJson { get; init; }
+        public JsonNode? MinJson { get; init; }
+        public bool OverCap { get; init; } = true;
+        public bool UnderCap { get; init; } = true;
+        public string[] Aliases { get; init; } = Array.Empty<string>();
+        public bool Vital { get; init; }
+        public string? MaxDependencyName { get; init; }
+        public string? MinDependencyName { get; init; }
+        public JsonNode? RegenJson { get; init; }
+        public List<DependencyConfig>? DependsOn { get; init; }
+        public Dictionary<string, float> GroupEffectiveness { get; init; } = new();
+    }
+
+    public sealed class DependencyConfig
+    {
+        public string DepName { get; init; } = string.Empty;
+        public JsonNode? ValJson { get; init; }
+    }
+
+    private static class JsonHelpers
+    {
+        public static JsonNode? ToNode(JsonElement el) => JsonNode.Parse(el.GetRawText());
+        public static JsonNode? ToNodeOrNull(JsonElement? el) => el.HasValue ? JsonNode.Parse(el.Value.GetRawText()) : null;
+    }
+
     public string Name { get; set; } = null!;
     public bool IsHumanoid { get; set; }
     public List<Feature> Features { get; set; } = new();
-    public Dictionary<string, (JsonNode? BaseJson, JsonNode? MaxJson, JsonNode? MinJson, bool OverCap, bool UnderCap, string[] Aliases, bool Vital, string? MaxDependencyName, string? MinDependencyName, JsonNode? RegenJson, List<(string DepName, JsonNode? ValJson)>? DependsOn)> Stats { get; set; } = new();
+    public Dictionary<string, StatConfig> Stats { get; set; } = new();
     public BodyPartModel Root { get; set; } = null!;
 
     public BodyModel(JsonObject json)
@@ -275,7 +351,7 @@ public class BodyModel
             {
                 var feature = Compendium.GetEntry<Feature>(name);
                 if (feature == null)
-                    Console.WriteLine("Warning: Invalid creature feature in JSON: " + name);
+                    Logger.LogWarning("Invalid creature feature in JSON: " + name);
                 else
                     Features.Add(feature);
             }
@@ -285,32 +361,54 @@ public class BodyModel
         {
             foreach (var (statName, statJson) in jsonModel.Stats)
             {
-                JsonNode? baseJson = JsonNode.Parse(statJson.Base.GetRawText());
-                JsonNode? maxJson = statJson.Max.HasValue ? JsonNode.Parse(statJson.Max.Value.GetRawText()) : null;
-                JsonNode? minJson = statJson.Min.HasValue ? JsonNode.Parse(statJson.Min.Value.GetRawText()) : null;
-                bool overCap = statJson.OverCap;
-                bool underCap = statJson.UnderCap;
-                string[] aliases = statJson.Aliases?.ToArray() ?? Array.Empty<string>();
-                bool vital = statJson.Vital;
-                string? maxDependencyName = null;
+                var baseJson = JsonHelpers.ToNode(statJson.Base);
+                var maxJson = JsonHelpers.ToNodeOrNull(statJson.Max);
+                var minJson = JsonHelpers.ToNodeOrNull(statJson.Min);
+                var regenJson = statJson.Regen.HasValue ? JsonHelpers.ToNode(statJson.Regen.Value) : null;
+
+                string? maxDep = null;
                 if (maxJson != null && maxJson.GetValueKind() == JsonValueKind.String)
-                    maxDependencyName = maxJson.GetValue<string>();
-                string? minDependencyName = null;
+                    maxDep = maxJson.GetValue<string>();
+                string? minDep = null;
                 if (minJson != null && minJson.GetValueKind() == JsonValueKind.String)
-                    minDependencyName = minJson.GetValue<string>();
-                JsonNode? regenJson = statJson.Regen.HasValue ? JsonNode.Parse(statJson.Regen.Value.GetRawText()) : null;
-                List<(string DepName, JsonNode? ValJson)>? dependsOn = null;
+                    minDep = minJson.GetValue<string>();
+
+                List<DependencyConfig>? dependsOn = null;
                 if (statJson.DependsOn != null)
                 {
-                    dependsOn = new List<(string, JsonNode?)>();
+                    dependsOn = new List<DependencyConfig>();
                     foreach (var (depName, valElement) in statJson.DependsOn)
                     {
-                        JsonNode? valJson = JsonNode.Parse(valElement.GetRawText());
-                        dependsOn.Add((depName, valJson));
+                        dependsOn.Add(new DependencyConfig
+                        {
+                            DepName = depName,
+                            ValJson = JsonHelpers.ToNode(valElement)
+                        });
                     }
                 }
 
-                Stats[statName] = (baseJson, maxJson, minJson, overCap, underCap, aliases, vital, maxDependencyName, minDependencyName, regenJson, dependsOn);
+                var groupEffectiveness = new Dictionary<string, float>();
+                if (statJson.GroupEffectiveness != null)
+                {
+                    foreach (var (group, value) in statJson.GroupEffectiveness)
+                        groupEffectiveness[group] = value;
+                }
+
+                Stats[statName] = new StatConfig
+                {
+                    BaseJson = baseJson,
+                    MaxJson = maxJson,
+                    MinJson = minJson,
+                    OverCap = statJson.OverCap,
+                    UnderCap = statJson.UnderCap,
+                    Aliases = statJson.Aliases?.ToArray() ?? Array.Empty<string>(),
+                    Vital = statJson.Vital,
+                    MaxDependencyName = maxDep,
+                    MinDependencyName = minDep,
+                    RegenJson = regenJson,
+                    DependsOn = dependsOn,
+                    GroupEffectiveness = groupEffectiveness
+                };
             }
         }
     }
@@ -320,61 +418,69 @@ public class BodyModel
         BodyPart rootPart = Root.Build();
         var body = new Body(Name, rootPart, IsHumanoid);
         foreach (var feature in Features)
-        {
             body.features.Add(feature);
-        }
-        foreach (var statEntry in Stats)
+
+        foreach (var (statName, cfg) in Stats)
         {
-            var (baseJson, maxJson, minJson, overCap, underCap, aliases, vital, maxDependencyName, minDependencyName, regenJson, dependsOn) = statEntry.Value;
-            float baseVal = baseJson != null ? JsonModel.GetFloat((JsonValue)baseJson) : 0;
+            float baseVal = cfg.BaseJson != null ? JsonModel.GetFloat((JsonValue)cfg.BaseJson) : 0;
             float maxVal = float.MaxValue;
-            if (maxJson?.GetValueKind() == JsonValueKind.Number)
-                maxVal = JsonModel.GetFloat((JsonValue)maxJson);
+            if (cfg.MaxJson?.GetValueKind() == JsonValueKind.Number)
+                maxVal = JsonModel.GetFloat((JsonValue)cfg.MaxJson);
             float minVal = 0;
-            if (minJson?.GetValueKind() == JsonValueKind.Number)
-                minVal = JsonModel.GetFloat((JsonValue)minJson);
-            var stat = new Stat(statEntry.Key, baseVal, maxVal, minVal, overCap, underCap)
+            if (cfg.MinJson?.GetValueKind() == JsonValueKind.Number)
+                minVal = JsonModel.GetFloat((JsonValue)cfg.MinJson);
+
+            var stat = new Stat(statName, baseVal, maxVal, minVal, cfg.OverCap, cfg.UnderCap)
             {
-                Aliases = aliases
+                Aliases = cfg.Aliases
             };
-            var entry = new Body.StatEntry(stat);
-            if (vital)
-                entry.Vital = true;
-            if (maxDependencyName != null)
-                entry.MaxDependencyName = maxDependencyName;
-            if (minDependencyName != null)
+            var entry = new Body.StatEntry(stat)
             {
-                // represent min dependency as a dependency that applies a Capmin modifier
-                entry.Dependencies = new StatDependency[] { (statEntry.Key + "_min_dep", new Either<string, float>(minDependencyName), (Func<float, float, (float, StatModifierType)>?)((x, _) => (x, StatModifierType.Capmin))) };
+                Vital = cfg.Vital,
+                MaxDependencyName = cfg.MaxDependencyName
+            };
+
+            if (cfg.MinDependencyName != null)
+            {
+                // Represent min dependency as a dependency that applies a Capmin modifier
+                entry.Dependencies = new StatDependency[]
+                {
+                    (statName + "_min_dep", new Either<string, float>(cfg.MinDependencyName), (x, _) => (x, StatModifierType.Capmin))
+                };
             }
-            if (regenJson != null)
+
+            if (cfg.RegenJson != null)
             {
-                if (regenJson.GetValueKind() == JsonValueKind.String)
-                    entry.Regen = regenJson.GetValue<string>();
-                else if (regenJson.GetValueKind() == JsonValueKind.Number)
-                    entry.Regen = JsonModel.GetFloat((JsonValue)regenJson);
+                if (cfg.RegenJson.GetValueKind() == JsonValueKind.String)
+                    entry.Regen = cfg.RegenJson.GetValue<string>();
+                else if (cfg.RegenJson.GetValueKind() == JsonValueKind.Number)
+                    entry.Regen = JsonModel.GetFloat((JsonValue)cfg.RegenJson);
                 else
-                    Console.WriteLine("Warning: Invalid regen value for stat " + statEntry.Key);
+                    Logger.LogWarning("Invalid regen value for stat " + statName);
             }
-            if (dependsOn != null)
+
+            if (cfg.DependsOn != null)
             {
                 var deps = new List<StatDependency>();
-                foreach (var (depName, valJson) in dependsOn)
+                foreach (var dep in cfg.DependsOn)
                 {
                     Either<string, float> val;
-                    if (valJson?.GetValueKind() == JsonValueKind.Number)
-                        val = new Either<string, float>(JsonModel.GetFloat((JsonValue)valJson));
+                    if (dep.ValJson?.GetValueKind() == JsonValueKind.Number)
+                        val = new Either<string, float>(JsonModel.GetFloat((JsonValue)dep.ValJson));
                     else
-                        val = new Either<string, float>(valJson!.GetValue<string>());
+                        val = new Either<string, float>(dep.ValJson!.GetValue<string>());
+
                     if (SidedLogic.Instance.IsClient() || val.IsRight)
-                        deps.Add((depName, val, null));
+                        deps.Add((dep.DepName, val, null));
                     else
-                        deps.Add((depName, val, Body.Compile(val.Left)));
+                        deps.Add((dep.DepName, val, Body.Compile(val.Left)));
                 }
                 if (deps.Count > 0)
                     entry.Dependencies = deps.ToArray();
             }
-            body.stats[statEntry.Key] = entry;
+
+            entry.GroupEffectiveness = cfg.GroupEffectiveness;
+            body.stats[statName] = entry;
         }
 
         foreach (var deps in body.stats.Where(kv => kv.Value.Dependencies != null))
@@ -382,9 +488,7 @@ public class BodyModel
             foreach (var dep in deps.Value.Dependencies!)
             {
                 if (!body.stats.ContainsKey(dep.stat))
-                {
-                    Console.WriteLine($"Warning: stat {deps.Key} depends on stat {dep.stat} but it wasn't defined in this body!");
-                }
+                    Logger.LogWarning($"Stat {deps.Key} depends on stat {dep.stat} but it wasn't defined in this body!");
             }
         }
 

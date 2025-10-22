@@ -43,6 +43,7 @@ public class Body : ISerializable
         // if non-null, this stat's MaxValue should follow the named stat's FinalValue
         public string? MaxDependencyName;
         public bool Vital = false;
+        public Dictionary<string, float> GroupEffectiveness = new();
 
         public StatEntry(Stat def)
         {
@@ -479,16 +480,19 @@ public class Body : ISerializable
         return Array.Empty<BodyPart>();
     }
 
-    public float GetStatByGroup(string group, string stat, float baseValue = 0, bool onlySelfStats = false)
+    public float GetStatByGroup(string group, string stat, float? baseValue = null, bool onlySelfStats = false)
     {
+        var baseVal = baseValue ?? Owner?.GetStat(stat)?.BaseValue ?? 0;
         List<StatModifier> statMods = new();
+        if (stats.TryGetValue(stat, out StatEntry? statEntry) && statEntry.GroupEffectiveness.TryGetValue(group, out float effectiveness))
+            baseVal *= effectiveness;
         foreach (BodyPart part in GetPartsOnGroup(group))
         {
             if (!part.Stats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
                 continue;
             statMods.AddRange(partStat.Where(mod => !onlySelfStats || !mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
         }
-        return Stat.ApplyModifiers(statMods, baseValue);
+        return Stat.ApplyModifiers(statMods, baseVal);
     }
 
     public IEnumerable<EquipmentProperty> GetCoveringEquipment(BodyPart bp)
