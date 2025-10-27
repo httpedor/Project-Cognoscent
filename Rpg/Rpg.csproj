@@ -9,4 +9,19 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.14.0" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.3" />
   </ItemGroup>
+  <PropertyGroup>
+    <!-- Allow disabling via /p:GenerateTsPackets=false to avoid recursion in child builds -->
+    <GenerateTsPackets Condition="'$(GenerateTsPackets)' == ''">true</GenerateTsPackets>
+  </PropertyGroup>
+
+  <Target Name="GenerateTsPackets" AfterTargets="Build" Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true'">
+    <PropertyGroup>
+      <PacketTsGenDll>$(MSBuildProjectDirectory)\..\Tools\PacketTsGen\bin\$(Configuration)\net9.0\PacketTsGen.dll</PacketTsGenDll>
+      <TsOutPath>$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts</TsOutPath>
+    </PropertyGroup>
+    <Message Text="[Rpg] Generating TypeScript packets to $(TsOutPath) ..." Importance="High" />
+    <!-- Ensure generator is built if missing -->
+    <Exec Condition="!Exists('$(PacketTsGenDll)')" Command='dotnet build "$(MSBuildProjectDirectory)\..\Tools\PacketTsGen\PacketTsGen.csproj" -c $(Configuration)' />
+    <Exec Condition="Exists('$(PacketTsGenDll)')" Command='dotnet "$(PacketTsGenDll)" "$(TargetPath)" "$(TsOutPath)"' />
+  </Target>
 </Project>

@@ -1557,11 +1557,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
+      "projectUniqueName": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
       "projectName": "Server",
-      "projectPath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
+      "projectPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\Server.csproj",
       "packagesPath": "C:\\Users\\pedro.alvares\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\obj\\",
+      "outputPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Server\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\pedro.alvares\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1576,8 +1576,8 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj": {
-              "projectPath": "C:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj"
+            "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj": {
+              "projectPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj"
             }
           }
         }

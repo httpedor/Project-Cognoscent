@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj": {}
+    "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj": {}
   },
   "projects": {
-    "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj": {
+    "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj",
-        "projectName": "Rpg",
-        "projectPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj",
+        "projectUniqueName": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj",
+        "projectName": "PacketTsGen",
+        "projectPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj",
         "packagesPath": "C:\\Users\\pedro.alvares\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\obj\\",
+        "outputPath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\pedro.alvares\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -43,16 +43,6 @@
       "frameworks": {
         "net9.0": {
           "targetAlias": "net9.0",
-          "dependencies": {
-            "Microsoft.CodeAnalysis.CSharp.Scripting": {
-              "target": "Package",
-              "version": "[4.14.0, )"
-            },
-            "System.Drawing.Common": {
-              "target": "Package",
-              "version": "[8.0.3, )"
-            }
-          },
           "imports": [
             "net461",
             "net462",
@@ -67,6 +57,10 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.9, 9.0.9]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
               "version": "[9.0.9, 9.0.9]"
             },
             {

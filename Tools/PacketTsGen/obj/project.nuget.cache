@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "ACMU3Qz+psc=",
+  "success": true,
+  "projectFilePath": "c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.netcore.app.ref\\9.0.9\\microsoft.netcore.app.ref.9.0.9.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\9.0.9\\microsoft.windowsdesktop.app.ref.9.0.9.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\9.0.9\\microsoft.aspnetcore.app.ref.9.0.9.nupkg.sha512",
+    "C:\\Users\\pedro.alvares\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\9.0.9\\microsoft.netcore.app.host.win-x64.9.0.9.nupkg.sha512"
+  ],
+  "logs": []
+}

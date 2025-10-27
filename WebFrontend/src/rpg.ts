@@ -64,3 +64,12 @@ export interface Board {
   currentTick: number
   turnMode: boolean
 }
+
+export interface EntityRef {
+  board: string
+  id: number
+}
+export interface CreatureRef {
+  board: string
+  id: string
+}
