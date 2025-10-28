@@ -11,10 +11,14 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
-/Rpg/obj
-/Rpg/bin
-/.idea
-/Server/obj
-/Server/bin
-/Client/obj
-/Client/bin
+/.idea/
+/Rpg/obj/
+/Rpg/bin/
+/Server/obj/
+/Server/bin/
+/Client/obj/
+/Client/bin/
+/TraitGenerator/obj/
+/TraitGenerator/bin/
+/TraitGenerator/TraitGenerator/obj/
+/TraitGenerator/TraitGenerator/bin/
