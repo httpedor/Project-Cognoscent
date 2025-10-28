@@ -99,6 +99,9 @@ public class DynamicTraitGenerator : ISourceGenerator
                     continue;
                 }
 
+                // Avoid applying a mixin to itself (prevents self-recursive constructor and stack overflow)
+                concreteTargets = concreteTargets.Where(c => !SymbolEqualityComparer.Default.Equals(c, typeSymbol));
+
                 foreach (var target in concreteTargets)
                 {
                     // Skip if target is from metadata (not declared in this compilation)
@@ -196,6 +199,119 @@ public class DynamicTraitGenerator : ISourceGenerator
                     if (getter != null) sb.Append(getter + " ");
                     if (setter != null) sb.Append(setter + " ");
                     sb.AppendLine("}");
+                    sb.AppendLine();
+                }
+
+                // Delegate instance, non-static, accessible ordinary methods
+                foreach (var method in mixin.GetMembers().OfType<IMethodSymbol>())
+                {
+                    if (method.IsStatic) continue;
+                    if (method.MethodKind != MethodKind.Ordinary) continue; // skip constructors/accessors/operators/etc.
+
+                    // Only delegate public/internal to avoid accessibility issues
+                    if (!(method.DeclaredAccessibility == Accessibility.Public || method.DeclaredAccessibility == Accessibility.Internal))
+                        continue;
+
+                    // Build a signature collision check against the target
+                    bool SignatureCollidesWithTarget()
+                    {
+                        foreach (var existing in target.GetMembers(method.Name).OfType<IMethodSymbol>())
+                        {
+                            if (existing.MethodKind != MethodKind.Ordinary) continue;
+                            if (existing.TypeParameters.Length != method.TypeParameters.Length) continue;
+                            if (existing.Parameters.Length != method.Parameters.Length) continue;
+
+                            bool allParamsMatch = true;
+                            for (int i = 0; i < method.Parameters.Length; i++)
+                            {
+                                var mP = method.Parameters[i];
+                                var eP = existing.Parameters[i];
+                                if (mP.RefKind != eP.RefKind) { allParamsMatch = false; break; }
+                                if (!SymbolEqualityComparer.Default.Equals(mP.Type, eP.Type)) { allParamsMatch = false; break; }
+                            }
+                            if (!allParamsMatch) continue;
+
+                            // Return type does not participate in overload resolution, but a same-signature method would collide
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    if (SignatureCollidesWithTarget())
+                        continue;
+
+                    var accessibility = AccessibilityToString(method.DeclaredAccessibility);
+                    var retType = method.ReturnsVoid
+                        ? "void"
+                        : method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
+                    // Type parameters (for generic methods)
+                    string MethodTypeParams()
+                    {
+                        if (method.TypeParameters.Length == 0) return string.Empty;
+                        var names = string.Join(", ", method.TypeParameters.Select(tp => tp.Name));
+                        return $"<{names}>";
+                    }
+
+                    // Constraints (where clauses)
+                    string MethodConstraints()
+                    {
+                        if (method.TypeParameters.Length == 0) return string.Empty;
+                        var pieces = new List<string>();
+                        foreach (var tp in method.TypeParameters)
+                        {
+                            var constraints = new List<string>();
+                            if (tp.HasReferenceTypeConstraint) constraints.Add("class");
+                            if (tp.HasValueTypeConstraint) constraints.Add("struct");
+                            constraints.AddRange(tp.ConstraintTypes.Select(c => c.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                            if (tp.HasConstructorConstraint) constraints.Add("new()");
+                            if (constraints.Count > 0)
+                                pieces.Add($" where {tp.Name} : {string.Join(", ", constraints)}");
+                        }
+                        return string.Concat(pieces);
+                    }
+
+                    string ParamDecl(IParameterSymbol p)
+                    {
+                        var mod = p.RefKind switch
+                        {
+                            RefKind.Ref => "ref ",
+                            RefKind.Out => "out ",
+                            RefKind.In => "in ",
+                            _ => string.Empty
+                        };
+                        var type = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                        return $"{mod}{type} {p.Name}";
+                    }
+
+                    string ArgPass(IParameterSymbol p)
+                    {
+                        var mod = p.RefKind switch
+                        {
+                            RefKind.Ref => "ref ",
+                            RefKind.Out => "out ",
+                            RefKind.In => "in ",
+                            _ => string.Empty
+                        };
+                        return $"{mod}{p.Name}";
+                    }
+
+                    var paramDecls = string.Join(", ", method.Parameters.Select(ParamDecl));
+                    var argPasses = string.Join(", ", method.Parameters.Select(ArgPass));
+                    var typeParams = MethodTypeParams();
+                    var constraints = MethodConstraints();
+
+                    sb.AppendLine($"    {accessibility} {retType} {method.Name}{typeParams}({paramDecls}){constraints}");
+                    sb.AppendLine("    {");
+                    if (method.ReturnsVoid)
+                    {
+                        sb.AppendLine($"        {mixinFieldName}.{method.Name}{typeParams}({argPasses});");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"        return {mixinFieldName}.{method.Name}{typeParams}({argPasses});");
+                    }
+                    sb.AppendLine("    }");
                     sb.AppendLine();
                 }
             }

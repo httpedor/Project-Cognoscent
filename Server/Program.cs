@@ -4,8 +4,7 @@ using Server;
 using Server.AI;
 using Server.Game;
 using Server.TUI;
-using System.Threading;
-using Rpg;
+
 #if ENABLE_WEB
 using Server.Web;
 #endif
@@ -57,4 +56,3 @@ finally
     catch { }
 #endif
 }
-

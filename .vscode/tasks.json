@@ -14,6 +14,20 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
+			"label": "build (skip tsgen)",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/TTRpgClient.sln",
+				"/p:GenerateTsPackets=false",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary;ForceNoAlign"
+			],
+			"problemMatcher": "$msCompile",
+			"group": "build"
+		},
+		{
 			"label": "watch",
 			"command": "dotnet",
 			"type": "process",

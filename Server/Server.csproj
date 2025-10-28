@@ -11,10 +11,7 @@
     <PackageReference Include="ConsoleRenderer" Version="0.7.1" />
   </ItemGroup>
   <ItemGroup>
-    <_ContentIncludedByDefault Remove="Web\Shared\MainLayout.razor" />
-    <_ContentIncludedByDefault Remove="Web\Pages\App.razor" />
-    <_ContentIncludedByDefault Remove="Web\Pages\Creatures.razor" />
-    <_ContentIncludedByDefault Remove="Web\Pages\Index.razor" />
+    <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>

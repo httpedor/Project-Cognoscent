@@ -10,23 +10,28 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.3" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" 
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"/>
+    <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <PropertyGroup>
     <!-- Allow disabling via /p:GenerateTsPackets=false to avoid recursion in child builds -->
     <GenerateTsPackets Condition="'$(GenerateTsPackets)' == ''">true</GenerateTsPackets>
   </PropertyGroup>
-
-  <Target Name="GenerateTsPackets" AfterTargets="Build" Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true'">
+  <!-- Generate TS only when the output is missing or older than the RPG assembly -->
+  <Target Name="GenerateTsPackets" AfterTargets="Build"
+          Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true'"
+          Inputs="$(TargetPath)"
+          Outputs="$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts">
     <PropertyGroup>
-      <PacketTsGenDll>$(MSBuildProjectDirectory)\..\Tools\PacketTsGen\bin\$(Configuration)\net9.0\PacketTsGen.dll</PacketTsGenDll>
+      <DotNetExe>$(DotNetHostPath)</DotNetExe>
+      <DotNetExe Condition="'$(DotNetExe)' == ''">dotnet</DotNetExe>
+      <PacketTsGenProj>$(MSBuildProjectDirectory)\..\Tools\PacketTsGen\PacketTsGen.csproj</PacketTsGenProj>
       <TsOutPath>$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts</TsOutPath>
+      <RpgDll>$(TargetPath)</RpgDll>
     </PropertyGroup>
     <Message Text="[Rpg] Generating TypeScript packets to $(TsOutPath) ..." Importance="High" />
-    <!-- Ensure generator is built if missing -->
-    <Exec Condition="!Exists('$(PacketTsGenDll)')" Command='dotnet build "$(MSBuildProjectDirectory)\..\Tools\PacketTsGen\PacketTsGen.csproj" -c $(Configuration)' />
-    <Exec Condition="Exists('$(PacketTsGenDll)')" Command='dotnet "$(PacketTsGenDll)" "$(TargetPath)" "$(TsOutPath)"' />
+    <!-- Build the generator for the current configuration to ensure availability -->
+    <Exec Command="&quot;$(DotNetExe)&quot; build &quot;$(PacketTsGenProj)&quot; -c $(Configuration)" />
+    <!-- Run via dotnet run to avoid path/quoting/env issues -->
+    <Exec Command="&quot;$(DotNetExe)&quot; run --no-build --project &quot;$(PacketTsGenProj)&quot; -c $(Configuration) -- &quot;$(RpgDll)&quot; &quot;$(TsOutPath)&quot;" />
   </Target>
 </Project>
