@@ -12,7 +12,7 @@ internal sealed class TuiLogger : ILogger
         _category = category;
     }
 
-    public IDisposable? BeginScope<TState>(TState state) => null;
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
 

@@ -153,7 +153,7 @@ public class ServerBoard : Board, ISerializable
                 };
 
                 child.OnChildRemoved += grandChild => {
-                    Network.Manager.SendToBoard(new EntityBodyPartPacket(grandChild.Owner, grandChild.Path), Name);
+                    Network.Manager.SendToBoard(new EntityBodyPartPacket(creature, child.Path + "/" + grandChild.Name), Name);
                     grandChild.ClearEvents();
                 };
 

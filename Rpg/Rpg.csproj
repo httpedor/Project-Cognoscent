@@ -17,10 +17,7 @@
     <GenerateTsPackets Condition="'$(GenerateTsPackets)' == ''">true</GenerateTsPackets>
   </PropertyGroup>
   <!-- Generate TS only when the output is missing or older than the RPG assembly -->
-  <Target Name="GenerateTsPackets" AfterTargets="Build"
-          Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true'"
-          Inputs="$(TargetPath)"
-          Outputs="$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts">
+  <Target Name="GenerateTsPackets" AfterTargets="Build" Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true'" Inputs="$(TargetPath)" Outputs="$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts">
     <PropertyGroup>
       <DotNetExe>$(DotNetHostPath)</DotNetExe>
       <DotNetExe Condition="'$(DotNetExe)' == ''">dotnet</DotNetExe>
@@ -30,8 +27,8 @@
     </PropertyGroup>
     <Message Text="[Rpg] Generating TypeScript packets to $(TsOutPath) ..." Importance="High" />
     <!-- Build the generator for the current configuration to ensure availability -->
-    <Exec Command="&quot;$(DotNetExe)&quot; build &quot;$(PacketTsGenProj)&quot; -c $(Configuration)" />
+    <Exec Command="&amp;quot;$(DotNetExe)&amp;quot; build &amp;quot;$(PacketTsGenProj)&amp;quot; -c $(Configuration)" />
     <!-- Run via dotnet run to avoid path/quoting/env issues -->
-    <Exec Command="&quot;$(DotNetExe)&quot; run --no-build --project &quot;$(PacketTsGenProj)&quot; -c $(Configuration) -- &quot;$(RpgDll)&quot; &quot;$(TsOutPath)&quot;" />
+    <Exec Command="&amp;quot;$(DotNetExe)&amp;quot; run --no-build --project &amp;quot;$(PacketTsGenProj)&amp;quot; -c $(Configuration) -- &amp;quot;$(RpgDll)&amp;quot; &amp;quot;$(TsOutPath)&amp;quot;" />
   </Target>
 </Project>

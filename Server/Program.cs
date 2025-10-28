@@ -1,7 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using Server;
-using Server.AI;
 using Server.Game;
 using Server.TUI;
 
@@ -13,7 +12,6 @@ TUI.Init();
 ServerSidedLogic.Init();
 Game.Init();
 Command.Init();
-AI.Init();
 
 // Start web host (conditional)
 using var cts = new CancellationTokenSource();

@@ -60,7 +60,7 @@ public abstract class AttackSkill : Skill
 
         var dmgInfo = GetDamage(executor, arguments, source, target);
         var damageSource = new DamageSource(dmgInfo.type, executor, this, arguments.ToArray());
-        if (target is IFeatureSource fs)
+        if (target is IFeatureContainer fs)
         {
             foreach (Feature feature in fs.EnabledFeatures)
             {
@@ -83,7 +83,7 @@ public abstract class AttackSkill : Skill
         string formula = dmg.ToString("0.##");
         if (dmgInfo.formula != null)
             formula += " (" + dmgInfo.formula + ")";
-        if (target is IFeatureSource fs2)
+        if (target is IFeatureContainer fs2)
         {
             foreach (Feature feature in fs2.EnabledFeatures)
             {
@@ -104,7 +104,7 @@ public abstract class AttackSkill : Skill
             executor.Log($"{executor.BBLink} {acertouHint} {BBHint} no(a) {target.BBLink} com [hint={formula}]{dmg}[/hint] de dano {dmgInfo.type.BBHint}");
         }
         
-        if (target is IFeatureSource f2)
+        if (target is IFeatureContainer f2)
         {
             foreach (Feature feature in f2.EnabledFeatures)
             {

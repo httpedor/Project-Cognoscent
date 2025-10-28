@@ -189,7 +189,15 @@ public abstract class Feature : ISerializable
         return GetName().ToLower();
     }
 
-    public virtual void Enable(IFeatureSource source)
+    public virtual void OnAdded(IFeatureContainer source)
+    {
+    }
+
+    public virtual void OnRemoved(IFeatureContainer source)
+    {
+    }
+
+    public virtual void OnEnable(IFeatureContainer source)
     {
         if (source is not Entity entity) return;
         
@@ -204,7 +212,7 @@ public abstract class Feature : ISerializable
             }
         }
     }
-    public virtual void Disable(IFeatureSource source)
+    public virtual void OnDisable(IFeatureContainer source)
     {
         if (source is not Entity entity) return;
         
@@ -220,7 +228,7 @@ public abstract class Feature : ISerializable
         }
     }
 
-    public virtual void OnTick(IFeatureSource source)
+    public virtual void OnTick(IFeatureContainer source)
     {
         
     }
@@ -237,7 +245,7 @@ public abstract class Feature : ISerializable
         return (true, null);
     }
 
-    public virtual (bool, string?) DoesAttack(IFeatureSource source, IDamageable attacked, DamageSource damage, bool hit)
+    public virtual (bool, string?) DoesAttack(IFeatureContainer source, IDamageable attacked, DamageSource damage, bool hit)
     {
         return (true, null);
     }

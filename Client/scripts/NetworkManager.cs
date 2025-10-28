@@ -17,8 +17,9 @@ namespace TTRpgClient.scripts;
 [GlobalClass]
 public partial class NetworkManager : Node
 {
-	private static NetworkManager instance;
-	public static NetworkManager Instance => instance;
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    private static NetworkManager instance;
+    public static NetworkManager Instance => instance;
 
 	public NetworkManager(){
 		instance = this;
@@ -84,8 +85,12 @@ public partial class NetworkManager : Node
 	}
 
 	public void SendPacket(Packet packet){
+		if (stream == null)
+        {
+			GD.PrintErr("Cannot send packet before connection is established.");
+			return;
+        }
 		byte[] packetBuffer = Packet.PreProcessPacket(packet);
-
 		Error err = stream.PutData(packetBuffer);
 		if (err != Error.Ok)
 			GD.PrintErr(err);
@@ -115,7 +120,11 @@ public partial class NetworkManager : Node
 			{
                 var boardState = (BoardAddPacket)packet;
                 var board = boardState.Board as ClientBoard;
-                GD.Print("Received board with name " + board.Name + ", " + board.GetFloorCount() + " floors, " + board.GetEntities().Count + " entities");
+				if (board == null)
+				{
+					GD.PrintErr("Received board add packet with invalid board");
+					break;
+				}
 				GameManager.Instance.AddBoard(board);
 				break;
 			}
@@ -135,13 +144,13 @@ public partial class NetworkManager : Node
 					break;
 				}
 				ClientFloor floor = board.GetFloor(fip.FloorIndex);
-				floor.SetMidia(fip.Data);
+				floor?.SetMidia(fip.Data);
 				break;
 			}
 			case ProtocolId.DOOR_UPDATE:
 			{
 				var dup = (DoorUpdatePacket)packet;
-				dup.@ref.Door.CopyFrom(dup.Door);
+				dup.@ref.Door?.CopyFrom(dup.Door);
 				break;
 			}
 			case ProtocolId.ENTITY_CREATE:
@@ -171,7 +180,7 @@ public partial class NetworkManager : Node
 				EntityRef entRef = edp.Ref;
 				ClientBoard? board = GameManager.Instance.GetBoard(entRef.Board);
 				Entity? entity = board?.GetEntityById(entRef.Id);
-				if (entity == null)
+				if (entity == null || board == null)
 					break;
 				board.RemoveEntity(entity);
 				break;
@@ -294,7 +303,7 @@ public partial class NetworkManager : Node
 			case ProtocolId.FEATURE_UPDATE:
 			{
 				var efu = (FeatureUpdatePacket)packet;
-				IFeatureSource? source = efu.SourceRef.FeatureSource;
+				IFeatureContainer? source = efu.SourceRef.FeatureSource;
 				if (source == null)
 					break;
 
@@ -407,7 +416,7 @@ public partial class NetworkManager : Node
                     Compendium.RemoveEntry(type, name);
                 else
                 {
-	                Compendium.RegisterEntry(type, name, data);
+					Compendium.RegisterEntry(type, name, data!);
 	                GD.Print("Registered " + type + "/" + name);
                 }
                 

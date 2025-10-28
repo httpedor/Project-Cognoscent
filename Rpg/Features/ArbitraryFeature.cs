@@ -10,7 +10,7 @@ public class ArbitraryFeature : Feature
 
     public class Context
     {
-        public IFeatureSource source;
+        public IFeatureContainer source;
         public IDamageable? injured;
         public Creature? creature;
         public DamageSource? damage;
@@ -92,20 +92,20 @@ public class ArbitraryFeature : Feature
     public override string GetDescription() => description;
     public override bool IsToggleable(Entity entity) => toggleable;
 
-    public override void OnTick(IFeatureSource source)
+    public override void OnTick(IFeatureContainer source)
     {
         onTick?.Invoke(new Context { source = source });
     }
 
-    public override void Enable(IFeatureSource source)
+    public override void OnEnable(IFeatureContainer source)
     {
-        base.Enable(source);
+        base.OnEnable(source);
         onEnable?.Invoke(new Context { source = source });
     }
 
-    public override void Disable(IFeatureSource source)
+    public override void OnDisable(IFeatureContainer source)
     {
-        base.Disable(source);
+        base.OnDisable(source);
         onDisable?.Invoke(new Context { source = source });
     }
 
@@ -113,12 +113,12 @@ public class ArbitraryFeature : Feature
     {
         if (doesGetAttacked != null)
         {
-            return doesGetAttacked(new Context { source = attacked as IFeatureSource, damage = damage, hit = hit });
+            return doesGetAttacked(new Context { source = attacked as IFeatureContainer, damage = damage, hit = hit });
         }
         return base.DoesGetAttacked(attacked, damage, hit);
     }
 
-    public override (bool, string?) DoesAttack(IFeatureSource source, IDamageable attacked, DamageSource damage, bool hit)
+    public override (bool, string?) DoesAttack(IFeatureContainer source, IDamageable attacked, DamageSource damage, bool hit)
     {
         if (doesAttack != null)
         {
@@ -138,7 +138,7 @@ public class ArbitraryFeature : Feature
 
     public override void OnAttacked(IDamageable attacked, DamageSource damage, double amount, bool hit)
     {
-        onAttacked?.Invoke(new Context { source = attacked as IFeatureSource, injured = ((BodyPartSkillArgument?)damage.Arguments?.Find(a => a is BodyPartSkillArgument))?.Part, damage = damage, amount = amount, hit = hit });
+        onAttacked?.Invoke(new Context { source = attacked as IFeatureContainer, injured = ((BodyPartSkillArgument?)damage.Arguments?.Find(a => a is BodyPartSkillArgument))?.Part, damage = damage, amount = amount, hit = hit });
     }
 
     public override void OnAttack(Creature attacker, IDamageable target, DamageSource damage, double amount, bool hit)
@@ -166,7 +166,7 @@ public class ArbitraryFeature : Feature
     {
         if (modifyReceivingDamage != null)
         {
-            return (modifyReceivingDamage(new Context { source = (attacked as IFeatureSource)!, damage = source, amount = damage }), GetName());
+            return (modifyReceivingDamage(new Context { source = (attacked as IFeatureContainer)!, damage = source, amount = damage }), GetName());
         }
         return base.ModifyReceivingDamage(attacked, source, damage);
     }

@@ -120,10 +120,8 @@ public static class Compendium
 
     public static void RegisterDefaults()
     {
-        RegisterFolder<Skill>("Skills", 
-            (id, json) => Skills.Exists(id) ? Skills.Get(id) : Skill.FromJson(id, json));
-        RegisterFolder<Feature>("Features",
-            (name, json) => Features.Exists(name) ? Features.Get(name) : Feature.FromJson(name, json));
+        RegisterFolder<Skill>("Skills", Skill.FromJson);
+        RegisterFolder<Feature>("Features", Feature.FromJson);
         RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json));
         RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
         RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
@@ -140,6 +138,12 @@ public static class Compendium
             return ret;
         });
         RegisterFolder<string>("Notes", (_, json) => json["text"]?.GetValue<string>() ?? "");
+
+        foreach (Feature feat in Features.All)
+            Compendium.RegisterHardEntry<Feature>(feat.GetId(), feat);
+
+        foreach (var skillInfo in Skills.All)
+            Compendium.RegisterHardEntry<Skill>(skillInfo.id, skillInfo.skill);
     }
     
     public static IEnumerable<(string fName, JsonObject obj)> GetFiles(string folder)
@@ -216,53 +220,55 @@ public static class Compendium
         OnFolderRegistered?.Invoke(folder);
     }
 
+    public static object? RegisterHardEntry(string folder, string name, object? data)
+    {
+        CompendiumEntry entry = new() { Loaded = data };
+        folders[folder].Entries[name] = entry;
+        return data;
+    }
+
+    public static T? RegisterHardEntry<T>(string name, T? data) where T : class
+    {
+        return RegisterHardEntry(GetFolderName<T>(), name, data) as T;
+    }
+
     public static object? RegisterEntry(string folder, string name, JsonObject data)
     {
-        if (data == null)
+        CompendiumEntry entry = new() { Data = data };
+        if (data["_note"] is JsonValue noteVal && noteVal.GetValueKind() == JsonValueKind.String)
+            entry.Note = noteVal.GetValue<string>();
+        folders[folder].Entries[name] = entry;
+        OnEntryRegistered?.Invoke(folder, name, data);
+        if (folders[folder].Builder is { } builder)
         {
-            if (folders[folder].Builder is not { } builder) return null;
-            object? ret = builder(name, data);
-            folders[folder].Entries[name] = new CompendiumEntry { Data = null, Loaded = ret };
-            return ret;
-        }
-        else
-        {
-            CompendiumEntry entry = new() { Data = data };
-            if (data["_note"] is JsonValue noteVal && noteVal.GetValueKind() == JsonValueKind.String)
-                entry.Note = noteVal.GetValue<string>();
-            folders[folder].Entries[name] = entry;
-            OnEntryRegistered?.Invoke(folder, name, data);
-            if (folders[folder].Builder is { } builder)
+            try
             {
-                try
+                object? ret = builder(name, data);
+                if (ret != null && ret.GetType().IsAssignableTo(folders[folder].Type))
                 {
-                    object? ret = builder(name, data);
-                    if (ret != null && ret.GetType().IsAssignableTo(folders[folder].Type))
-                    {
-                        entry.Loaded = ret;
-                        return ret;
-                    }
-                    else
-                    {
-                        if (ret != null)
-                            Logger.LogError("Data type mismatch: " + folder + "/" + name + " is not of type " + folders[folder].Type);
-                        else
-                            Logger.LogError("Failed to build entry: " + folder + "/" + name);
-                    }
+                    entry.Loaded = ret;
+                    return ret;
                 }
-                catch (Exception e)
+                else
                 {
-
-                    Logger.LogError("Exception occurred while building entry: " + folder + "/" + name);
-                    Logger.LogError(e.Message);
-                    // ignored
+                    if (ret != null)
+                        Logger.LogError("Data type mismatch: " + folder + "/" + name + " is not of type " + folders[folder].Type);
+                    else
+                        Logger.LogError("Failed to build entry: " + folder + "/" + name);
                 }
             }
+            catch (Exception e)
+            {
 
-            Logger.LogError("Failed to load data: " + folder + "/" + name);
-            folders[folder].Entries.Remove(name);
-            return null;
+                Logger.LogError("Exception occurred while building entry: " + folder + "/" + name);
+                Logger.LogError(e.Message);
+                // ignored
+            }
         }
+
+        Logger.LogError("Failed to load data: " + folder + "/" + name);
+        folders[folder].Entries.Remove(name);
+        return null;
     }
     public static T? RegisterEntry<T>(string name, JsonObject data) where T : class
     {

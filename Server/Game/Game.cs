@@ -17,15 +17,6 @@ public static class Game
             Network.Manager.SendToAll(CompendiumUpdatePacket.RemoveEntry(folder, name));
         };
         Compendium.RegisterDefaults();
-        foreach (Feature feat in Features.All)
-        {
-            Compendium.RegisterEntry<Feature>(feat.GetId(), null!);
-        }
-
-        foreach (var skillInfo in Skills.All)
-        {
-            Compendium.RegisterEntry<Skill>(skillInfo.id, null!);
-        }
         foreach (string folder in Compendium.Folders)
         {
             foreach (var pair in Compendium.GetFiles(folder))

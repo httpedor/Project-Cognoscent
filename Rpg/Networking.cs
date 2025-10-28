@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Reflection;
-using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Rpg;
 using Rpg.Inventory;
@@ -61,7 +61,8 @@ public abstract class Packet : ISerializable {
         {
             if (!type.IsSubclassOf(typeof(Packet))) continue;
 
-            if (FormatterServices.GetUninitializedObject(type) is Packet instance)
+            // Create an uninitialized instance without invoking constructors using RuntimeHelpers
+            if (RuntimeHelpers.GetUninitializedObject(type) is Packet instance)
                 packetTypes.Add(instance.Id, type);
         }
     }
@@ -88,7 +89,7 @@ public abstract class Packet : ISerializable {
         byte id = (byte)stream.ReadByte();
         ProtocolId pid = (ProtocolId)id;
         if (packetTypes.ContainsKey(pid)){
-            return (Packet)Activator.CreateInstance(packetTypes[pid], new object[]{stream});
+            return (Packet)Activator.CreateInstance(packetTypes[pid], [stream])!;
         }
         throw new Exception("Unknown packet id " + id);
     }
@@ -257,7 +258,7 @@ public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : P
 {
     public readonly string BoardName = boardName;
     public readonly int FloorIndex = floorIndex;
-    public Midia Data{get; private set;} = midia;
+    public readonly Midia Data = midia;
 
     public override ProtocolId Id => ProtocolId.FLOOR_IMAGE;
 
@@ -272,7 +273,7 @@ public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : P
 
         stream.WriteString(BoardName);
         stream.WriteByte((byte)FloorIndex);
-        midia.ToBytes(stream);
+        Data.ToBytes(stream);
     }
 }
 
@@ -574,7 +575,7 @@ public class EntityBodyPartPacket : Packet
     {
         CreatureRef = new CreatureRef(stream);
         Path = stream.ReadString();
-        Part = stream.ReadByte() == 1 ? new BodyPart(stream, CreatureRef.Creature.Body) : null;
+        Part = stream.ReadByte() == 1 ? new BodyPart(stream, CreatureRef.Creature?.Body) : null;
     }
 
     public override void ToBytes(Stream stream)
@@ -602,6 +603,8 @@ public class EntityBodyPartInjuryPacket : Packet
 
     public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, bool remove = false)
     {
+        if (part.Owner == null)
+            throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
         CreatureRef = new CreatureRef(part.Owner);
         Path = part.Path;
         Injury = condition;
@@ -764,7 +767,19 @@ public class FeatureUpdatePacket : Packet
     public FeatureSourceRef SourceRef;
     public string? FeatureId;
     public Feature? Feature;
-    private FeatureUpdatePacket() { }
+    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureSourceRef @ref, Feature feature)
+    {
+        UpdateType = updateType;
+        SourceRef = @ref;
+        Feature = feature;
+        FeatureId = feature?.GetId();
+    }
+    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureSourceRef @ref, string feature)
+    {
+        UpdateType = updateType;
+        SourceRef = @ref;
+        FeatureId = feature;
+    }
     public FeatureUpdatePacket(Stream stream)
     {
         UpdateType = (FeatureUpdateType)stream.ReadByte();
@@ -786,49 +801,49 @@ public class FeatureUpdatePacket : Packet
             stream.WriteString(FeatureId);
     }
 
-    public static FeatureUpdatePacket Enable(IFeatureSource entity, string id)
+    public static FeatureUpdatePacket Enable(IFeatureContainer entity, string id)
     {
         return new FeatureUpdatePacket
-        {
-            UpdateType = FeatureUpdateType.ENABLE,
-            SourceRef = new FeatureSourceRef(entity),
-            FeatureId = id,
-        };
+        (
+            FeatureUpdateType.ENABLE,
+            new FeatureSourceRef(entity),
+            id
+        );
     }
-    public static FeatureUpdatePacket Enable(IFeatureSource entity, Feature feature)
+    public static FeatureUpdatePacket Enable(IFeatureContainer entity, Feature feature)
     {
         return Enable(entity, feature.GetId());
     }
-    public static FeatureUpdatePacket Disable(IFeatureSource entity, string id)
+    public static FeatureUpdatePacket Disable(IFeatureContainer entity, string id)
     {
         return new FeatureUpdatePacket
-        {
-            UpdateType = FeatureUpdateType.DISABLE,
-            SourceRef = new FeatureSourceRef(entity),
-            FeatureId = id,
-        };
+        (
+            FeatureUpdateType.DISABLE,
+            new FeatureSourceRef(entity),
+            id
+        );
     }
-    public static FeatureUpdatePacket Disable(IFeatureSource entity, Feature feature)
+    public static FeatureUpdatePacket Disable(IFeatureContainer entity, Feature feature)
     {
         return Disable(entity, feature.GetId());
     }
-    public static FeatureUpdatePacket Add(IFeatureSource entity, Feature feature)
+    public static FeatureUpdatePacket Add(IFeatureContainer entity, Feature feature)
     {
         return new FeatureUpdatePacket
-        {
-            UpdateType = FeatureUpdateType.ADD,
-            SourceRef = new FeatureSourceRef(entity),
-            Feature = feature,
-        };
+        (
+            FeatureUpdateType.ADD,
+            new FeatureSourceRef(entity),
+            feature
+        );
     }
     public static FeatureUpdatePacket Remove(Entity entity, string id)
     {
         return new FeatureUpdatePacket
-        {
-            UpdateType = FeatureUpdateType.REMOVE,
-            SourceRef = new FeatureSourceRef(entity),
-            FeatureId = id,
-        };
+        (
+            FeatureUpdateType.REMOVE,
+            new FeatureSourceRef(entity),
+            id
+        );
     }
     public static FeatureUpdatePacket Remove(Entity entity, Feature feature)
     {
@@ -1082,16 +1097,18 @@ public class CompendiumUpdatePacket : Packet
         Remove = stream.ReadBoolean();
         RegistryName = stream.ReadString();
         DataName = stream.ReadString();
-        byte type = (byte)stream.ReadByte();
-        if (type == 0)
-            Json = null;
-        else
+        ulong count = stream.ReadUInt64();
+        if (!Remove)
         {
-            ulong count = stream.ReadUInt64();
-            byte[] data = stream.ReadExactly((uint)count);
-            string str = new (data.Select(b => (char)b).ToArray());
-            Json = JsonNode.Parse(str)?.AsObject();
+            Json = null;
+            return;
         }
+        byte[] data = stream.ReadExactly((uint)count);
+        string str = new (data.Select(b => (char)b).ToArray());
+        var parsed = JsonNode.Parse(str)?.AsObject();
+        if (parsed == null)
+            throw new Exception("Failed to parse compendium json data!");
+        Json = parsed;
     }
 
     public override void ToBytes(Stream stream)
@@ -1100,16 +1117,13 @@ public class CompendiumUpdatePacket : Packet
         stream.WriteBoolean(Remove);
         stream.WriteString(RegistryName);
         stream.WriteString(DataName);
-        if (Json == null)
-        {
-            stream.WriteByte(0);
-            return;
-        }
 
-        stream.WriteByte(1);
-        string str = Json.ToJsonString();
-        stream.WriteUInt64((ulong)str.Length);
-        stream.Write(str.ToBytes());
+        if (Remove)
+        {
+            string str = Json!.ToJsonString();
+            stream.WriteUInt64((ulong)str.Length);
+            stream.Write(str.ToBytes());
+        }
     }
 }
 

@@ -263,9 +263,8 @@ public partial class EntitySheetWindow : Window
 
         ClearChildren(featuresFlow);
         bool found = false;
-        foreach (var kv in currentEntity.FeaturesDict)
+        foreach (var f in currentEntity.Features)
         {
-            var f = kv.Value.feature;
             bool onlyGm = false;
             if (!CharacterKnowledgeManager.KnowsFeature(currentEntity, f))
             {
@@ -275,7 +274,7 @@ public partial class EntitySheetWindow : Window
                     continue;
             }
             found = true;
-            bool enabled = kv.Value.enabled;
+            bool enabled = currentEntity.IsFeatureEnabled(f);
             var tag = new Button
             {
                 Text = f.GetName(),

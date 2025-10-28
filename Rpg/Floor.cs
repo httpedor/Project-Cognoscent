@@ -113,6 +113,7 @@ public abstract class Floor
         if (Display.Type != MidiaType.Image)
             return;
         
+        #if WINDOWS
         using (Image img = Image.FromStream(new MemoryStream(Display.Bytes)))
         {
             var bitmap = new Bitmap(img);
@@ -127,6 +128,7 @@ public abstract class Floor
                 TileFlags[i] = c.A == 0 ? (uint)TileFlag.AIR : (uint)TileFlag.FLOOR;
             }
         }
+        #endif
     }
 
     public bool TileHasFlag(Vector2 position, TileFlag flag){

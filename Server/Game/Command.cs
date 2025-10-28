@@ -10,7 +10,6 @@ using Rpg;
 using Rpg.Inventory;
 using Server.Game.Import;
 using Server.Network;
-using Server.AI;
 
 namespace Server.Game;
 
@@ -1166,30 +1165,6 @@ public class Command
             new Dictionary<int, Func<IEnumerable<string>>>
             {
                 { 2, () => new [] { "vision", "flip", "open", "close" } }
-            }
-        ));
-        RegisterCommand(new Command(
-            "aichat",
-            "Sends a message to the AI chat",
-            "<message>",
-            new[]{"ai", "aicommand"},
-            new[]{typeof(string)},
-            (_, args) =>
-            {
-                var msg = new StringBuilder();
-                foreach (object arg in args)
-                {
-                    msg.Append(arg);
-                    msg.Append(' ');
-                }
-
-                Task.Run(async () =>
-                {
-                    string response = await AI.AI.ServerChat.Prompt(msg.ToString());
-                    
-                    Logger.Log("AI response: " + response);
-                });
-                return "Message sent successfully.";
             }
         ));
         RegisterCommand(new Command(

@@ -56,7 +56,10 @@ public class RpgClient
                 {
                     foreach (var entry in Compendium.GetEntryNames(folder))
                     {
-                        Send(CompendiumUpdatePacket.AddEntry(folder, entry, Compendium.GetEntryJsonOrNull(folder, entry)));
+                        var json = Compendium.GetEntryJsonOrNull(folder, entry);
+                        if (json == null)
+                            continue;
+                        Send(CompendiumUpdatePacket.AddEntry(folder, entry, json));
                     }
                 }
                 if (Game.Game.GetBoards().Count == 0)
@@ -310,8 +313,8 @@ public class RpgClient
                 }
                 else
                 {
-                    Compendium.RegisterEntry(type, name, data);
-                    File.WriteAllText("Data/" + type + "/" + name + ".json", data.ToJsonString());
+                    Compendium.RegisterEntry(type, name, data!);
+                    File.WriteAllText("Data/" + type + "/" + name + ".json", data!.ToJsonString());
                 }
                 
                 break;

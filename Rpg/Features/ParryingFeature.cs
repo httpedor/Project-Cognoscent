@@ -56,7 +56,7 @@ public class ParryingFeature : ConditionFeature
             (attacked is Entity attackedEntity && 
             attackedEntity.CanSee(source.ContactEntity.Position.XY())))
         {
-            var fs = (IFeatureSource)attacked;
+            var fs = (IFeatureContainer)attacked;
             fs.Board.RunTaskLater(() => fs.RemoveFeature(this), 0);
             
             return (0, " [hint=defendeu com " + (used.IsLeft ? used.Left!.Name : used.Right!.Name) + "]defendeu[/hint] o ataque de " + source.ContactEntity.BBLink);

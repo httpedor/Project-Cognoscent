@@ -6,7 +6,7 @@ namespace Server.Game.Import;
 
 public static class Uvtt
 {
-public class UvttBoard
+public struct UvttBoard
 {
     public double format { get; set; }
     public Resolution resolution { get; set; }
@@ -17,7 +17,7 @@ public class UvttBoard
     public UvttLight[] lights { get; set; }
     public string image { get; set; }
 }
-public class UvttLight
+public struct UvttLight
 {
     public Line_of_sight position { get; set; }
     public float range { get; set; }
@@ -26,7 +26,7 @@ public class UvttLight
     public bool shadows { get; set; }
 }
 
-public class UvttPortal
+public struct UvttPortal
 {
     public Line_of_sight position {get; set; }
     public Line_of_sight[] bounds {get; set;}
@@ -35,7 +35,7 @@ public class UvttPortal
     public bool freestanding {get; set;}
 }
 
-public class Resolution
+public struct Resolution
 {
     public Map_origin map_origin { get; set; }
     public Map_size map_size { get; set; }
@@ -63,7 +63,7 @@ public class Line_of_sight
 public class Environment
 {
     public bool baked_lighting { get; set; }
-    public string ambient_light { get; set; }
+    public string? ambient_light { get; set; }
 }
 
     public static ServerBoard? LoadBoardFromUvttJson(string json, string name)
@@ -82,8 +82,11 @@ public class Environment
 
     public static Floor? LoadFloorFromUvttJson(string json, List<Entity>? entities = null)
     {
-        UvttBoard? uvtt = JsonSerializer.Deserialize<UvttBoard>(json);
-        if (uvtt == null || uvtt.image == null)
+        UvttBoard? uvttTry = JsonSerializer.Deserialize<UvttBoard>(json);
+        if (uvttTry == null)
+            return null;
+        UvttBoard uvtt = uvttTry.Value;
+        if (uvtt.image == null)
             return null;
         if (uvtt.environment.ambient_light == null)
             uvtt.environment.ambient_light = "0xFFFFFFFF";

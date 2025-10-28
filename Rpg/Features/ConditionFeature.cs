@@ -21,7 +21,7 @@ public abstract class ConditionFeature : Feature
         stream.WriteUInt32(ticks);
     }
 
-    public uint GetStartTick(IFeatureSource entity)
+    public uint GetStartTick(IFeatureContainer entity)
     {
         if (!entity.HasFeature(this))
             return uint.MaxValue;
@@ -31,30 +31,30 @@ public abstract class ConditionFeature : Feature
         
         return BitConverter.ToUInt32(startTickData);
     }
-    public uint GetRemainingTicks(IFeatureSource entity)
+    public uint GetRemainingTicks(IFeatureContainer entity)
     {
         return ticks - GetTicksSinceStart(entity);
     }
-    public uint GetTicksSinceStart(IFeatureSource entity)
+    public uint GetTicksSinceStart(IFeatureContainer entity)
     {
         return entity.Board.CurrentTick - GetStartTick(entity);
     }
 
-    public override void OnTick(IFeatureSource entity)
+    public override void OnTick(IFeatureContainer entity)
     {
         base.OnTick(entity);
         if (GetTicksSinceStart(entity) >= ticks)
             entity.Board.RunTaskLater(() => entity.RemoveFeature(this), 0);
     }
 
-    public override void Enable(IFeatureSource source)
+    public override void OnEnable(IFeatureContainer source)
     {
-        base.Enable(source);
+        base.OnEnable(source);
         source.SetCustomData(StartTickKey, source.Board.CurrentTick);
     }
-    public override void Disable(IFeatureSource source)
+    public override void OnDisable(IFeatureContainer source)
     {
-        base.Disable(source);
+        base.OnDisable(source);
         source.RemoveCustomData(StartTickKey);
     }
 }

@@ -5,7 +5,7 @@ using Rpg.Inventory;
 
 namespace Rpg;
 
-public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureSource
+public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureContainer
 {
     public static class Flag
     {
@@ -56,8 +56,6 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     public event Action<Injury>? OnInjuryRemoved;
     public event Action<EquipmentProperty, string>? OnEquipped;
     public event Action<EquipmentProperty>? OnUnequipped;
-    public event Action<Feature>? OnFeatureAdded;
-    public event Action<Feature>? OnFeatureRemoved;
 
     public string Name { get; }
     public string BBLink => Name + (Owner != null ? " de " + Owner.BBLink : "");
@@ -78,12 +76,8 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     public float Size { get; }
     public float AbsoluteSize => Size * (Parent?.Size ?? 1);
     private byte flags;
-    protected Dictionary<string, byte[]> customData = new();
     private readonly Feature[] ownerFeatures;
     public IEnumerable<Feature> FeaturesForOwner => ownerFeatures;
-    private readonly Dictionary<string, (Feature feature, bool enabled)> features = new();
-    public IEnumerable<Feature> Features => features.Values.Select(t => t.feature);
-    public Dictionary<string, (Feature feature, bool enabled)> FeaturesDict => features;
     public IEnumerable<Feature> EnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature).Concat(Owner != null ? Owner.Features : Enumerable.Empty<Feature>());
     public IEnumerable<Feature> SelfEnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature);
 
@@ -153,7 +147,7 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     public readonly Dictionary<string, BodyPartStat[]> Stats = new();
     public readonly Dictionary<DamageType, StatModifier[]> DamageModifiers = new();
     
-    public IEnumerable<EquipmentProperty> CoveringEquipment => Body.GetCoveringEquipment(this);
+    public IEnumerable<EquipmentProperty> CoveringEquipment => Body?.GetCoveringEquipment(this) ?? Enumerable.Empty<EquipmentProperty>();
     public IEnumerable<Item> Items => equipmentSlots.Values.Where(x => x != null)!;
     public Board? Board => Owner?.Board;
 
@@ -508,13 +502,13 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
     
     public void AddFeature(Feature feature)
     {
-        ((IFeatureSource)this).AddFeature(feature);
+        ((IFeatureContainer)this).AddFeature(feature);
         OnFeatureAdded?.Invoke(feature);
     }
 
     public Feature? RemoveFeature(string id)
     {
-        var f = ((IFeatureSource)this).RemoveFeature(id);
+        var f = ((IFeatureContainer)this).RemoveFeature(id);
         if (f != null)
             OnFeatureRemoved?.Invoke(f);
         return f;
@@ -600,19 +594,6 @@ public class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, I
         }
     }
     
-    public byte[]? GetCustomData(string id)
-    {
-        return customData.GetValueOrDefault(id);
-    }
-
-    public void SetCustomData(string id, byte[]? data)
-    {
-        if (data == null)
-            customData.Remove(id);
-        else
-            customData[id] = data;
-    }
-
     public void ToBytes(Stream stream)
     {
         stream.WriteString(Name);

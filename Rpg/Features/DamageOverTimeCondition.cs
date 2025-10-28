@@ -49,7 +49,7 @@ public class DamageOverTimeCondition : ConditionFeature
         return new DamageOverTimeCondition(id, CustomName!, description, damageType, damage, interval, ticks);
     }
 
-    public override void OnTick(IFeatureSource entity)
+    public override void OnTick(IFeatureContainer entity)
     {
         base.OnTick(entity);
 

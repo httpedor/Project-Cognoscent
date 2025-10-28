@@ -87,10 +87,6 @@ public static class StreamExtensions
         return new string(data.Select(b => (char)b).ToArray());
     }
 
-    public static void ReadExactly(this Stream stream, byte[] buffer)
-    {
-        stream.Read(buffer, 0, buffer.Length);
-    }
     public static float ReadFloat(this Stream stream)
     {
         return BitConverter.ToSingle(stream.ReadExactly(4));

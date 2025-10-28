@@ -25,6 +25,13 @@ public class DynamicTraitGenerator : ISourceGenerator
         category: "TraitGenerator",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+    private static readonly DiagnosticDescriptor TargetOverloadCollision = new(
+        id: "TG003",
+        title: "Target class already has method with same signature",
+        messageFormat: "Type '{0}' already has a method that would collide with mixin method '{1}' from '{2}'.",
+        category: "TraitGenerator",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 
     public void Initialize(GeneratorInitializationContext context)
     {
@@ -99,7 +106,7 @@ public class DynamicTraitGenerator : ISourceGenerator
                     continue;
                 }
 
-                // Avoid applying a mixin to itself (prevents self-recursive constructor and stack overflow)
+                // Avoid applying a mixin to itself
                 concreteTargets = concreteTargets.Where(c => !SymbolEqualityComparer.Default.Equals(c, typeSymbol));
 
                 foreach (var target in concreteTargets)
@@ -118,7 +125,7 @@ public class DynamicTraitGenerator : ISourceGenerator
             }
         }
 
-        // For each target, generate a partial with delegating properties for each mixin
+        // For each target, generate a partial that directly injects mixin members (no composition)
         foreach (var kvp in targetToMixins)
         {
             var target = kvp.Key;
@@ -137,11 +144,34 @@ public class DynamicTraitGenerator : ISourceGenerator
                 continue;
             }
 
+            // Collect usings from all mixin source files
+            var usingSet = new HashSet<string>();
+            foreach (var mixin in mixins)
+            {
+                foreach (var declRef in mixin.DeclaringSyntaxReferences)
+                {
+                    var node = declRef.SyntaxTree.GetRoot();
+                    foreach (var u in node.DescendantNodes().OfType<UsingDirectiveSyntax>())
+                    {
+                        var text = u.ToFullString().Trim();
+                        if (!string.IsNullOrWhiteSpace(text)) usingSet.Add(text);
+                    }
+                }
+            }
+
             var ns = target.ContainingNamespace is { IsGlobalNamespace: false }
                 ? target.ContainingNamespace.ToDisplayString()
                 : null;
 
             var sb = new StringBuilder();
+
+            // Emit collected usings first so copied member syntax binds properly
+            foreach (var u in usingSet)
+            {
+                sb.AppendLine(u);
+            }
+            if (usingSet.Count > 0) sb.AppendLine();
+
             if (ns is not null)
             {
                 sb.AppendLine($"namespace {ns};");
@@ -154,165 +184,136 @@ public class DynamicTraitGenerator : ISourceGenerator
             // Emit the actual target partial type header
             EmitPartialTypeHeader(sb, target);
 
-            // Emit one private field per mixin and delegating properties
+            // Build a quick lookup of existing members on the target to avoid collisions
+            var existingMemberIndex = BuildExistingMemberIndex(target);
+
             foreach (var mixin in mixins)
             {
-                // Ensure mixin is instantiable (non-abstract class with parameterless ctor)
-                if (mixin.TypeKind != TypeKind.Class || mixin.IsAbstract || !HasParameterlessCtor(mixin))
+                // Copy instance members directly into the target
+                foreach (var declRef in mixin.DeclaringSyntaxReferences)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(MixinNeedsParameterlessCtor,
-                        mixin.Locations.FirstOrDefault(),
-                        mixin.ToDisplayString(),
-                        target.ToDisplayString()));
-                    continue;
-                }
-
-                var mixinFieldName = MakeStableFieldName(mixin);
-                var mixinTypeName = mixin.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                sb.AppendLine($"    private readonly {mixinTypeName} {mixinFieldName} = new {mixinTypeName}();");
-                sb.AppendLine();
-
-                // Delegate instance, non-static, accessible properties
-                foreach (var member in mixin.GetMembers().OfType<IPropertySymbol>())
-                {
-                    if (member.IsStatic)
+                    if (declRef.GetSyntax() is not TypeDeclarationSyntax mixinDecl)
                         continue;
 
-                    // Only delegate public/internal to avoid accessibility issues
-                    if (!(member.DeclaredAccessibility == Accessibility.Public || member.DeclaredAccessibility == Accessibility.Internal))
-                        continue;
+                    var tree = declRef.SyntaxTree;
+                    var sm = context.Compilation.GetSemanticModel(tree);
 
-                    // Skip indexers
-                    if (member.IsIndexer)
-                        continue;
-
-                    // Avoid name collisions with existing members on target
-                    if (target.GetMembers(member.Name).Any())
-                        continue;
-
-                    var propTypeName = member.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                    var accessibility = AccessibilityToString(member.DeclaredAccessibility);
-                    var getter = member.GetMethod != null ? $"get => {mixinFieldName}.{member.Name};" : null;
-                    var setter = member.SetMethod != null ? $"set => {mixinFieldName}.{member.Name} = value;" : null;
-
-                    sb.Append($"    {accessibility} {propTypeName} {member.Name} {{ ");
-                    if (getter != null) sb.Append(getter + " ");
-                    if (setter != null) sb.Append(setter + " ");
-                    sb.AppendLine("}");
-                    sb.AppendLine();
-                }
-
-                // Delegate instance, non-static, accessible ordinary methods
-                foreach (var method in mixin.GetMembers().OfType<IMethodSymbol>())
-                {
-                    if (method.IsStatic) continue;
-                    if (method.MethodKind != MethodKind.Ordinary) continue; // skip constructors/accessors/operators/etc.
-
-                    // Only delegate public/internal to avoid accessibility issues
-                    if (!(method.DeclaredAccessibility == Accessibility.Public || method.DeclaredAccessibility == Accessibility.Internal))
-                        continue;
-
-                    // Build a signature collision check against the target
-                    bool SignatureCollidesWithTarget()
+                    foreach (var member in mixinDecl.Members)
                     {
-                        foreach (var existing in target.GetMembers(method.Name).OfType<IMethodSymbol>())
+                        switch (member)
                         {
-                            if (existing.MethodKind != MethodKind.Ordinary) continue;
-                            if (existing.TypeParameters.Length != method.TypeParameters.Length) continue;
-                            if (existing.Parameters.Length != method.Parameters.Length) continue;
-
-                            bool allParamsMatch = true;
-                            for (int i = 0; i < method.Parameters.Length; i++)
+                            case FieldDeclarationSyntax f:
                             {
-                                var mP = method.Parameters[i];
-                                var eP = existing.Parameters[i];
-                                if (mP.RefKind != eP.RefKind) { allParamsMatch = false; break; }
-                                if (!SymbolEqualityComparer.Default.Equals(mP.Type, eP.Type)) { allParamsMatch = false; break; }
+                                // Skip static or const (avoid global duplication/static conflicts)
+                                var isStatic = f.Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword));
+                                var isConst = f.Modifiers.Any(m => m.IsKind(SyntaxKind.ConstKeyword));
+                                if (isStatic || isConst) break;
+
+                                // Check collisions per variable name
+                                bool anyAdded = false;
+                                foreach (var v in f.Declaration.Variables)
+                                {
+                                    var name = v.Identifier.Text;
+                                    if (existingMemberIndex.Fields.Contains(name))
+                                        continue;
+                                    existingMemberIndex.Fields.Add(name);
+                                    anyAdded = true;
+                                }
+                                if (!anyAdded) break;
+                                // Append original field syntax
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
                             }
-                            if (!allParamsMatch) continue;
+                            case PropertyDeclarationSyntax p:
+                            {
+                                // Skip static properties
+                                if (p.Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword))) break;
+                                // Skip abstract properties — they act as requirements on the target
+                                if (p.Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword))) break;
 
-                            // Return type does not participate in overload resolution, but a same-signature method would collide
-                            return true;
+                                var name = p.Identifier.Text;
+                                if (existingMemberIndex.Properties.Contains(name)) break;
+                                existingMemberIndex.Properties.Add(name);
+
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
+                            }
+                            case MethodDeclarationSyntax m:
+                            {
+                                // Skip static, accessors, operators, no-body partials
+                                if (m.Modifiers.Any(mm => mm.IsKind(SyntaxKind.StaticKeyword))) break;
+                                // Skip abstract methods — requirements only
+                                if (m.Modifiers.Any(mm => mm.IsKind(SyntaxKind.AbstractKeyword))) break;
+                                if (m.Body is null && m.ExpressionBody is null) break; // interface-like or partial w/o body
+
+                                var sym = sm.GetDeclaredSymbol(m) as IMethodSymbol;
+                                if (sym is null) break;
+                                if (sym.MethodKind != MethodKind.Ordinary) break;
+
+                                var sigKey = MakeMethodSignatureKey(sym);
+                                if (existingMemberIndex.MethodSignatures.Contains(sigKey))
+                                {
+                                    context.ReportDiagnostic(Diagnostic.Create(
+                                        TargetOverloadCollision,
+                                        target.Locations.FirstOrDefault(),
+                                        target.ToDisplayString(),
+                                        sym.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                                        mixin.ToDisplayString()));
+                                    break;
+                                }
+                                existingMemberIndex.MethodSignatures.Add(sigKey);
+
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
+                            }
+                            case EventDeclarationSyntax eDecl:
+                            {
+                                if (eDecl.Modifiers.Any(mm => mm.IsKind(SyntaxKind.StaticKeyword))) break;
+                                // Skip abstract events — requirements only
+                                if (eDecl.Modifiers.Any(mm => mm.IsKind(SyntaxKind.AbstractKeyword))) break;
+                                var name = eDecl.Identifier.Text;
+                                if (existingMemberIndex.Events.Contains(name)) break;
+                                existingMemberIndex.Events.Add(name);
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
+                            }
+                            case EventFieldDeclarationSyntax eField:
+                            {
+                                if (eField.Modifiers.Any(mm => mm.IsKind(SyntaxKind.StaticKeyword))) break;
+                                // Event field declarations cannot be abstract in C#, but guard just in case
+                                if (eField.Modifiers.Any(mm => mm.IsKind(SyntaxKind.AbstractKeyword))) break;
+                                bool anyAdded = false;
+                                foreach (var v in eField.Declaration.Variables)
+                                {
+                                    var name = v.Identifier.Text;
+                                    if (existingMemberIndex.Events.Contains(name)) continue;
+                                    existingMemberIndex.Events.Add(name);
+                                    anyAdded = true;
+                                }
+                                if (!anyAdded) break;
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
+                            }
+                            case TypeDeclarationSyntax nestedType:
+                            {
+                                // Copy nested types (non-static) to support helper types used by mixin
+                                if (nestedType.Modifiers.Any(mm => mm.IsKind(SyntaxKind.StaticKeyword))) break;
+                                var name = nestedType.Identifier.Text;
+                                if (existingMemberIndex.NestedTypes.Contains(name)) break;
+                                existingMemberIndex.NestedTypes.Add(name);
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
+                            }
+                            default:
+                                break;
                         }
-                        return false;
                     }
-
-                    if (SignatureCollidesWithTarget())
-                        continue;
-
-                    var accessibility = AccessibilityToString(method.DeclaredAccessibility);
-                    var retType = method.ReturnsVoid
-                        ? "void"
-                        : method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-                    // Type parameters (for generic methods)
-                    string MethodTypeParams()
-                    {
-                        if (method.TypeParameters.Length == 0) return string.Empty;
-                        var names = string.Join(", ", method.TypeParameters.Select(tp => tp.Name));
-                        return $"<{names}>";
-                    }
-
-                    // Constraints (where clauses)
-                    string MethodConstraints()
-                    {
-                        if (method.TypeParameters.Length == 0) return string.Empty;
-                        var pieces = new List<string>();
-                        foreach (var tp in method.TypeParameters)
-                        {
-                            var constraints = new List<string>();
-                            if (tp.HasReferenceTypeConstraint) constraints.Add("class");
-                            if (tp.HasValueTypeConstraint) constraints.Add("struct");
-                            constraints.AddRange(tp.ConstraintTypes.Select(c => c.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
-                            if (tp.HasConstructorConstraint) constraints.Add("new()");
-                            if (constraints.Count > 0)
-                                pieces.Add($" where {tp.Name} : {string.Join(", ", constraints)}");
-                        }
-                        return string.Concat(pieces);
-                    }
-
-                    string ParamDecl(IParameterSymbol p)
-                    {
-                        var mod = p.RefKind switch
-                        {
-                            RefKind.Ref => "ref ",
-                            RefKind.Out => "out ",
-                            RefKind.In => "in ",
-                            _ => string.Empty
-                        };
-                        var type = p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                        return $"{mod}{type} {p.Name}";
-                    }
-
-                    string ArgPass(IParameterSymbol p)
-                    {
-                        var mod = p.RefKind switch
-                        {
-                            RefKind.Ref => "ref ",
-                            RefKind.Out => "out ",
-                            RefKind.In => "in ",
-                            _ => string.Empty
-                        };
-                        return $"{mod}{p.Name}";
-                    }
-
-                    var paramDecls = string.Join(", ", method.Parameters.Select(ParamDecl));
-                    var argPasses = string.Join(", ", method.Parameters.Select(ArgPass));
-                    var typeParams = MethodTypeParams();
-                    var constraints = MethodConstraints();
-
-                    sb.AppendLine($"    {accessibility} {retType} {method.Name}{typeParams}({paramDecls}){constraints}");
-                    sb.AppendLine("    {");
-                    if (method.ReturnsVoid)
-                    {
-                        sb.AppendLine($"        {mixinFieldName}.{method.Name}{typeParams}({argPasses});");
-                    }
-                    else
-                    {
-                        sb.AppendLine($"        return {mixinFieldName}.{method.Name}{typeParams}({argPasses});");
-                    }
-                    sb.AppendLine("    }");
-                    sb.AppendLine();
                 }
             }
 
@@ -463,5 +464,79 @@ public class DynamicTraitGenerator : ISourceGenerator
             Accessibility.ProtectedOrInternal => "protected internal",
             _ => "public"
         };
+    }
+
+    private static string Indent(string text, int depth)
+    {
+        var indent = new string(' ', depth * 4);
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var sb = new StringBuilder();
+        foreach (var line in lines)
+        {
+            if (line.Length == 0)
+            {
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.Append(indent);
+                sb.AppendLine(line);
+            }
+        }
+        return sb.ToString();
+    }
+
+    private sealed class MemberIndex
+    {
+        public HashSet<string> Fields { get; } = new();
+        public HashSet<string> Properties { get; } = new();
+        public HashSet<string> Events { get; } = new();
+        public HashSet<string> NestedTypes { get; } = new();
+        public HashSet<string> MethodSignatures { get; } = new();
+    }
+
+    private static MemberIndex BuildExistingMemberIndex(INamedTypeSymbol target)
+    {
+        var idx = new MemberIndex();
+        foreach (var m in target.GetMembers())
+        {
+            switch (m)
+            {
+                case IFieldSymbol f:
+                    idx.Fields.Add(f.Name);
+                    break;
+                case IPropertySymbol p:
+                    idx.Properties.Add(p.Name);
+                    break;
+                case IMethodSymbol mm when mm.MethodKind == MethodKind.Ordinary:
+                    idx.MethodSignatures.Add(MakeMethodSignatureKey(mm));
+                    break;
+                case IEventSymbol e:
+                    idx.Events.Add(e.Name);
+                    break;
+                case INamedTypeSymbol nt when nt.TypeKind == TypeKind.Class || nt.TypeKind == TypeKind.Struct || nt.TypeKind == TypeKind.Interface || nt.TypeKind == TypeKind.Enum || nt.TypeKind == TypeKind.Delegate:
+                    idx.NestedTypes.Add(nt.Name);
+                    break;
+            }
+        }
+        return idx;
+    }
+
+    private static string MakeMethodSignatureKey(IMethodSymbol method)
+    {
+        var sb = new StringBuilder();
+        sb.Append(method.Name);
+        sb.Append('`').Append(method.Arity);
+        sb.Append('(');
+        for (int i = 0; i < method.Parameters.Length; i++)
+        {
+            var p = method.Parameters[i];
+            sb.Append(p.RefKind.ToString());
+            sb.Append(':');
+            sb.Append(p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            if (i < method.Parameters.Length - 1) sb.Append(',');
+        }
+        sb.Append(')');
+        return sb.ToString();
     }
 }

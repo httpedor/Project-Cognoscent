@@ -1,5 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using TraitGenerator;
 
 namespace Rpg;
 
@@ -9,81 +11,125 @@ public interface ICustomDataContainer
     public void SetCustomData(string id, byte[]? data);
 }
 
-public class CustomDataContainerMixin
-{
-    
-}
 public static class CustomDataContainerExtensions
 {
-
-public static bool HasCustomData(this ICustomDataContainer container, string id)
+    extension (ICustomDataContainer container)
     {
-        return container.GetCustomData(id) != null;
-    }
-
-    public static void SetCustomData(this ICustomDataContainer container, string id, byte data)
-    {
-        container.SetCustomData(id, [data]);
-    }
-    public static void SetCustomData(this ICustomDataContainer container, string id, int data)
-    {
-        container.SetCustomData(id, BitConverter.GetBytes(data));
-    }
-    public static void SetCustomData(this ICustomDataContainer container, string id, uint data)
-    {
-        container.SetCustomData(id, BitConverter.GetBytes(data));
-    }
-
-    public static void SetCustomData(this ICustomDataContainer container, string id, float data)
-    {
-        container.SetCustomData(id, BitConverter.GetBytes(data));
-    }
-
-    public static uint GetCustomDataUInt(this ICustomDataContainer container, string id)
-    {
-        return BitConverter.ToUInt32(container.GetCustomData(id));
-    }
-
-    public static float GetCustomDataFloat(this ICustomDataContainer container, string id)
-    {
-        return BitConverter.ToSingle(container.GetCustomData(id));
-    }
-    public static void SetCustomData(this ICustomDataContainer container, string id, string value)
-    {
-        var stream = new MemoryStream();
-        stream.WriteString(value);
-        container.SetCustomData(id, stream.GetBuffer());
-        stream.Dispose();
-    }
-    public static string? GetCustomDataString(this ICustomDataContainer container, string id)
-    {
-        var bytes = container.GetCustomData(id);
-        if (bytes == null)
-            return null;
-        var stream = new MemoryStream(bytes);
-        return stream.ReadString();
-    }
-    public static void RemoveCustomData(this ICustomDataContainer container, string id)
-    {
-        container.SetCustomData(id, null);
-    }
-
-    public static void CustomDataFromJson(this ICustomDataContainer container, JsonObject json)
-    {
-        foreach (var pair in json)
+        public void RemoveCustomData(string id)
         {
-            switch (pair.Value.GetValueKind())
+            container.SetCustomData(id, null);
+        }
+        public void SetCustomData(string id, byte data)
+        {
+            container.SetCustomData(id, [data]);
+        }
+
+        public void SetCustomData(string id, int data)
+        {
+            container.SetCustomData(id, BitConverter.GetBytes(data));
+        }
+
+        public void SetCustomData(string id, uint data)
+        {
+            container.SetCustomData(id, BitConverter.GetBytes(data));
+        }
+
+        public void SetCustomData(string id, float data)
+        {
+            container.SetCustomData(id, BitConverter.GetBytes(data));
+        }
+
+        public void SetCustomData(string id, string value)
+        {
+            var bytes = Encoding.UTF8.GetBytes(value);
+            container.SetCustomData(id, bytes);
+        }
+
+        public uint GetCustomDataUInt(string id)
+        {
+            return BitConverter.ToUInt32(container.GetCustomData(id));
+        }
+
+        public float GetCustomDataFloat(string id)
+        {
+            return BitConverter.ToSingle(container.GetCustomData(id));
+        }
+
+        public string? GetCustomDataString(string id)
+        {
+            var bytes = container.GetCustomData(id);
+            if (bytes == null)
+                return null;
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        public void CustomDataFromJson(JsonObject json)
+        {
+            foreach (var pair in json)
             {
-                case JsonValueKind.Number:
-                    container.SetCustomData(pair.Key, pair.Value.GetValue<float>());
-                    break;
-                case JsonValueKind.String:
-                    container.SetCustomData(pair.Key, pair.Value.GetValue<string>());
-                    break;
-                case JsonValueKind.True:
-                    container.SetCustomData(pair.Key, (byte)1);
-                    break;
+                var node = pair.Value;
+                if (node is JsonValue jv)
+                {
+                    if (jv.TryGetValue<float>(out var f))
+                    {
+                        container.SetCustomData(pair.Key, f);
+                    }
+                    else if (jv.TryGetValue<string>(out var s))
+                    {
+                        container.SetCustomData(pair.Key, s);
+                    }
+                    else if (jv.TryGetValue<bool>(out var b) && b)
+                    {
+                        container.SetCustomData(pair.Key, (byte)1);
+                    }
+                }
             }
+        }
+    }
+}
+
+[Mixin(typeof(ICustomDataContainer))]
+abstract class CustomDataContainerMixin : ICustomDataContainer
+{
+    protected readonly Dictionary<string, byte[]> customData = new();
+    public byte[]? GetCustomData(string id)
+    {
+        customData.TryGetValue(id, out var data);
+        return data;
+    }
+
+    public void SetCustomData(string id, byte[]? data)
+    {
+        if (data == null)
+            customData.Remove(id);
+        else
+            customData[id] = data;
+    }
+
+    public bool HasCustomData(string id)
+    {
+        return customData.ContainsKey(id);
+    }
+
+    protected void CustomDataToBytes(Stream stream)
+    {
+        stream.WriteByte((byte)customData.Count);
+        foreach (var pair in customData)
+        {
+            stream.WriteString(pair.Key);
+            stream.WriteUInt32((uint)pair.Value.Length);
+            stream.Write(pair.Value);
+        }
+    }
+    protected void CustomDataFromBytes(Stream stream)
+    {
+        byte count = (byte)stream.ReadByte();
+        for (int i = 0; i < count; i++)
+        {
+            string name = stream.ReadString();
+            byte[] data = new byte[stream.ReadUInt32()];
+            stream.ReadExactly(data);
+            customData[name] = data;
         }
     }
 }

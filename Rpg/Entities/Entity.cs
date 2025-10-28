@@ -40,7 +40,7 @@ public readonly struct EntityRef(string board, int id) : ISerializable
     }
 }
 
-public abstract class Entity : ISerializable, IFeatureSource
+public abstract partial class Entity : ISerializable, IFeatureContainer
 {
     public int Id { get; }
 
@@ -51,10 +51,6 @@ public abstract class Entity : ISerializable, IFeatureSource
     public event Action<Vector3, Vector3>? OnSizeChanged;
     public event Action<Midia>? OnDisplayChanged;
     public event Action<Stat>? OnStatCreated;
-    public event Action<Feature>? OnFeatureAdded;
-    public event Action<Feature>? OnFeatureRemoved;
-    public event Action<Feature>? OnFeatureEnabled;
-    public event Action<Feature>? OnFeatureDisabled;
 
     public string Name
     {
@@ -117,13 +113,7 @@ public abstract class Entity : ISerializable, IFeatureSource
 
     protected Dictionary<string, Stat> stats = new();
 
-    protected Dictionary<string, (Feature feature, bool enabled)> features = new();
-    public Dictionary<string, (Feature feature, bool enabled)> FeaturesDict => features;
     public IEnumerable<Stat> Stats => stats.Values;
-    public IEnumerable<Feature> Features => FeaturesDict.Values.Select(t => t.feature);
-    public IEnumerable<Feature> EnabledFeatures => FeaturesDict.Values.Where(t => t.enabled).Select(t => t.feature);
-    protected Dictionary<string, byte[]> customData = new();
-
     public OBB Hitbox => new(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
 
     public Board Board { get; set; }
@@ -144,23 +134,10 @@ public abstract class Entity : ISerializable, IFeatureSource
         Position = stream.ReadVec3();
         Size = stream.ReadVec3();
         Rotation = stream.ReadFloat();
-        byte count = (byte)stream.ReadByte();
-        for (int i = 0; i < count; i++)
-        {
-            string name = stream.ReadString();
-            byte[] data = new byte[stream.ReadUInt32()];
-            stream.ReadExactly(data);
-            customData[name] = data;
-        }
-        count = (byte)stream.ReadByte();
-        for (int i = 0; i < count; i++)
-        {
-            bool enabled = stream.ReadByte() == 1;
-            Feature feature = Feature.FromBytes(stream);
-            features[feature.GetId()] = (feature, enabled);
-        }
+        CustomDataFromBytes(stream);
+        FeaturesFromBytes(stream);
 
-        count = (byte)stream.ReadByte();
+        byte count = (byte)stream.ReadByte();
         for (int i = 0; i < count; i++)
         {
             var stat = new Stat(stream);
@@ -185,19 +162,8 @@ public abstract class Entity : ISerializable, IFeatureSource
         stream.WriteVec3(Position);
         stream.WriteVec3(Size);
         stream.WriteFloat(Rotation);
-        stream.WriteByte((byte)customData.Count);
-        foreach (var pair in customData)
-        {
-            stream.WriteString(pair.Key);
-            stream.WriteUInt32((uint)pair.Value.Length);
-            stream.Write(pair.Value);
-        }
-        stream.WriteByte((byte)features.Count);
-        foreach (var feature in features)
-        {
-            stream.WriteByte((byte)(feature.Value.enabled ? 1 : 0));
-            feature.Value.feature.ToBytes(stream);
-        }
+        CustomDataToBytes(stream);
+        FeaturesToBytes(stream);
         stream.WriteByte((byte)stats.Count);
         foreach (Stat stat in stats.Values)
             stat.ToBytes(stream);
@@ -237,59 +203,11 @@ public abstract class Entity : ISerializable, IFeatureSource
         OnStatCreated?.Invoke(stats[id]);
         return stats[id];
     }
-
-    public void AddFeature(Feature feature)
-    {
-        if (((IFeatureSource)this).HasFeature(feature))
-            return;
-        ((IFeatureSource)this).AddFeature(feature);
-        OnFeatureAdded?.Invoke(feature);
-    }
-
-    public Feature? RemoveFeature(string id)
-    {
-        var removed = ((IFeatureSource)this).RemoveFeature(id);
-        if (removed != null)
-            OnFeatureRemoved?.Invoke(removed);
-        
-        return removed;
-    }
-
-    public Feature? RemoveFeature(Feature feature)
-    {
-        return RemoveFeature(feature.GetId());
-    }
-    
-    public void EnableFeature(string id)
-    {
-        if (((IFeatureSource)this).EnableFeature(id))
-            OnFeatureEnabled?.Invoke(features[id].feature);
-    }
-
-    public void DisableFeature(string id)
-    {
-        if (((IFeatureSource)this).DisableFeature(id))
-            OnFeatureDisabled?.Invoke(features[id].feature);
-    }
-
     public Stream? GetCustomDataStream(string id)
     {
         if (customData.TryGetValue(id, out byte[]? data))
             return new MemoryStream(data);
         return null;
-    }
-
-    public byte[]? GetCustomData(string id)
-    {
-        return customData.GetValueOrDefault(id);
-    }
-
-    public void SetCustomData(string id, byte[]? data)
-    {
-        if (data == null)
-            customData.Remove(id);
-        else
-            customData[id] = data;
     }
 
     public virtual void ClearEvents()
