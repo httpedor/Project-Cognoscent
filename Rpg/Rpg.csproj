@@ -9,6 +9,11 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.14.0" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.3" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" 
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"/>
+  </ItemGroup>
   <PropertyGroup>
     <!-- Allow disabling via /p:GenerateTsPackets=false to avoid recursion in child builds -->
     <GenerateTsPackets Condition="'$(GenerateTsPackets)' == ''">true</GenerateTsPackets>

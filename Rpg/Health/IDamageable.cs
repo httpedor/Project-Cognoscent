@@ -15,3 +15,11 @@ public interface IDamageable
         get;
     }
 }
+
+public static class IDamageableExtensions
+{
+    extension(IDamageable damageable)
+    {
+        
+    }
+}

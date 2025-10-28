@@ -5,12 +5,16 @@
   <ItemGroup>
     <Folder Include="Data\Midia\" />
     <Folder Include="Data\Notes\" />
+    <Folder Include="Web\assets\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="ConsoleRenderer" Version="0.7.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.10" />
-    <PackageReference Include="MudBlazor" Version="8.13.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="Web\Shared\MainLayout.razor" />
+    <_ContentIncludedByDefault Remove="Web\Pages\App.razor" />
+    <_ContentIncludedByDefault Remove="Web\Pages\Creatures.razor" />
+    <_ContentIncludedByDefault Remove="Web\Pages\Index.razor" />
   </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -26,10 +30,5 @@
   <!-- When EnableWeb is true, define the ENABLE_WEB symbol for conditional compilation -->
   <PropertyGroup Condition="'$(EnableWeb)' == 'true'">
     <DefineConstants>$(DefineConstants);ENABLE_WEB</DefineConstants>
-  </PropertyGroup>
-  <!-- Control Razor compilation so .razor/.cshtml files are skipped when EnableWeb is false -->
-  <PropertyGroup>
-    <RazorCompileOnBuild>$(EnableWeb)</RazorCompileOnBuild>
-    <RazorCompileOnPublish>$(EnableWeb)</RazorCompileOnPublish>
   </PropertyGroup>
 </Project>

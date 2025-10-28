@@ -4,7 +4,7 @@
   "description": "Da um soco simples",
   "icon": "punch",
   "tags": ["unnarmed"],
-  "delay": "(uint)MathF.Round(RpgMath.Lerp(15f, 5f, (float)creature[CreatureStats.AGILITY]/100f))",
-  "cooldown": "(uint)MathF.Round(RpgMath.Lerp(15f, 5f, (float)creature[CreatureStats.AGILITY]/100f))",
+  "delay": "MathF.Round(RpgMath.Lerp(15f, 5f, (float)creature[CreatureStats.AGILITY]/100f))",
+  "cooldown": "MathF.Round(RpgMath.Lerp(15f, 5f, (float)creature[CreatureStats.AGILITY]/100f))",
   "damage": "(creature[CreatureStats.STRENGTH]/4f, DamageType.Blunt)"
 }

@@ -26,7 +26,7 @@ public abstract class Skill : ISerializable
 
         if (type == null)
             throw new Exception("Failed to get skill type: " + path);
-        if (type.GetConstructor(new Type[] { typeof(Stream) }) == null)
+        if (type.GetConstructor([typeof(Stream)]) == null)
             throw new Exception("Failed to get skill constructor: " + path);
         return (Skill)Activator.CreateInstance(type, bytes);
     }

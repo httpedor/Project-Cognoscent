@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using Rpg;
@@ -11,6 +12,10 @@ public abstract class AttackSkill : Skill
     }
 
     public abstract (float damage, DamageType type, string? formula) GetDamage(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target);
+    public virtual float GetRange(Creature executor, ISkillSource source)
+    {
+        return 1f;
+    }
 
     /// <summary>
     /// Checks if this attack hits a damageable target
@@ -130,13 +135,22 @@ public abstract class AttackSkill : Skill
 
     public virtual bool CanTarget(Creature executor, ISkillSource source, IDamageable target)
     {
+        Vector3 targetPos;
+        if (target is Entity ent)
+            targetPos = ent.Position;
+        else if (target is BodyPart { Owner: not null } bp)
+            targetPos = bp.Owner.Position;
+        else
+            return false;
+        float range = GetRange(executor, source);
+        if (Vector3.Distance(executor.Position, targetPos) > range)
+            return false;
         return true;
     }
     public override bool CanUseArgument(Creature executor, ISkillSource source, int index, SkillArgument arg)
     {
         if (index != 0)
             return false;
-
         return arg switch
         {
             EntitySkillArgument esa => esa.Entity is IDamageable damageable && CanTarget(executor, source, damageable),

@@ -41,6 +41,7 @@ public class Item : ISerializable, ISkillSource
     public Dictionary<string, List<StatModifier>> StatModifiers = new();
     public List<Feature> Features = new();
     private readonly Dictionary<string, ItemProperty> properties = new();
+    private readonly Dictionary<string, Stat> stats = new();
 
     string ISkillSource.Name => Name;
 

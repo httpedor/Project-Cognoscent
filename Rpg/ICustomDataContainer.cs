@@ -9,9 +9,14 @@ public interface ICustomDataContainer
     public void SetCustomData(string id, byte[]? data);
 }
 
+public class CustomDataContainerMixin
+{
+    
+}
 public static class CustomDataContainerExtensions
 {
-    public static bool HasCustomData(this ICustomDataContainer container, string id)
+
+public static bool HasCustomData(this ICustomDataContainer container, string id)
     {
         return container.GetCustomData(id) != null;
     }

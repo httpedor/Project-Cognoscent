@@ -107,7 +107,7 @@ public class ArbitraryAttackSkill : AttackSkill
     public override bool CanTarget(Creature executor, ISkillSource source, IDamageable target)
     {
         if (code.canTarget != null)
-            return code.canTarget(new SkillJson.Context { creature = executor, source = source, target = target });
+            return base.CanTarget(executor, source, target) && code.canTarget(new SkillJson.Context { creature = executor, source = source, target = target });
         return base.CanTarget(executor, source, target);
     }
 
