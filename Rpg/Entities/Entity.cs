@@ -40,7 +40,7 @@ public readonly struct EntityRef(string board, int id) : ISerializable
     }
 }
 
-public abstract partial class Entity : ISerializable, IFeatureContainer
+public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHolder
 {
     public int Id { get; }
 
@@ -50,7 +50,6 @@ public abstract partial class Entity : ISerializable, IFeatureContainer
     public event Action<float, float>? OnRotationChanged;
     public event Action<Vector3, Vector3>? OnSizeChanged;
     public event Action<Midia>? OnDisplayChanged;
-    public event Action<Stat>? OnStatCreated;
 
     public string Name
     {
@@ -179,30 +178,6 @@ public abstract partial class Entity : ISerializable, IFeatureContainer
         return Floor.OBBWallIntersection(LOS);
     }
 
-    public Stat? GetStat(string id)
-    {
-        return stats.GetValueOrDefault(id);
-    }
-
-    public float GetStatValue(string id, float defaultValue = 0)
-    {
-        if (stats.TryGetValue(id, out Stat? stat))
-            return stat.FinalValue;
-        return defaultValue;
-    }
-    public float this[string id, float defaultValue=0] => GetStatValue(id.ToLower(), defaultValue);
-
-    public Stat CreateStat(Stat stat)
-    {
-        string id = stat.Id;
-        stats[id] = stat;
-        foreach (string alias in stat.Aliases)
-        {
-            stats[alias] = stat;
-        }
-        OnStatCreated?.Invoke(stats[id]);
-        return stats[id];
-    }
     public Stream? GetCustomDataStream(string id)
     {
         if (customData.TryGetValue(id, out byte[]? data))

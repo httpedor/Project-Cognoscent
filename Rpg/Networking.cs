@@ -9,10 +9,10 @@ using Rpg.Inventory;
 namespace Rpg;
 
 public enum ProtocolId{
-	HANDSHAKE = 0x00,
+    HANDSHAKE = 0x00,
     DISCONNECT,
     CHAT,
-	BOARD_ADD,
+    BOARD_ADD,
     BOARD_REMOVE,
     FLOOR_IMAGE,
     DOOR_UPDATE,
@@ -27,10 +27,7 @@ public enum ProtocolId{
     ENTITY_VELOCITY,
     ENTITY_BODY_PART,
     ENTITY_BODY_PART_INJURY,
-    ENTITY_STAT_CREATE,
-    ENTITY_STAT_BASE,
-    ENTITY_STAT_MODIFIER_UPDATE,
-    ENTITY_STAT_MODIFIER_REMOVE,
+    ENTITY_STAT,
     FEATURE_UPDATE,
     CREATURE_EQUIP_ITEM,
     CREATURE_SKILL_UPDATE,
@@ -629,118 +626,86 @@ public class EntityBodyPartInjuryPacket : Packet
     }
 }
 
-public class EntityStatCreatePacket : Packet
+public class EntityStatPacket : Packet
 {
-    public EntityRef EntityRef;
-    public readonly Stat Stat;
-    public override ProtocolId Id => ProtocolId.ENTITY_STAT_CREATE;
+    public enum StatOp : byte
+    {
+        Create = 0,
+        SetValue = 1,
+        SetModifier = 2,
+        RemoveModifier = 3
+    }
 
-    public EntityStatCreatePacket(Entity entity, Stat stat)
+    public override ProtocolId Id => ProtocolId.ENTITY_STAT;
+
+    public EntityRef EntityRef;
+    public string StatId = string.Empty;
+    public StatOp Operation;
+
+    // Payloads
+    public Stat? Stat; // for Create
+    public float Value; // for SetValue
+    public StatValueType ValueType; // for SetValue
+    public StatModifier? Modifier; // for SetModifier
+    public string? ModifierId; // for RemoveModifier
+
+    // Constructors for convenience
+    public EntityStatPacket(Entity entity, Stat stat)
     {
         EntityRef = new EntityRef(entity);
         Stat = stat.Clone();
+        StatId = stat.Id;
+        Operation = StatOp.Create;
     }
 
-    public EntityStatCreatePacket(Stream stream)
-    {
-        EntityRef = new EntityRef(stream);
-        Stat = new Stat(stream);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        EntityRef.ToBytes(stream);
-        Stat.ToBytes(stream);
-    }
-}
-
-public class EntityStatBasePacket : Packet
-{
-    public EntityRef EntityRef;
-    public readonly string StatId;
-    public readonly float Value;
-    public readonly StatValueType ValueType;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_STAT_BASE;
-
-    public EntityStatBasePacket(Entity entity, string stat, float value, StatValueType type = StatValueType.Base)
+    public EntityStatPacket(Entity entity, string statId, float value, StatValueType type = StatValueType.Base)
     {
         EntityRef = new EntityRef(entity);
-        StatId = stat;
+        StatId = statId;
         Value = value;
         ValueType = type;
+        Operation = StatOp.SetValue;
     }
 
-    public EntityStatBasePacket(Stream stream)
-    {
-        EntityRef = new EntityRef(stream);
-        StatId = stream.ReadString();
-        ValueType = (StatValueType)stream.ReadByte();
-        Value = stream.ReadFloat();
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        EntityRef.ToBytes(stream);
-        stream.WriteString(StatId);
-        stream.WriteByte((byte)ValueType);
-        stream.WriteFloat(Value);
-    }
-}
-
-public class EntityStatModifierPacket : Packet
-{
-    public EntityRef EntityRef;
-    public readonly string StatId;
-    public StatModifier Modifier;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_STAT_MODIFIER_UPDATE;
-
-    public EntityStatModifierPacket(Entity entity, string statid, StatModifier modifier)
+    public EntityStatPacket(Entity entity, string statId, StatModifier modifier)
     {
         EntityRef = new EntityRef(entity);
-        StatId = statid;
+        StatId = statId;
         Modifier = modifier;
+        Operation = StatOp.SetModifier;
     }
 
-    public EntityStatModifierPacket(Stream stream)
-    {
-        EntityRef = new EntityRef(stream);
-        StatId = stream.ReadString();
-        Modifier = new StatModifier(stream);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        EntityRef.ToBytes(stream);
-        stream.WriteString(StatId);
-        Modifier.ToBytes(stream);
-    }
-}
-
-public class EntityStatModifierRemovePacket : Packet
-{
-    public EntityRef EntityRef;
-    public readonly string StatId;
-    public readonly string ModifierId;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_STAT_MODIFIER_REMOVE;
-
-    public EntityStatModifierRemovePacket(Entity entity, string statid, string modifierId)
+    public EntityStatPacket(Entity entity, string statId, string modifierId)
     {
         EntityRef = new EntityRef(entity);
-        StatId = statid;
+        StatId = statId;
         ModifierId = modifierId;
+        Operation = StatOp.RemoveModifier;
     }
 
-    public EntityStatModifierRemovePacket(Stream stream)
+    public EntityStatPacket(Stream stream)
     {
         EntityRef = new EntityRef(stream);
         StatId = stream.ReadString();
-        ModifierId = stream.ReadString();
+        Operation = (StatOp)stream.ReadByte();
+        switch (Operation)
+        {
+            case StatOp.Create:
+                Stat = new Stat(stream);
+                break;
+            case StatOp.SetValue:
+                ValueType = (StatValueType)stream.ReadByte();
+                Value = stream.ReadFloat();
+                break;
+            case StatOp.SetModifier:
+                Modifier = new StatModifier(stream);
+                break;
+            case StatOp.RemoveModifier:
+                ModifierId = stream.ReadString();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
     }
 
     public override void ToBytes(Stream stream)
@@ -748,7 +713,25 @@ public class EntityStatModifierRemovePacket : Packet
         base.ToBytes(stream);
         EntityRef.ToBytes(stream);
         stream.WriteString(StatId);
-        stream.WriteString(ModifierId);
+        stream.WriteByte((byte)Operation);
+        switch (Operation)
+        {
+            case StatOp.Create:
+                Stat!.ToBytes(stream);
+                break;
+            case StatOp.SetValue:
+                stream.WriteByte((byte)ValueType);
+                stream.WriteFloat(Value);
+                break;
+            case StatOp.SetModifier:
+                Modifier!.Value.ToBytes(stream);
+                break;
+            case StatOp.RemoveModifier:
+                stream.WriteString(ModifierId!);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
     }
 }
 

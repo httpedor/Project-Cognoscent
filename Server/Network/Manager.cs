@@ -12,12 +12,16 @@ public static class Manager
     public static void Disconnect(string username, bool sendDisconnect = true)
     {
         if (!Clients.TryGetValue(username, out RpgClient? client)) return;
-        
-        if (client.socket.Connected){
-            if (sendDisconnect){
-                try {
+
+        if (client.socket.Connected)
+        {
+            if (sendDisconnect)
+            {
+                try
+                {
                     client.Send(new DisconnectPacket());
-                } catch (Exception) {}
+                }
+                catch (Exception) { }
             }
             client.socket.Disconnect(false);
             client.socket.Shutdown(SocketShutdown.Both);
@@ -32,7 +36,8 @@ public static class Manager
         return Clients.GetValueOrDefault(username);
     }
 
-    public static void SendToAll(Packet packet){
+    public static void SendToAll(Packet packet)
+    {
         foreach (RpgClient? client in Clients.Values)
         {
             client.Send(packet);
@@ -43,14 +48,16 @@ public static class Manager
         SendToAll(packet);
     }
 
-    public static void SendToSome(Packet packet, Func<RpgClient, bool> predicate){
+    public static void SendToSome(Packet packet, Func<RpgClient, bool> predicate)
+    {
         foreach (RpgClient? client in Clients.Values)
         {
             if (predicate(client))
                 client.Send(packet);
         }
     }
-    public static void SendToBoard(Packet packet, string boardName){
+    public static void SendToBoard(Packet packet, string boardName)
+    {
         foreach (RpgClient? client in Clients.Values)
         {
             if (client.LoadedBoards.Contains(boardName))
@@ -69,11 +76,13 @@ public static class Manager
     {
         SendToOthersInBoard(packet, board.Name, client.Username);
     }
-    public static void SendToBoard(Packet packer, ServerBoard board){
+    public static void SendToBoard(Packet packer, ServerBoard board)
+    {
         SendToBoard(packer, board.Name);
     }
 
-    public static void SendToOthers(Packet packet, string username){
+    public static void SendToOthers(Packet packet, string username)
+    {
         foreach (RpgClient? client in Clients.Values)
         {
             if (client.Username != username)
@@ -81,43 +90,52 @@ public static class Manager
         }
     }
 
-    public static void SendTo(Packet packet, string username){
+    public static void SendTo(Packet packet, string username)
+    {
         if (Clients.TryGetValue(username, out RpgClient? value))
         {
             value.Send(packet);
         }
     }
 
-    public static void NewConnection(Socket socket){
+    public static void NewConnection(Socket socket)
+    {
         RpgClient client = new(socket);
-        Task.Run(() => {
+        Task.Run(() =>
+        {
             byte[] buffer = new byte[1024];
             MemoryStream socketStream = new();
             uint expectedBufferLength = 0;
-            while (client.socket.Connected){
-                try{
+            while (client.socket.Connected)
+            {
+                try
+                {
                     int received = client.socket.Receive(buffer);
-                    if (received == 0){
+                    if (received == 0)
+                    {
                         continue;
                     }
 
                     socketStream.Seek(0, SeekOrigin.End);
                     socketStream.Write(buffer, 0, received);
 
-                    while ((expectedBufferLength != 0 && socketStream.Length >= expectedBufferLength) || (expectedBufferLength == 0 && socketStream.Length >= 5)){
-                        if (expectedBufferLength == 0){
+                    while ((expectedBufferLength != 0 && socketStream.Length >= expectedBufferLength) || (expectedBufferLength == 0 && socketStream.Length >= 5))
+                    {
+                        if (expectedBufferLength == 0)
+                        {
                             socketStream.Seek(0, SeekOrigin.Begin);
                             uint length = socketStream.ReadUInt32();
                             byte id = (byte)socketStream.ReadByte();
                             expectedBufferLength = length;
                         }
 
-                        if (socketStream.Length >= expectedBufferLength){
+                        if (socketStream.Length >= expectedBufferLength)
+                        {
                             //Read the packet
                             socketStream.Seek(0, SeekOrigin.Begin);
                             byte[] packet = new byte[expectedBufferLength];
                             socketStream.Read(packet, 0, (int)expectedBufferLength);
-                            
+
                             //Remove the packet from the buffer
                             byte[] under = socketStream.GetBuffer();
                             Array.Copy(under, expectedBufferLength, under, 0, under.Length - expectedBufferLength);
@@ -133,7 +151,9 @@ public static class Manager
                         }
                     }
 
-                } catch (Exception e){
+                }
+                catch (Exception e)
+                {
                     Logger.LogError(e.ToString());
                     if (e is SocketException)
                         Disconnect(client.Username);

@@ -65,7 +65,6 @@ public class ServerBoard : Board, ISerializable
         base.Tick();
     }
 
-    [SuppressMessage("ReSharper", "RedundantNameQualifier")]
     public override void AddEntity(Entity entity)
     {
         base.AddEntity(entity);
@@ -81,11 +80,11 @@ public class ServerBoard : Board, ISerializable
         
         void addStatEvents(Stat stat)
         {
-            stat.BaseValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue), Name);
-            stat.ModifierUpdated += modifier => Network.Manager.SendToBoard(new EntityStatModifierPacket(entity, stat.Id, modifier), Name);
-            stat.ModifierRemoved += modifier => Network.Manager.SendToBoard(new EntityStatModifierRemovePacket(entity, stat.Id, modifier.Id), Name);
-            stat.MinValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue, Rpg.StatValueType.Min), Name);
-            stat.MaxValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatBasePacket(entity, stat.Id, newValue, Rpg.StatValueType.Max), Name);
+            stat.BaseValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue), Name);
+            stat.ModifierUpdated += modifier => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, modifier), Name);
+            stat.ModifierRemoved += modifier => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, modifier.Id), Name);
+            stat.MinValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue, Rpg.StatValueType.Min), Name);
+            stat.MaxValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue, Rpg.StatValueType.Max), Name);
         }
         foreach (Stat stat in entity.Stats)
         {
@@ -93,7 +92,7 @@ public class ServerBoard : Board, ISerializable
         }
         entity.OnStatCreated += stat => {
             addStatEvents(stat);
-            Network.Manager.SendToBoard(new EntityStatCreatePacket(entity, stat), this);
+            Network.Manager.SendToBoard(new EntityStatPacket(entity, stat), this);
         };
         
         if (entity is Creature creature)

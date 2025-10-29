@@ -973,8 +973,10 @@ public class BodyPartRef(CreatureRef owner, string path) : ISerializable
     public readonly string Path = path;
     public BodyPart? BodyPart => field ??= Owner.Creature?.GetBodyPart(Path);
 
-    public BodyPartRef(BodyPart part) : this(new CreatureRef(part.Owner), part.Path)
+    public BodyPartRef(BodyPart part) : this(new CreatureRef(part.Owner!), part.Path)
     {
+        if (part.Owner == null)
+            throw new ArgumentException("BodyPart's owner cannot be null when creating a BodyPartRef.");
     }
     public BodyPartRef(Stream stream) : this(new CreatureRef(stream), stream.ReadString())
     {

@@ -253,51 +253,53 @@ public partial class NetworkManager : Node
 					part.AddInjury(ebpcp.Injury);
 				break;
 			}
-			case ProtocolId.ENTITY_STAT_CREATE:
+			case ProtocolId.ENTITY_STAT:
 			{
-				var escp = (EntityStatCreatePacket)packet;
-				Entity? entity = escp.EntityRef.Entity;
+				var esp = (EntityStatPacket)packet;
+				Entity? entity = esp.EntityRef.Entity;
 				if (entity == null)
 					break;
-				entity.CreateStat(escp.Stat);
-				break;
-			}
-			case ProtocolId.ENTITY_STAT_BASE:
-			{
-				var esup = (EntityStatBasePacket)packet;
-				Entity? entity = esup.EntityRef.Entity;
-				Stat? stat = entity?.GetStat(esup.StatId);
-				if (stat == null)
-					break;
 
-                switch (esup.ValueType)
-                {
-                    case Rpg.StatValueType.Min:
-                        stat.MinValue = esup.Value;
-                        break;
-                    case Rpg.StatValueType.Max:
-                        stat.MaxValue = esup.Value;
-                        break;
-                    default:
-                        stat.BaseValue = esup.Value;
-                        break;
-                }
-				break;
-			}
-			case ProtocolId.ENTITY_STAT_MODIFIER_UPDATE:
-			{
-				var esmp = (EntityStatModifierPacket)packet;
-				Entity? entity = esmp.EntityRef.Entity;
-
-				entity?.GetStat(esmp.StatId)?.SetModifier(esmp.Modifier);
-				break;
-			}
-			case ProtocolId.ENTITY_STAT_MODIFIER_REMOVE:
-			{
-				var esmrp = (EntityStatModifierRemovePacket)packet;
-				Entity? entity = esmrp.EntityRef.Entity;
-
-				entity?.GetStat(esmrp.StatId)?.RemoveModifier(esmrp.ModifierId);
+				switch (esp.Operation)
+				{
+					case EntityStatPacket.StatOp.Create:
+						if (esp.Stat != null)
+							entity.CreateStat(esp.Stat);
+						break;
+					case EntityStatPacket.StatOp.SetValue:
+					{
+						Stat? stat = entity.GetStat(esp.StatId);
+						if (stat == null)
+							break;
+						switch (esp.ValueType)
+						{
+							case Rpg.StatValueType.Min:
+								stat.MinValue = esp.Value;
+								break;
+							case Rpg.StatValueType.Max:
+								stat.MaxValue = esp.Value;
+								break;
+							default:
+								stat.BaseValue = esp.Value;
+								break;
+						}
+						break;
+					}
+					case EntityStatPacket.StatOp.SetModifier:
+					{
+						if (esp.Modifier.HasValue)
+							entity.GetStat(esp.StatId)?.SetModifier(esp.Modifier.Value);
+						break;
+					}
+					case EntityStatPacket.StatOp.RemoveModifier:
+					{
+						if (!string.IsNullOrEmpty(esp.ModifierId))
+							entity.GetStat(esp.StatId)?.RemoveModifier(esp.ModifierId);
+						break;
+					}
+					default:
+						throw new ArgumentOutOfRangeException();
+				}
 				break;
 			}
 			case ProtocolId.FEATURE_UPDATE:

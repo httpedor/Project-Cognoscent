@@ -81,6 +81,8 @@ abstract class FeatureContainerMixin : IFeatureContainer
 
     public IEnumerable<Feature> EnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature);
 
+    public abstract long Id { get; }
+
     public void AddFeature(Feature feature)
     {
         features[feature.GetId()] = (feature, true);
