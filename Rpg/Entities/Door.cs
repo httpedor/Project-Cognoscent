@@ -32,7 +32,7 @@ public class DoorRef : ISerializable
         stream.WriteInt32(Id);
     }
 }
-public class DoorEntity : Entity, IDamageable
+public partial class DoorEntity : Entity, IDamageable
 {
     public Vector2[] Bounds;
     public Vector2 OpenBound2 {
@@ -120,6 +120,4 @@ public class DoorEntity : Entity, IDamageable
         Health -= damage;
         return damage;
     }
-
-    public string BBLink { get; }
 }

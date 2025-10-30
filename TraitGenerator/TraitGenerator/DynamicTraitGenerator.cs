@@ -13,7 +13,7 @@ public class DynamicTraitGenerator : ISourceGenerator
     private static readonly DiagnosticDescriptor TargetNotPartial = new(
         id: "TG001",
         title: "Target class must be partial",
-        messageFormat: "Type '{0}' must be declared partial to receive mixin members from '{1}'.",
+        messageFormat: "Type '{0}' must be declared partial to receive mixin members from '{1}'",
         category: "TraitGenerator",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -21,14 +21,14 @@ public class DynamicTraitGenerator : ISourceGenerator
     private static readonly DiagnosticDescriptor MixinNeedsParameterlessCtor = new(
         id: "TG002",
         title: "Mixin requires parameterless constructor",
-        messageFormat: "Mixin type '{0}' applied to '{1}' must have a parameterless constructor to be instantiated.",
+        messageFormat: "Mixin type '{0}' applied to '{1}' must have a parameterless constructor to be instantiated",
         category: "TraitGenerator",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
     private static readonly DiagnosticDescriptor TargetOverloadCollision = new(
         id: "TG003",
         title: "Target class already has method with same signature",
-        messageFormat: "Type '{0}' already has a method that would collide with mixin method '{1}' from '{2}'.",
+        messageFormat: "Type '{0}' already has a method that would collide with mixin method '{1}' from '{2}'",
         category: "TraitGenerator",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
@@ -126,6 +126,33 @@ public class DynamicTraitGenerator : ISourceGenerator
         }
 
         // For each target, generate a partial that directly injects mixin members (no composition)
+        // Before generating, prune mixins from derived classes if any base class will also receive the same mixin
+        // to avoid re-generating inherited members on subclasses.
+        {
+            var removals = new List<(INamedTypeSymbol target, INamedTypeSymbol mixin)>();
+            foreach (var kvp in targetToMixins)
+            {
+                var target = kvp.Key;
+                foreach (var mixin in kvp.Value)
+                {
+                    if (HasAncestorWithSameMixin(target, mixin, targetToMixins))
+                    {
+                        removals.Add((target, mixin));
+                    }
+                }
+            }
+            foreach (var (target, mixin) in removals)
+            {
+                if (targetToMixins.TryGetValue(target, out var set))
+                {
+                    set.Remove(mixin);
+                    if (set.Count == 0)
+                        targetToMixins.Remove(target);
+                }
+            }
+        }
+
+        // For each target, generate a partial that directly injects mixin members (no composition)
         foreach (var kvp in targetToMixins)
         {
             var target = kvp.Key;
@@ -164,6 +191,10 @@ public class DynamicTraitGenerator : ISourceGenerator
                 : null;
 
             var sb = new StringBuilder();
+
+            // Emit nullable directive first
+            sb.AppendLine("#nullable enable");
+            sb.AppendLine();
 
             // Emit collected usings first so copied member syntax binds properly
             foreach (var u in usingSet)
@@ -240,6 +271,24 @@ public class DynamicTraitGenerator : ISourceGenerator
                                 sb.AppendLine();
                                 break;
                             }
+                            case IndexerDeclarationSyntax idx:
+                            {
+                                // Indexers (the [] operator)
+                                if (idx.Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword))) break;
+                                if (idx.Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword))) break;
+
+                                var sym = sm.GetDeclaredSymbol(idx) as IPropertySymbol;
+                                if (sym is null) break;
+                                if (!sym.IsIndexer) break;
+
+                                var sigKey = MakeIndexerSignatureKey(sym);
+                                if (existingMemberIndex.Indexers.Contains(sigKey)) break;
+                                existingMemberIndex.Indexers.Add(sigKey);
+
+                                sb.AppendLine(Indent(member.ToFullString(), 1));
+                                sb.AppendLine();
+                                break;
+                            }
                             case MethodDeclarationSyntax m:
                             {
                                 // Skip static, accessors, operators, no-body partials
@@ -250,7 +299,10 @@ public class DynamicTraitGenerator : ISourceGenerator
 
                                 var sym = sm.GetDeclaredSymbol(m) as IMethodSymbol;
                                 if (sym is null) break;
-                                if (sym.MethodKind != MethodKind.Ordinary) break;
+                                // Allow ordinary methods and user-defined operators (including conversions)
+                                if (!(sym.MethodKind == MethodKind.Ordinary ||
+                                      sym.MethodKind == MethodKind.UserDefinedOperator ||
+                                      sym.MethodKind == MethodKind.Conversion)) break;
 
                                 var sigKey = MakeMethodSignatureKey(sym);
                                 if (existingMemberIndex.MethodSignatures.Contains(sigKey))
@@ -324,6 +376,27 @@ public class DynamicTraitGenerator : ISourceGenerator
             var hintName = MakeHintName(target);
             context.AddSource(hintName, sb.ToString());
         }
+    }
+
+    private static bool HasAncestorWithSameMixin(
+        INamedTypeSymbol target,
+        INamedTypeSymbol mixin,
+        Dictionary<INamedTypeSymbol, HashSet<INamedTypeSymbol>> targetToMixins)
+    {
+        var cur = target.BaseType;
+        while (cur != null)
+        {
+            if (targetToMixins.TryGetValue(cur, out var mixinSet))
+            {
+                foreach (var m in mixinSet)
+                {
+                    if (SymbolEqualityComparer.Default.Equals(m, mixin))
+                        return true;
+                }
+            }
+            cur = cur.BaseType;
+        }
+        return false;
     }
 
     private static bool ImplementsInterface(INamedTypeSymbol type, INamedTypeSymbol iface)
@@ -490,6 +563,7 @@ public class DynamicTraitGenerator : ISourceGenerator
     {
         public HashSet<string> Fields { get; } = new();
         public HashSet<string> Properties { get; } = new();
+        public HashSet<string> Indexers { get; } = new();
         public HashSet<string> Events { get; } = new();
         public HashSet<string> NestedTypes { get; } = new();
         public HashSet<string> MethodSignatures { get; } = new();
@@ -506,9 +580,18 @@ public class DynamicTraitGenerator : ISourceGenerator
                     idx.Fields.Add(f.Name);
                     break;
                 case IPropertySymbol p:
-                    idx.Properties.Add(p.Name);
+                    if (p.IsIndexer)
+                    {
+                        idx.Indexers.Add(MakeIndexerSignatureKey(p));
+                    }
+                    else
+                    {
+                        idx.Properties.Add(p.Name);
+                    }
                     break;
-                case IMethodSymbol mm when mm.MethodKind == MethodKind.Ordinary:
+                case IMethodSymbol mm when mm.MethodKind == MethodKind.Ordinary ||
+                                            mm.MethodKind == MethodKind.UserDefinedOperator ||
+                                            mm.MethodKind == MethodKind.Conversion:
                     idx.MethodSignatures.Add(MakeMethodSignatureKey(mm));
                     break;
                 case IEventSymbol e:
@@ -537,6 +620,24 @@ public class DynamicTraitGenerator : ISourceGenerator
             if (i < method.Parameters.Length - 1) sb.Append(',');
         }
         sb.Append(')');
+        return sb.ToString();
+    }
+
+    private static string MakeIndexerSignatureKey(IPropertySymbol indexer)
+    {
+        var sb = new StringBuilder();
+        sb.Append("Indexer");
+        sb.Append('(');
+        for (int i = 0; i < indexer.Parameters.Length; i++)
+        {
+            var p = indexer.Parameters[i];
+            sb.Append(p.RefKind.ToString());
+            sb.Append(':');
+            sb.Append(p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            if (i < indexer.Parameters.Length - 1) sb.Append(',');
+        }
+        sb.Append("):");
+        sb.Append(indexer.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
         return sb.ToString();
     }
 }

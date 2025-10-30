@@ -4,6 +4,7 @@ namespace Rpg;
 
 public interface IStatHolder
 {
+    public event Action<Stat>? OnStatCreated;
     IEnumerable<Stat> Stats { get; }
     Stat? GetStat(string name);
     float GetStatValue(string name, float defaultValue = 0);

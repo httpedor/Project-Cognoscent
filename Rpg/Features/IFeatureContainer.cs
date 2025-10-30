@@ -51,7 +51,7 @@ public interface IFeatureContainer : ICustomDataContainer
     public event Action<Feature>? OnFeatureDisabled;
 
     public string Name { get; }
-    public Board Board { get; }
+    public Board? Board { get; }
     public IEnumerable<Feature> Features { get; }
     public IEnumerable<Feature> EnabledFeatures { get; }
     public bool IsFeatureEnabled(string id);

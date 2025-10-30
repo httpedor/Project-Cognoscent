@@ -117,6 +117,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
 
     public Board Board { get; set; }
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
     protected Entity()
     {
         Id = new Random().Next();
@@ -144,6 +145,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         }
         Display = new Midia(stream);
     }
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
     public virtual void Tick()
     {

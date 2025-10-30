@@ -14,8 +14,10 @@ namespace TTRpgClient.scripts;
 
 public partial class InputManager : SubViewportContainer
 {
-	public static InputManager Instance
-	{
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    public static InputManager Instance
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    {
 		get;
 		private set;
 	}
@@ -426,7 +428,7 @@ public partial class InputManager : SubViewportContainer
 
 		if (line != null)
 		{
-			var start = board.WorldToPixel(board.SelectedEntity.Position.ToGodot().ToV2());
+			var start = board.WorldToPixel(board.SelectedEntity!.Position.ToGodot().ToV2());
 			var end = MousePosition;
 			line.Points = new Vector2[] { start, end };
 		}
@@ -449,7 +451,7 @@ public partial class InputManager : SubViewportContainer
 
 	public void PopulateContextMenuWithItem(Item item)
 	{
-        var owned = GameManager.Instance.CurrentBoard.OwnedSelectedEntity;
+        var owned = GameManager.Instance.CurrentBoard!.OwnedSelectedEntity;
         if (owned != null)
         {
             var ep = item.GetProperty<EquipmentProperty>();

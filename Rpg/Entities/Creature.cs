@@ -72,7 +72,7 @@ public class ActionLayer(string name, string id, uint startTick, uint delay, uin
     }
 }
 
-public class Creature : Entity, IItemHolder, IDamageable
+public partial class Creature : Entity, IItemHolder, IDamageable
 {
     /// <summary>
     /// Called the exact tick an action is added to the activeActions.
@@ -286,6 +286,8 @@ public class Creature : Entity, IItemHolder, IDamageable
     public void AddItem(Item item)
     {
         var ep = item.GetProperty<EquipmentProperty>();
+        if (ep == null)
+            return;
 
         foreach (var bp in Body.GetPartsThatCanEquip(ep.Slot))
             if (bp.GetEquippedItem(ep.Slot) == null)
@@ -294,6 +296,8 @@ public class Creature : Entity, IItemHolder, IDamageable
     public void RemoveItem(Item item)
     {
         var ep = item.GetProperty<EquipmentProperty>();
+        if (ep == null)
+            return;
 
         foreach (var bp in Body.GetPartsThatCanEquip(ep.Slot))
             if (bp.GetEquippedItem(ep.Slot) == null)
