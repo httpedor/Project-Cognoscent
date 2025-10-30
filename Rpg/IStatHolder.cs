@@ -59,5 +59,23 @@ abstract class StatHolderMixin : IStatHolder
         OnStatCreated?.Invoke(stats[id]);
         return stat;
     }
+
+    protected void StatsToBytes(Stream stream)
+    {
+        stream.WriteUInt16((ushort)stats.Count);
+        foreach (Stat stat in Stats)
+        {
+            stat.ToBytes(stream);
+        }
+    }
+    protected void StatsFromBytes(Stream stream)
+    {
+        ushort statCount = stream.ReadUInt16();
+        for (int i = 0; i < statCount; i++)
+        {
+            Stat stat = new Stat(stream);
+            CreateStat(stat);
+        }
+    }
 }
 

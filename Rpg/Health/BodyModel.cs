@@ -52,6 +52,7 @@ public class StatJson
     [JsonPropertyName("regen")] public JsonElement? Regen { get; set; }
     [JsonPropertyName("dependsOn")] public Dictionary<string, JsonElement>? DependsOn { get; set; }
     [JsonPropertyName("groupEffectiveness")] public Dictionary<string, float>? GroupEffectiveness { get; set; }
+    [JsonPropertyName("name")] public string? Name { get; set; }
 }
 
 public class BodyJson
@@ -313,6 +314,7 @@ public class BodyModel
         public JsonNode? RegenJson { get; init; }
         public List<DependencyConfig>? DependsOn { get; init; }
         public Dictionary<string, float> GroupEffectiveness { get; init; } = new();
+        public string? Name { get; init; }
     }
 
     public sealed class DependencyConfig
@@ -407,7 +409,8 @@ public class BodyModel
                     MinDependencyName = minDep,
                     RegenJson = regenJson,
                     DependsOn = dependsOn,
-                    GroupEffectiveness = groupEffectiveness
+                    GroupEffectiveness = groupEffectiveness,
+                    Name = statJson.Name
                 };
             }
         }
@@ -432,7 +435,8 @@ public class BodyModel
 
             var stat = new Stat(statName, baseVal, maxVal, minVal, cfg.OverCap, cfg.UnderCap)
             {
-                Aliases = cfg.Aliases
+                Aliases = cfg.Aliases,
+                Name = cfg.Name ?? statName
             };
             var entry = new Body.StatEntry(stat)
             {

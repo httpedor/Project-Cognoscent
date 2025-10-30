@@ -17,7 +17,7 @@ public enum StatModifierType
 }
 public struct StatModifier : ISerializable
 {
-    public string Id;
+    public readonly string Id;
     public float Value;
     public StatModifierType Type;
 
@@ -61,6 +61,7 @@ public class Stat : ISerializable
     public event Action<float, float>? MaxValueChanged;
 
     public string Id { get; }
+    public string Name;
     private float minValue;
     private float maxValue;
     public float MinValue
@@ -126,6 +127,7 @@ public class Stat : ISerializable
     public Stat(string id, float baseValue, float min = 0, float max = float.MaxValue, bool overCap = true, bool underCap = true)
     {
         Id = id;
+        Name = id;
         // assign backing fields directly to avoid firing change events during construction
         minValue = min;
         maxValue = max;
@@ -138,6 +140,7 @@ public class Stat : ISerializable
     public Stat(Stream stream)
     {
         Id = stream.ReadString();
+        Name = stream.ReadString();
         baseValue = stream.ReadFloat();
         // read backing fields directly to avoid firing change events during deserialization
         minValue = stream.ReadFloat();
@@ -205,6 +208,7 @@ public class Stat : ISerializable
     public void ToBytes(Stream stream)
     {
         stream.WriteString(Id);
+        stream.WriteString(Name);
         stream.WriteFloat(baseValue);
         stream.WriteFloat(MinValue);
         stream.WriteFloat(MaxValue);

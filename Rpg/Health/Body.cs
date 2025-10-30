@@ -13,10 +13,10 @@ using StatThreshold = (float min, float max, Action<StatThresholdGlobals>? onEnt
 
 public class StatThresholdGlobals
 {
-    public Body body;
-    public Creature creature;
+    public required Body body;
+    public required Creature creature;
     public float value;
-    public Stat stat;
+    public required Stat stat;
 }
 public class StatDepCodeGlobals
 {
@@ -116,7 +116,7 @@ public class Body : ISerializable
                                 continue;
                             depStat.ValueChanged += (old, newVal) =>
                             {
-                                string modId = dependency.stat + "_dep";
+                                string modId = depStat.Name;
                                 if (dependency.val.IsLeft)
                                 {
                                     var res = dependency.compiled!(newVal, stat.FinalValue);
@@ -124,7 +124,7 @@ public class Body : ISerializable
                                 }
                                 else
                                 {
-                                    stat.AddModifier(new StatModifier(modId, -((1-(newVal / (depStat.MaxValue - depStat.MinValue))) * dependency.val.Right), StatModifierType.Percent));
+                                    stat.AddModifier(new StatModifier(modId, -((1-((newVal - depStat.MinValue) / (depStat.MaxValue - depStat.MinValue))) * dependency.val.Right), StatModifierType.Percent));
                                 }
                             };
                         }
@@ -237,7 +237,7 @@ public class Body : ISerializable
     {
         if (Owner == null)
             return;
-        // apply max dependencies and regen from consolidated stat entries
+
         foreach (var kv in stats)
         {
             var statName = kv.Key;

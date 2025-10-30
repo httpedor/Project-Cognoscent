@@ -136,13 +136,8 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         Rotation = stream.ReadFloat();
         CustomDataFromBytes(stream);
         FeaturesFromBytes(stream);
+        StatsFromBytes(stream);
 
-        byte count = (byte)stream.ReadByte();
-        for (int i = 0; i < count; i++)
-        {
-            var stat = new Stat(stream);
-            stats[stat.Id] = stat;
-        }
         Display = new Midia(stream);
     }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
@@ -165,9 +160,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         stream.WriteFloat(Rotation);
         CustomDataToBytes(stream);
         FeaturesToBytes(stream);
-        stream.WriteByte((byte)stats.Count);
-        foreach (Stat stat in stats.Values)
-            stat.ToBytes(stream);
+        StatsToBytes(stream);
         Display.ToBytes(stream);
     }
 
