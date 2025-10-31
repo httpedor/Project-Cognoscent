@@ -1,0 +1,5 @@
+{
+  "parent": "living_base",
+  "humanoid": true,
+  "icon": "humanoid"
+}

@@ -1,121 +1,6 @@
 {
+  "parent": "humanoid_base",
   "name": "Humano",
-  "humanoid": true,
-  "icon": "humanoid",
-  "stats": {
-    "strength": {
-      "aliases": [
-        "str",
-        "força",
-        "for"
-      ],
-      "base": 25,
-      "dependsOn": {
-        "consciousness": 0.15,
-        "blood_flow": 0.5,
-        "respiration": 0.5
-      },
-      "groupEffectiveness":{
-        "upper-left": 0.5,
-        "upper-right": 0.5,
-        "lower-left": 0.75,
-        "lower-right": 0.75
-      }
-    },
-    "agility": {
-        "aliases": [
-            "agi",
-            "agilidade",
-            "agi"
-        ],
-      "base": 25,
-      "dependsOn": {
-        "consciousness": 0.15,
-        "blood_flow": 0.5,
-        "respiration": 0.5
-      }
-    },
-    "dexterity": {
-      "aliases": [
-        "dex",
-        "destreza",
-        "des"
-      ],
-      "base": 25,
-      "dependsOn": {
-        "consciousness": 1,
-        "respiration": 0.5
-      }
-    },
-    "intelligence": {
-      "aliases": [
-        "int",
-        "inteligência"
-      ],
-      "base": 25,
-      "dependsOn": {
-        "consciousness": 1.2
-      }
-    },
-    "constitution": {
-      "aliases": [
-        "con",
-        "constituição"
-      ],
-      "base": 25,
-      "dependsOn": {
-        "blood_flow": 0.5,
-        "respiration": 0.5
-      }
-    },
-    "movement": {
-      "aliases": [
-        "mov",
-        "movimento",
-        "velocidade de movimento"
-      ],
-      "base": 5,
-      "dependsOn": {
-        "agility": "((x-25f)/7f, StatModifierType.Flat)"
-      }
-    },
-    "sight": {
-      "max": 1
-    },
-    "hearing": {
-      "max": 1
-    },
-    "perception": {
-      "dependsOn": {
-        "sight": 0.8,
-        "hearing": 0.2,
-        "dexterity": "(x, StatModifierType.Flat)"
-      },
-      "max": 1
-    },
-    "pain": {
-      "max": 1,
-      "dependsOn": {
-        "constitution": "(-((x-25f)/100f), StatModifierType.Percent)"
-      }
-    },
-    "respiration": {
-      "max": 1
-    },
-    "consciousness": {
-      "dependsOn": {
-        "blood_flow": 0.5,
-        "respiration": 0.5,
-        "pain": "(x \u003c\u003d 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)"
-      },
-      "overCap": false,
-      "max": 1,
-      "vital": true
-    },
-    "blood_flow": {
-      "max": 1
-    }
-  },
   "root": {
     "area": 1,
     "maxHealth": 40,
@@ -249,7 +134,7 @@
                 "stats": [
                   {
                     "atFull": 0,
-                    "atZero": -0.15,
+                    "atZero": -0.1,
                     "operation": "Percent",
                     "stat": "respiration",
                     "standaloneHPOnly": true

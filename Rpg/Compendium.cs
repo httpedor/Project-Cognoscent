@@ -13,9 +13,10 @@ public static class Compendium
 
     private class CompendiumEntry
     {
-        public JsonObject? Data { get; set; }
-        public object? Loaded { get; set; }
-        public string? Note { get; set; }
+        public bool IsBase;
+        public JsonObject? Data;
+        public object? Loaded;
+        public string? Note;
     }
 
     private class FolderData
@@ -29,94 +30,6 @@ public static class Compendium
     private static readonly Dictionary<Type, string> typeToFolder = new();
     
     public static IEnumerable<string> Folders => folders.Keys;
-
-    private static JsonObject Merge(JsonObject first, JsonObject second)
-    {
-        JsonObject result = new JsonObject();
-
-        // Copy from first, skipping nulls
-        foreach (var kvp in first)
-        {
-            if (kvp.Value is not null)
-                result[kvp.Key] = kvp.Value.DeepClone();
-        }
-
-        // Merge from second
-        foreach (var kvp in second)
-        {
-            if (kvp.Value is null)
-            {
-                result.Remove(kvp.Key); // Remove the key if null
-                continue;
-            }
-
-            if (result[kvp.Key] is JsonObject obj1 && kvp.Value is JsonObject obj2)
-            {
-                result[kvp.Key] = Merge(obj1, obj2);
-            }
-            else if (result[kvp.Key] is JsonArray arr1 && kvp.Value is JsonArray arr2)
-            {
-                result[kvp.Key] = MergeArraysByName(arr1, arr2);
-            }
-            else
-            {
-                result[kvp.Key] = kvp.Value.DeepClone();
-            }
-        }
-
-        return result;
-    }
-
-    private static JsonArray MergeArraysByName(JsonArray first, JsonArray second)
-    {
-        var merged = new JsonArray();
-        var map = new Dictionary<string, JsonObject>();
-
-        void AddOrMerge(JsonNode? node)
-        {
-
-            if (node is JsonObject obj)
-            {
-                JsonValue? idVal = null;
-                string[] possibleKeys = ["name", "id"];
-                foreach (var key in possibleKeys)
-                {
-                    if (obj[key] is JsonValue val && val.GetValueKind() == JsonValueKind.String)
-                    {
-                        idVal = val;
-                        break;
-                    }
-                }
-                if (idVal is { } nameVal && nameVal.GetValue<string>() is { } name)
-                {
-                    if (map.TryGetValue(name, out var existing))
-                    {
-                        map[name] = Merge(existing, obj);
-                    }
-                    else
-                    {
-                        map[name] = (JsonObject)obj.DeepClone();
-                    }
-                }
-                else
-                    merged.Add(node.DeepClone());
-            }
-            else
-            {
-                if (node is not null)
-                    merged.Add(node.DeepClone());
-            }
-
-        }
-
-        foreach (var item in first) AddOrMerge(item);
-        foreach (var item in second) AddOrMerge(item);
-
-        foreach (var obj in map.Values)
-            merged.Add(obj);
-
-        return merged;
-    }
 
     public static void RegisterDefaults()
     {
@@ -194,10 +107,15 @@ public static class Compendium
                     Logger.LogWarning($"File {next.fName} is child of {parent} but it doesn't exist.");
                     toProcess.RemoveAt(0);
                 }
+                else
+                {
+                    toProcess.Add(next);
+                    toProcess.RemoveAt(0);
+                }
                 continue;
             }
 
-            var result = Merge(parentObj, next.obj);
+            var result = JsonHelpers.Merge(parentObj, next.obj);
             toProcess.RemoveAt(0);
             processedFiles[next.fName] = result;
             yield return (next.fName, result);
@@ -237,8 +155,12 @@ public static class Compendium
         CompendiumEntry entry = new() { Data = data };
         if (data["_note"] is JsonValue noteVal && noteVal.GetValueKind() == JsonValueKind.String)
             entry.Note = noteVal.GetValue<string>();
+        if (name.EndsWith("_base"))
+            entry.IsBase = true;
         folders[folder].Entries[name] = entry;
         OnEntryRegistered?.Invoke(folder, name, data);
+        if (entry.IsBase)
+            return null;
         if (folders[folder].Builder is { } builder)
         {
             try

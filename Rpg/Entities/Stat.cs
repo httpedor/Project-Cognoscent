@@ -336,7 +336,7 @@ public static class CreatureStats
 
     public static string[] GetAllStats()
     {
-        return typeof(CreatureStats).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static).Where(f => f.FieldType == typeof(string)).Select(f => (string)f.GetValue(null)).ToArray();
+        return typeof(CreatureStats).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static).Where(f => f.FieldType == typeof(string)).Select(f => (string)f.GetValue(null)!).ToArray()!;
     }
 
     public static string GetUniqueStat(string stat, string partName)

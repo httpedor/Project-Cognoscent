@@ -32,7 +32,6 @@ public class Body : ISerializable
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
     private readonly HashSet<BodyPart> parts = new();
-    // Consolidated stat information: definition + runtime relationships (dependencies, regen, max dependency)
     public sealed class StatEntry
     {
         public Stat Def;
@@ -44,6 +43,8 @@ public class Body : ISerializable
         public string? MaxDependencyName;
         public bool Vital = false;
         public Dictionary<string, float> GroupEffectiveness = new();
+        //This isn't serialized, it's compiled directly from BodyModel, fix it!
+        public Action<float, float>? OnChange;
 
         public StatEntry(Stat def)
         {
@@ -95,6 +96,9 @@ public class Body : ISerializable
                     foreach (var entry in stats.Values)
                     {
                         var created = value.CreateStat(entry.Def.Clone());
+                        if (entry.OnChange != null)
+                            created.ValueChanged += entry.OnChange;
+
                         if (value is Creature creature && entry.Vital)
                         {
                             created.ValueChanged += (old, newVal) =>
@@ -124,7 +128,7 @@ public class Body : ISerializable
                                 }
                                 else
                                 {
-                                    stat.AddModifier(new StatModifier(modId, -((1-((newVal - depStat.MinValue) / (depStat.MaxValue - depStat.MinValue))) * dependency.val.Right), StatModifierType.Percent));
+                                    stat.AddModifier(new StatModifier(modId, -((1 - ((newVal - depStat.MinValue) / (depStat.MaxValue - depStat.MinValue))) * dependency.val.Right), StatModifierType.Percent));
                                 }
                             };
                         }
@@ -171,12 +175,19 @@ public class Body : ISerializable
 
     public IEnumerable<BodyPart> Parts => parts;
 
-    public static Func<float, float, (float, StatModifierType)> Compile(string code)
+    public static Func<float, float, (float, StatModifierType)> CompileDep(string code)
     {
         var script = CSharpScript.Create<(float, StatModifierType)>(code,
             ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly, typeof(Math).Assembly)
                 .WithImports("Rpg", "System.Math"), typeof(StatDepCodeGlobals)).CreateDelegate();
         return (x, y) => script(new StatDepCodeGlobals{x = x, y=y}).Result;
+    }
+    public static Action<float, float> CompileOnChange(string code)
+    {
+        var script = CSharpScript.Create<Action<float, float>>(code,
+            ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly, typeof(Math).Assembly)
+                .WithImports("Rpg", "System.Math"), typeof(StatDepCodeGlobals)).CreateDelegate();
+        return (x, y) => script(new StatDepCodeGlobals{x = x, y=y});
     }
 
     public Body(string name, BodyPart root, bool isHumanoid = false)
@@ -218,7 +229,7 @@ public class Body : ISerializable
                     val = new Either<string, float>(code);
                     if (!SidedLogic.Instance.IsClient())
                     {
-                        compiled = Compile(code);
+                        compiled = CompileDep(code);
                     }
                 }
  
@@ -428,7 +439,6 @@ public class Body : ISerializable
     {
         stream.WriteString(Name);
         stream.WriteByte(IsHumanoid ? (byte)1 : (byte)0);
-        // preserve original wire format: write the stat definitions first, then dependencies
         stream.WriteByte((byte)stats.Count);
         foreach (var statDef in stats)
             statDef.Value.Def.ToBytes(stream);
@@ -507,15 +517,12 @@ public class Body : ISerializable
             return false;
         return GetPartsWithSlot(ep.Slot).Any(part => part.GetEquippedItem(ep.Slot) == item);
     }
-    
-    // helper to access stat definitions map similar to previous API
-    private IEnumerable<Stat> StatDefinitions => stats.Values.Select(e => e.Def);
  
-     public void _invokeInjuryEvent(BodyPart bp, Injury inj, bool added)
-     {
-         if (added)
-             OnInjuryAdded?.Invoke(bp, inj);
-         else
-             OnInjuryRemoved?.Invoke(bp, inj);
-     }
+    public void _invokeInjuryEvent(BodyPart bp, Injury inj, bool added)
+    {
+        if (added)
+            OnInjuryAdded?.Invoke(bp, inj);
+        else
+            OnInjuryRemoved?.Invoke(bp, inj);
+    }
  }

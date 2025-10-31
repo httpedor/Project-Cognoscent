@@ -108,6 +108,8 @@ public partial class CompendiumControl : ScrollContainer
         };
         Compendium.OnEntryRegistered += (folder, entry, json) =>
         {
+            if (entry.EndsWith("_base"))
+                return;
             VBoxContainer main = folderContainer.GetNode<VBoxContainer>(folder);
             if (main == null)
             {
@@ -128,6 +130,8 @@ public partial class CompendiumControl : ScrollContainer
         };
         Compendium.OnEntryRemoved += (folder, entry) =>
         {
+            if (entry.EndsWith("_base"))
+                return;
             VBoxContainer main = GetNodeOrNull<VBoxContainer>(folder);
             if (main == null)
             {

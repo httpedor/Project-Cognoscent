@@ -46,7 +46,16 @@ abstract class StatHolderMixin : IStatHolder
     {
         return GetStat(name)?.FinalValue ?? defaultValue;
     }
-    public float this[string id, float defaultValue = 0] => GetStatValue(id, defaultValue);
+    public float this[string id, float defaultValue = 0]
+    {
+        get => GetStatValue(id, defaultValue);
+        set 
+        {
+            Stat? stat = GetStat(id);
+            if (stat != null)
+                stat.BaseValue = value;
+        }
+    }
 
     public Stat CreateStat(Stat stat)
     {

@@ -53,6 +53,7 @@ public class StatJson
     [JsonPropertyName("dependsOn")] public Dictionary<string, JsonElement>? DependsOn { get; set; }
     [JsonPropertyName("groupEffectiveness")] public Dictionary<string, float>? GroupEffectiveness { get; set; }
     [JsonPropertyName("name")] public string? Name { get; set; }
+    [JsonPropertyName("onChange")] public string? OnChange { get; set; }
 }
 
 public class BodyJson
@@ -315,18 +316,13 @@ public class BodyModel
         public List<DependencyConfig>? DependsOn { get; init; }
         public Dictionary<string, float> GroupEffectiveness { get; init; } = new();
         public string? Name { get; init; }
+        public string? OnChange { get; init; }
     }
 
     public sealed class DependencyConfig
     {
         public string DepName { get; init; } = string.Empty;
         public JsonNode? ValJson { get; init; }
-    }
-
-    private static class JsonHelpers
-    {
-        public static JsonNode? ToNode(JsonElement el) => JsonNode.Parse(el.GetRawText());
-        public static JsonNode? ToNodeOrNull(JsonElement? el) => el.HasValue ? JsonNode.Parse(el.Value.GetRawText()) : null;
     }
 
     public string Name { get; set; } = null!;
@@ -410,7 +406,8 @@ public class BodyModel
                     RegenJson = regenJson,
                     DependsOn = dependsOn,
                     GroupEffectiveness = groupEffectiveness,
-                    Name = statJson.Name
+                    Name = statJson.Name,
+                    OnChange = statJson.OnChange
                 };
             }
         }
@@ -441,7 +438,7 @@ public class BodyModel
             var entry = new Body.StatEntry(stat)
             {
                 Vital = cfg.Vital,
-                MaxDependencyName = cfg.MaxDependencyName
+                MaxDependencyName = cfg.MaxDependencyName,
             };
 
             if (cfg.MinDependencyName != null)
@@ -477,10 +474,14 @@ public class BodyModel
                     if (SidedLogic.Instance.IsClient() || val.IsRight)
                         deps.Add((dep.DepName, val, null));
                     else
-                        deps.Add((dep.DepName, val, Body.Compile(val.Left)));
+                        deps.Add((dep.DepName, val, Body.CompileDep(val.Left)));
                 }
                 if (deps.Count > 0)
                     entry.Dependencies = deps.ToArray();
+            }
+            if (cfg.OnChange != null && !SidedLogic.Instance.IsClient())
+            {
+                entry.OnChange = Body.CompileOnChange(cfg.OnChange);
             }
 
             entry.GroupEffectiveness = cfg.GroupEffectiveness;
