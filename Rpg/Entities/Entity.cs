@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 namespace Rpg;
 
@@ -61,6 +62,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         }
     }
     // ReSharper disable once InconsistentNaming
+    [JsonIgnore]
     public string BBLink => "[url=gotoent " + Id + "]" + Name + "[/url]";
 
     public Vector3 Position
@@ -82,10 +84,14 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
             field = value;
         }
     }
+    [JsonIgnore]
     public Vector2 Direction => new(MathF.Cos(Rotation), MathF.Sin(Rotation));
 
+    [JsonIgnore]
     public int FloorIndex => (int)Position.Z;
+    [JsonIgnore]
     public Floor Floor => Board.GetFloor(FloorIndex);
+    [JsonIgnore]
     public bool IsGrounded => Position.Z % 1 == 0;
 
     public Vector3 Size
@@ -97,6 +103,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
             field = value;
         }
     }
+    [JsonIgnore]
     public Vector2 PixelSize => new(Floor.TileSize.X * Size.X, Floor.TileSize.Y * Size.Y);
     
 
@@ -110,9 +117,12 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         }
     } = new();
 
+    [JsonInclude]
     protected Dictionary<string, Stat> stats = new();
 
+    [JsonIgnore]
     public IEnumerable<Stat> Stats => stats.Values;
+    [JsonIgnore]
     public OBB Hitbox => new(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
 
     public Board Board { get; set; }

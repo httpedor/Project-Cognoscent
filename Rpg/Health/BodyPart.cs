@@ -798,18 +798,6 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         OnInjuryRemoved = null;
     }
 
-    public static BodyPart? NewBody(JsonObject json)
-    {
-        try
-        {
-            return new BodyPartModel(json).Build();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     public float GetStat(string id, float defaultValue = 0)
     {
         if (!Stats.TryGetValue(id, out var stats)) return defaultValue;

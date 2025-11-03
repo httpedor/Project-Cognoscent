@@ -105,7 +105,7 @@ public partial class GameManager : Node
     public static GameManager Instance {get; private set;}
     public static bool IsGm => Username.Equals("httpedor");
 
-    public static CanvasLayer UILayer => Instance.GetParent().FindChild("UILayer") as CanvasLayer;
+    public static CanvasLayer UILayer => (Instance.GetParent().FindChild("UILayer") as CanvasLayer)!;
 
     public GameManager(){
         defaultClearColor = RenderingServer.GetDefaultClearColor();
@@ -258,6 +258,19 @@ public partial class GameManager : Node
             case "help":
                 ChatControl.Instance.AddMessage("Commands: /help, /clear, /body, /grid");
                 break;
+            case "pm":
+            case "dm":
+            {
+                if (args.Length < 1)
+                {
+                    ChatControl.Instance.AddMessage("Usage: /pm <message>");
+                    return;
+                }
+                string message = string.Join(" ", args);
+                var packet = new PrivateMessagePacket(CurrentBoard?.OwnedSelectedEntity as Creature, null, message);
+                NetworkManager.Instance.SendPacket(packet);
+                break;
+            }
             case "grid":
                 if (CurrentBoard == null)
                 {

@@ -20,20 +20,18 @@ export enum ProtocolId {
   ENTITY_VELOCITY = 15,
   ENTITY_BODY_PART = 16,
   ENTITY_BODY_PART_INJURY = 17,
-  ENTITY_STAT_CREATE = 18,
-  ENTITY_STAT_BASE = 19,
-  ENTITY_STAT_MODIFIER_UPDATE = 20,
-  ENTITY_STAT_MODIFIER_REMOVE = 21,
-  FEATURE_UPDATE = 22,
-  CREATURE_EQUIP_ITEM = 23,
-  CREATURE_SKILL_UPDATE = 24,
-  CREATURE_SKILL_REMOVE = 25,
-  CREATURE_ACTION_LAYER_UPDATE = 26,
-  CREATURE_ACTION_LAYER_REMOVE = 27,
-  CREATURE_SKILLTREE_UPDATE = 28,
-  EXECUTE_COMMAND = 29,
-  COMPENDIUM_UPDATE = 30,
-  SHOW_MIDIA = 31,
+  ENTITY_STAT = 18,
+  FEATURE_UPDATE = 19,
+  CREATURE_EQUIP_ITEM = 20,
+  CREATURE_SKILL_UPDATE = 21,
+  CREATURE_SKILL_REMOVE = 22,
+  CREATURE_ACTION_LAYER_UPDATE = 23,
+  CREATURE_ACTION_LAYER_REMOVE = 24,
+  CREATURE_SKILLTREE_UPDATE = 25,
+  EXECUTE_COMMAND = 26,
+  COMPENDIUM_UPDATE = 27,
+  SHOW_MIDIA = 28,
+  PRIVATE_MESSAGE = 29,
 }
 
 export enum DeviceType {
@@ -70,6 +68,13 @@ export enum MidiaType {
   Video = 1,
   Audio = 2,
   Binary = 3,
+}
+
+export enum StatOp {
+  Create = 0,
+  SetValue = 1,
+  SetModifier = 2,
+  RemoveModifier = 3,
 }
 
 export interface StatModifier {
@@ -239,30 +244,14 @@ export interface EntityRotationPacket {
   id: ProtocolId;
 }
 
-export interface EntityStatBasePacket {
+export interface EntityStatPacket {
   entityRef: EntityRef;
   statId: string;
+  operation: StatOp;
+  stat: unknown;
   value: number;
   valueType: StatValueType;
-  id: ProtocolId;
-}
-
-export interface EntityStatCreatePacket {
-  entityRef: EntityRef;
-  stat: unknown;
-  id: ProtocolId;
-}
-
-export interface EntityStatModifierPacket {
-  entityRef: EntityRef;
-  statId: string;
-  modifier: StatModifier;
-  id: ProtocolId;
-}
-
-export interface EntityStatModifierRemovePacket {
-  entityRef: EntityRef;
-  statId: string;
+  modifier: StatModifier | null;
   modifierId: string;
   id: ProtocolId;
 }
@@ -293,6 +282,13 @@ export interface LoginPacket {
   id: ProtocolId;
 }
 
+export interface PrivateMessagePacket {
+  sender: CreatureRef | null;
+  recipient: CreatureRef | null;
+  message: string;
+  id: ProtocolId;
+}
+
 export interface ShowMidiaPacket {
   board: unknown;
   midia: Midia;
@@ -305,5 +301,5 @@ export interface SkillTreeUpdatePacket {
   id: ProtocolId;
 }
 
-export type Packet = ActionLayerRemovePacket | ActionLayerUpdatePacket | BoardAddPacket | BoardRemovePacket | ChatPacket | CombatModePacket | CompendiumUpdatePacket | CreatureEquipItemPacket | CreatureSkillRemovePacket | CreatureSkillUpdatePacket | DisconnectPacket | DoorInteractPacket | DoorUpdatePacket | EntityBodyPartInjuryPacket | EntityBodyPartPacket | EntityCreatePacket | EntityMidiaPacket | EntityMovePacket | EntityPositionPacket | EntityRemovePacket | EntityRotationPacket | EntityStatBasePacket | EntityStatCreatePacket | EntityStatModifierPacket | EntityStatModifierRemovePacket | ExecuteCommandPacket | FeatureUpdatePacket | FloorImagePacket | LoginPacket | ShowMidiaPacket | SkillTreeUpdatePacket;
+export type Packet = ActionLayerRemovePacket | ActionLayerUpdatePacket | BoardAddPacket | BoardRemovePacket | ChatPacket | CombatModePacket | CompendiumUpdatePacket | CreatureEquipItemPacket | CreatureSkillRemovePacket | CreatureSkillUpdatePacket | DisconnectPacket | DoorInteractPacket | DoorUpdatePacket | EntityBodyPartInjuryPacket | EntityBodyPartPacket | EntityCreatePacket | EntityMidiaPacket | EntityMovePacket | EntityPositionPacket | EntityRemovePacket | EntityRotationPacket | EntityStatPacket | ExecuteCommandPacket | FeatureUpdatePacket | FloorImagePacket | LoginPacket | PrivateMessagePacket | ShowMidiaPacket | SkillTreeUpdatePacket;
 

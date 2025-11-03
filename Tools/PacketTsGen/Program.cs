@@ -51,6 +51,7 @@ static class TsGen
             WriteEnum(sb, GetRequiredType(asm, "Rpg.FeatureUpdatePacket+FeatureUpdateType"));
             WriteEnum(sb, GetRequiredType(asm, "StatModifierType"));
             WriteEnum(sb, GetRequiredType(asm, "Rpg.MidiaType"));
+            WriteEnum(sb, GetRequiredType(asm, "Rpg.EntityStatPacket+StatOp"));
 
             string[] knownTypes =
             [
@@ -153,27 +154,33 @@ static class TsGen
         if (t.IsArray)
         {
             var elem = t.GetElementType()!;
-            return ToTsType(elem) + "[]";
+            return ToTsType(elem, knownTypes) + "[]";
         }
 
         if (t.IsGenericType)
         {
             var def = t.GetGenericTypeDefinition();
             var args = t.GetGenericArguments();
+            // Nullable<T> -> T | null
+            if (def == typeof(Nullable<>))
+            {
+                return ToTsType(args[0], knownTypes) + " | null";
+            }
             if (def == typeof(Dictionary<,>))
             {
-                var key = ToTsType(args[0]);
-                var val = ToTsType(args[1]);
+                var key = ToTsType(args[0], knownTypes);
+                var val = ToTsType(args[1], knownTypes);
                 // Typescript index signatures require string/number/symbol keys
                 if (key != "string" && key != "number") key = "string";
                 return $"{{ [key: {key}]: {val} }}";
             }
             if (def == typeof(List<>) || def == typeof(IEnumerable<>))
             {
-                return ToTsType(args[0]) + "[]";
+                return ToTsType(args[0], knownTypes) + "[]";
             }
         }
 
+        Console.WriteLine($"[TsGen] Warning: Unmapped type {t.FullName}, defaulting to 'unknown'");
         return "unknown";
     }
 

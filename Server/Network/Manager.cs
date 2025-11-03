@@ -1,7 +1,11 @@
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Rpg;
 using Server.Game;
+using Server.TUI;
 
 namespace Server.Network;
 
@@ -13,22 +17,7 @@ public static class Manager
     {
         if (!Clients.TryGetValue(username, out RpgClient? client)) return;
 
-        if (client.socket.Connected)
-        {
-            if (sendDisconnect)
-            {
-                try
-                {
-                    client.Send(new DisconnectPacket());
-                }
-                catch (Exception) { }
-            }
-            client.socket.Disconnect(false);
-            client.socket.Shutdown(SocketShutdown.Both);
-            client.socket.Close();
-        }
-        Clients.Remove(username);
-        Logger.Log(username + " disconnected");
+        client.Disconnect();
     }
 
     public static RpgClient? GetClient(string username)
@@ -106,11 +95,11 @@ public static class Manager
             byte[] buffer = new byte[1024];
             MemoryStream socketStream = new();
             uint expectedBufferLength = 0;
-            while (client.socket.Connected)
+            while (client.Connected)
             {
                 try
                 {
-                    int received = client.socket.Receive(buffer);
+                    int received = client.socket.Left!.Receive(buffer);
                     if (received == 0)
                     {
                         continue;
@@ -162,4 +151,31 @@ public static class Manager
         });
     }
 
+    public static Task NewConnection(WebSocket webSocket)
+    {
+        RpgClient client = new(webSocket);
+        return Task.Run(async () =>
+        {
+            byte[] buffer = new byte[1024 * 4];
+            while (client.Connected)
+            {
+                try
+                {
+                    await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    string json = System.Text.Encoding.UTF8.GetString(buffer);
+                    json = json.Trim('\0');
+                    Packet packet = Packet.ReadPacketJson(json);
+                    client.HandlePacket(packet);
+                    Array.Clear(buffer, 0, buffer.Length);
+                }
+                catch (Exception e)
+                {
+                    Loggers.Web.Log(e.ToString(), Rpg.LogLevel.Error);
+                    if (webSocket.CloseStatusDescription != null)
+                        Loggers.Web.Log(webSocket.CloseStatusDescription);
+                    client.Disconnect(false);
+                }
+            }
+        });
+    }
 }

@@ -61,20 +61,29 @@
 			"group": "build"
 		},
 		{
-			"label": "build with tsgen 2",
+			"label": "tsgen",
 			"type": "shell",
 			"command": "dotnet",
 			"args": [
-				"build",
-				"c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Rpg\\Rpg.csproj",
-				"-c",
-				"Debug"
+				"run",
+				"--project",
+				"c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj"
 			],
 			"isBackground": false,
-			"problemMatcher": [
-				"$msCompile"
+			"problemMatcher": []
+		},
+		{
+			"label": "build web",
+			"command": "npm",
+			"type": "process",
+			"args": [
+				"run",
+				"build"
 			],
-			"group": "build"
+			"options": {
+				"cwd": "${workspaceFolder}/WebFrontend"
+			},
+			"problemMatcher": []
 		}
 	]
 }

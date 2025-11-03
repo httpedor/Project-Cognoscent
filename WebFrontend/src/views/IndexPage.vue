@@ -1,14 +1,38 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { Avatar, Button, Message, Toolbar } from 'primevue'
+import { store } from '../store'
+import type { Entity } from '@/rpg'
+import startWebSocket from '@/socket'
+
+const error = ref('')
+const selectedCharacter = ref<Entity | null>(null)
+
+function logout() {
+  store.setUsername('')
+  window.location.reload()
+}
+
+onMounted(() => {
+  if (!store.username) {
+    window.location.reload()
+  }
+  startWebSocket();
+})
+
+// When a character is selected, the main section can react to changes.
+</script>
+
 <template>
   <div class="min-h-screen flex flex-col">
     <Toolbar class="px-4">
       <template #start>
         <div class="flex items-center gap-4 overflow-x-auto">
           <h1 class="text-lg font-semibold whitespace-nowrap">Bem-vindo, {{ store.username }}</h1>
-          <span v-if="loading" class="text-sm text-gray-600 whitespace-nowrap">Carregando personagens…</span>
-          <Message v-else-if="error" severity="error" class="!m-0">Erro: {{ error }}</Message>
+          <Message v-if="error" severity="error" class="!m-0">Erro: {{ error }}</Message>
           <div v-else class="flex items-center gap-2">
             <Avatar
-              v-for="character in data"
+              v-for="character in store.entities.filter(c => c.owner === store.username)"
               :key="character.id"
               shape="circle"
               size="large"
@@ -40,37 +64,3 @@
   </div>
 
 </template>
-
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Avatar, Button, Message, Toolbar } from 'primevue'
-import { store } from '../store'
-import type { Entity } from '@/rpg'
-
-const loading = ref(true)
-const error = ref('')
-const data = ref<Entity[]>([])
-const selectedCharacter = ref<Entity | null>(null)
-
-onMounted(() => {
-  fetch('/api/entities?owner=' + encodeURIComponent(store.username))
-    .then((res) => res.json())
-    .then((entities: Entity[]) => {
-      data.value = entities
-    })
-    .catch((err) => {
-      if (err instanceof SyntaxError) error.value = 'Formato de dados inválido'
-      else error.value = err.message
-    })
-    .finally(() => {
-      loading.value = false
-    })
-})
-
-function logout() {
-  store.setUsername('')
-  window.location.reload()
-}
-
-// When a character is selected, the main section can react to changes.
-</script>

@@ -1,4 +1,5 @@
-﻿using TraitGenerator;
+﻿using System.Text.Json.Serialization;
+using TraitGenerator;
 
 namespace Rpg;
 
@@ -71,14 +72,17 @@ abstract class FeatureContainerMixin : IFeatureContainer
     public event Action<Feature>? OnFeatureEnabled;
     public event Action<Feature>? OnFeatureDisabled;
 
+    [JsonInclude]
     protected Dictionary<string, (Feature feature, bool enabled)> features = new();
 
     abstract public string Name { get; }
 
     abstract public Board Board { get; }
 
+    [JsonIgnore]
     public IEnumerable<Feature> Features => features.Values.Select(t => t.feature);
 
+    [JsonIgnore]
     public IEnumerable<Feature> EnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature);
 
     public abstract long Id { get; }

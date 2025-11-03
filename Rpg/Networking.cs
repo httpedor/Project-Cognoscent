@@ -1,14 +1,17 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Rpg;
 using Rpg.Inventory;
 // ReSharper disable UnusedMember.Global
 
 namespace Rpg;
 
-public enum ProtocolId{
+public enum ProtocolId
+{
     HANDSHAKE = 0x00,
     DISCONNECT,
     CHAT,
@@ -37,7 +40,8 @@ public enum ProtocolId{
     CREATURE_SKILLTREE_UPDATE,
     EXECUTE_COMMAND,
     COMPENDIUM_UPDATE,
-    SHOW_MIDIA
+    SHOW_MIDIA,
+    PRIVATE_MESSAGE
 }
 
 public enum DeviceType {
@@ -90,12 +94,27 @@ public abstract class Packet : ISerializable {
         }
         throw new Exception("Unknown packet id " + id);
     }
+    public static Packet ReadPacketJson(string json)
+    {
+        JsonObject jsonObj = JsonNode.Parse(json)!.AsObject();
+        Logger.Log(jsonObj.ToJsonString());
+        ProtocolId pid = (ProtocolId)jsonObj["id"]!.GetValue<int>();
+        var pop = new JsonPopulator();
+
+        if (packetTypes.ContainsKey(pid))
+        {
+            var instance = (Packet)RuntimeHelpers.GetUninitializedObject(packetTypes[pid])!;
+            pop.PopulateObject(instance, jsonObj.ToJsonString());
+            return instance;
+        }
+        throw new Exception("Unknown packet id " + pid);
+    }
 }
 
 public class LoginPacket(string username, DeviceType device) : Packet
 {
-    public string Username { get; } = username;
-    public DeviceType Device{ get; } = device;
+    public readonly string Username = username;
+    public readonly DeviceType Device = device;
 
     public override ProtocolId Id => ProtocolId.HANDSHAKE;
 
@@ -1133,5 +1152,53 @@ public class ShowMidiaPacket : Packet
         base.ToBytes(stream);
         new BoardRef(Board).ToBytes(stream);
         Midia.ToBytes(stream);
+    }
+}
+
+public class PrivateMessagePacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.PRIVATE_MESSAGE;
+    public readonly CreatureRef? Sender;
+    public readonly CreatureRef? Recipient;
+    public readonly string Message;
+
+    public PrivateMessagePacket(Creature? sender, Creature? recipient, string message)
+    {
+        Sender = sender != null ? new CreatureRef(sender) : null;
+        Recipient = recipient != null ? new CreatureRef(recipient) : null;
+        Message = message;
+    }
+
+    public PrivateMessagePacket(Stream stream)
+    {
+        if (stream.ReadBoolean())
+            Sender = new CreatureRef(stream);
+        if (stream.ReadBoolean())
+            Recipient = new CreatureRef(stream);
+        Message = stream.ReadLongString();
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        if (Sender != null)
+        {
+            stream.WriteBoolean(true);
+            Sender.Value.ToBytes(stream);
+        }
+        else
+        {
+            stream.WriteBoolean(false);
+        }
+        if (Recipient != null)
+        {
+            stream.WriteBoolean(true);
+            Recipient.Value.ToBytes(stream);
+        }
+        else
+        {
+            stream.WriteBoolean(false);
+        }
+        stream.WriteLongString(Message);
     }
 }

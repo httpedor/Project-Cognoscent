@@ -486,7 +486,7 @@ public class Command
             {
                 string ret = "";
                 foreach (RpgClient client in Network.Manager.Clients.Values)
-                    ret += client.Username + " - " + client.socket.RemoteEndPoint + "\n";
+                    ret += client.Username + " - " + client.IpAddress + "\n";
                 return ret;
             }
         ));

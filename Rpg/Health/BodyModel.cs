@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Rpg;
@@ -37,7 +36,7 @@ public class BodyPartJson
     [JsonPropertyName("selfFeatures")] public List<string>? SelfFeatures { get; set; }
     [JsonPropertyName("features")] public List<string>? Features { get; set; }
     [JsonPropertyName("children")] public List<BodyPartJson>? Children { get; set; }
-    [JsonPropertyName("metadata")] public JsonObject? Metadata { get; set; }
+    [JsonPropertyName("metadata")] public JsonElement? Metadata { get; set; }
 }
 
 public class StatJson
@@ -67,57 +66,49 @@ public class BodyJson
 
 public class BodyPartModel
 {
-    // Small, self-documenting config types to replace raw tuples
     public sealed class PartStatModifierConfig
     {
-        public string StatName { get; init; } = string.Empty;
-        public JsonNode? AtFullJson { get; init; }
-        public JsonNode? AtZeroJson { get; init; }
-        public bool StandaloneHpOnly { get; init; }
-        public StatModifierType Operation { get; init; } = StatModifierType.Flat;
-        public bool ApplyToOwner { get; init; } = true;
+        public string StatName = string.Empty;
+        public JsonElement? AtFullJson;
+        public JsonElement? AtZeroJson;
+        public bool StandaloneHpOnly;
+        public StatModifierType Operation = StatModifierType.Flat;
+        public bool ApplyToOwner = true;
     }
 
     public sealed class DamageModifierConfig
     {
-        public DamageType Type { get; init; } = default!;
-        public JsonNode? ValueJson { get; init; }
-        public StatModifierType Operation { get; init; } = StatModifierType.Percent;
+        public DamageType Type = default!;
+        public JsonElement? ValueJson;
+        public StatModifierType Operation = StatModifierType.Percent;
     }
 
-    private static class JsonHelpers
-    {
-        public static JsonNode? ToNode(JsonElement el) => JsonNode.Parse(el.GetRawText());
-        public static JsonNode? ToNodeOrNull(JsonElement? el) => el.HasValue ? JsonNode.Parse(el.Value.GetRawText()) : null;
-        public static StatModifierType ParseOp(string? op, StatModifierType fallback) => Enum.TryParse<StatModifierType>(op ?? string.Empty, true, out var v) ? v : fallback;
-    }
-
-    public string Name { get; set; } = string.Empty;
-    public string Group { get; set; } = "default";
-    public JsonNode? MaxHealthJson { get; set; }
-    public JsonNode? AreaJson { get; set; }
-    public float PainMultiplier { get; set; }
-    public Skill[] Skills { get; set; } = Array.Empty<Skill>();
-    public byte Flags { get; set; }
-    public List<BodyPartModel> Children { get; set; } = new();
-    public List<string> EquipmentSlots { get; set; } = new();
-    public List<Injury> Injuries { get; set; } = new();
-    public List<Feature> OwnerFeatures { get; set; } = new();
-    public List<Feature> SelfFeatures { get; set; } = new();
+    public string Name;
+    public string Group;
+    public JsonElement? MaxHealthJson;
+    public JsonElement? AreaJson;
+    public float PainMultiplier;
+    public Skill[] Skills = Array.Empty<Skill>();
+    public byte Flags;
+    public List<BodyPartModel> Children = new();
+    public List<string> EquipmentSlots = new();
+    public List<Injury> Injuries = new();
+    public List<Feature> OwnerFeatures = new();
+    public List<Feature> SelfFeatures = new();
     // By stat name, list of modifiers defined for that part
-    public Dictionary<string, List<PartStatModifierConfig>> Stats { get; set; } = new();
-    public Dictionary<DamageType, List<DamageModifierConfig>> DamageModifiers { get; set; } = new();
-    public JsonObject? Metadata { get; set; }
+    public Dictionary<string, List<PartStatModifierConfig>> Stats = new();
+    public Dictionary<DamageType, List<DamageModifierConfig>> DamageModifiers = new();
+    public JsonElement? Metadata;
 
-    public BodyPartModel(JsonObject json)
+    public BodyPartModel(JsonElement json)
     {
-        var jsonModel = JsonSerializer.Deserialize<BodyPartJson>(json.ToString());
+        var jsonModel = json.Deserialize<BodyPartJson>();
         if (jsonModel == null) throw new Exception("Failed to deserialize BodyPartJson");
 
         Name = jsonModel.Name ?? "unnamed";
         Group = jsonModel.Group ?? "default";
-        MaxHealthJson = JsonHelpers.ToNode(jsonModel.MaxHealth);
-        AreaJson = JsonHelpers.ToNode(jsonModel.Area);
+        MaxHealthJson = jsonModel.MaxHealth;
+        AreaJson = jsonModel.Area;
         PainMultiplier = jsonModel.PainMultiplier;
         EquipmentSlots = jsonModel.Slots ?? new();
 
@@ -130,8 +121,8 @@ public class BodyPartModel
                 var cfg = new PartStatModifierConfig
                 {
                     StatName = stat.Stat!,
-                    AtFullJson = JsonHelpers.ToNode(stat.AtFull),
-                    AtZeroJson = stat.AtZero.HasValue ? JsonHelpers.ToNode(stat.AtZero.Value) : JsonValue.Create(0f),
+                    AtFullJson = stat.AtFull,
+                    AtZeroJson = stat.AtZero ?? JsonDocument.Parse("0").RootElement,
                     StandaloneHpOnly = stat.StandaloneHPOnly,
                     Operation = JsonHelpers.ParseOp(stat.Operation, StatModifierType.Flat),
                     ApplyToOwner = true
@@ -160,7 +151,7 @@ public class BodyPartModel
                 var cfg = new DamageModifierConfig
                 {
                     Type = dt,
-                    ValueJson = JsonHelpers.ToNode(dmg.Value),
+                    ValueJson = dmg.Value,
                     Operation = JsonHelpers.ParseOp(dmg.Operation, StatModifierType.Percent)
                 };
 
@@ -225,22 +216,16 @@ public class BodyPartModel
                 else
                     OwnerFeatures.Add(feature);
             }
+            Metadata = jsonModel.Metadata;
         }
 
         if (jsonModel.Children != null)
         {
             foreach (var childJson in jsonModel.Children)
             {
-                var childJsonObj = JsonNode.Parse(JsonSerializer.Serialize(childJson)) as JsonObject;
-                if (childJsonObj != null)
-                {
-                    var child = new BodyPartModel(childJsonObj);
-                    Children.Add(child);
-                }
-                else
-                {
-                    Logger.LogWarning("Invalid child body part JSON structure under " + Name);
-                }
+                var childElement = JsonDocument.Parse(JsonSerializer.Serialize(childJson)).RootElement;
+                var child = new BodyPartModel(childElement);
+                Children.Add(child);
             }
         }
 
@@ -249,8 +234,8 @@ public class BodyPartModel
 
     public BodyPart Build(Body? body = null)
     {
-        int maxHealth = MaxHealthJson != null ? JsonModel.GetInt((JsonValue)MaxHealthJson) : 1;
-        float sizePercentage = AreaJson != null ? JsonModel.GetFloat((JsonValue)AreaJson) * 100f : 0;
+        int maxHealth = MaxHealthJson != null ? JsonModel.GetInt(MaxHealthJson.Value) : 1;
+        float sizePercentage = AreaJson != null ? JsonModel.GetFloat(AreaJson.Value) * 100f : 0;
 
         var builder = new BodyPart.Builder(Name)
             .Group(Group)
@@ -270,8 +255,8 @@ public class BodyPartModel
         {
             foreach (var cfg in statEntry.Value)
             {
-                float atFull = cfg.AtFullJson != null ? JsonModel.GetFloat((JsonValue)cfg.AtFullJson) : 0;
-                float atZero = cfg.AtZeroJson != null ? JsonModel.GetFloat((JsonValue)cfg.AtZeroJson) : 0;
+                float atFull = cfg.AtFullJson != null ? JsonModel.GetFloat(cfg.AtFullJson.Value) : 0;
+                float atZero = cfg.AtZeroJson != null ? JsonModel.GetFloat(cfg.AtZeroJson.Value) : 0;
                 builder.Stat(cfg.StatName, atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, cfg.ApplyToOwner);
             }
         }
@@ -280,7 +265,7 @@ public class BodyPartModel
         {
             foreach (var cfg in dmgEntry.Value)
             {
-                float value = cfg.ValueJson != null ? JsonModel.GetFloat((JsonValue)cfg.ValueJson) : 0;
+                float value = cfg.ValueJson != null ? JsonModel.GetFloat(cfg.ValueJson.Value) : 0;
                 builder.DamageModifier(cfg.Type, value, cfg.Operation);
             }
         }
@@ -300,48 +285,46 @@ public class BodyPartModel
 
 public class BodyModel
 {
-    // Strongly-typed config to replace the long Stats tuple
     public sealed class StatConfig
     {
-        public JsonNode? BaseJson { get; init; }
-        public JsonNode? MaxJson { get; init; }
-        public JsonNode? MinJson { get; init; }
-        public bool OverCap { get; init; } = true;
-        public bool UnderCap { get; init; } = true;
-        public string[] Aliases { get; init; } = Array.Empty<string>();
-        public bool Vital { get; init; }
-        public string? MaxDependencyName { get; init; }
-        public string? MinDependencyName { get; init; }
-        public JsonNode? RegenJson { get; init; }
-        public List<DependencyConfig>? DependsOn { get; init; }
-        public Dictionary<string, float> GroupEffectiveness { get; init; } = new();
-        public string? Name { get; init; }
-        public string? OnChange { get; init; }
+        public JsonElement? BaseJson;
+        public JsonElement? MaxJson;
+        public JsonElement? MinJson;
+        public bool OverCap = true;
+        public bool UnderCap = true;
+        public string[] Aliases = Array.Empty<string>();
+        public bool Vital;
+        public string? MaxDependencyName;
+        public string? MinDependencyName;
+        public JsonElement? RegenJson;
+        public List<DependencyConfig>? DependsOn;
+        public Dictionary<string, float> GroupEffectiveness = new();
+        public string? Name;
+        public string? OnChange;
     }
 
     public sealed class DependencyConfig
     {
-        public string DepName { get; init; } = string.Empty;
-        public JsonNode? ValJson { get; init; }
+        public string DepName = string.Empty;
+        public JsonElement? ValJson;
     }
 
-    public string Name { get; set; } = null!;
-    public bool IsHumanoid { get; set; }
-    public List<Feature> Features { get; set; } = new();
-    public Dictionary<string, StatConfig> Stats { get; set; } = new();
-    public BodyPartModel Root { get; set; } = null!;
+    public string Name = null!;
+    public bool IsHumanoid;
+    public List<Feature> Features = new();
+    public Dictionary<string, StatConfig> Stats = new();
+    public BodyPartModel Root = null!;
 
-    public BodyModel(JsonObject json)
+    public BodyModel(JsonElement json)
     {
-        var jsonModel = JsonSerializer.Deserialize<BodyJson>(json.ToString());
+        var jsonModel = json.Deserialize<BodyJson>();
         if (jsonModel == null) throw new Exception("Failed to deserialize BodyJson");
 
         Name = jsonModel.Name ?? "unnamed";
         IsHumanoid = jsonModel.IsHumanoid;
         if (jsonModel.Root == null) throw new Exception("Root is required");
-        var rootJson = JsonNode.Parse(JsonSerializer.Serialize(jsonModel.Root));
-        if (rootJson is not JsonObject rootObj) throw new Exception("Root must be object");
-        Root = new BodyPartModel(rootObj);
+        var rootElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonModel.Root)).RootElement;
+        Root = new BodyPartModel(rootElement);
 
         if (jsonModel.Features != null)
         {
@@ -359,17 +342,17 @@ public class BodyModel
         {
             foreach (var (statName, statJson) in jsonModel.Stats)
             {
-                var baseJson = JsonHelpers.ToNode(statJson.Base);
-                var maxJson = JsonHelpers.ToNodeOrNull(statJson.Max);
-                var minJson = JsonHelpers.ToNodeOrNull(statJson.Min);
-                var regenJson = statJson.Regen.HasValue ? JsonHelpers.ToNode(statJson.Regen.Value) : null;
+                var baseJson = statJson.Base;
+                var maxJson = statJson.Max;
+                var minJson = statJson.Min;
+                var regenJson = statJson.Regen;
 
                 string? maxDep = null;
-                if (maxJson != null && maxJson.GetValueKind() == JsonValueKind.String)
-                    maxDep = maxJson.GetValue<string>();
+                if (maxJson.HasValue && maxJson.Value.ValueKind == JsonValueKind.String)
+                    maxDep = maxJson.Value.GetString();
                 string? minDep = null;
-                if (minJson != null && minJson.GetValueKind() == JsonValueKind.String)
-                    minDep = minJson.GetValue<string>();
+                if (minJson.HasValue && minJson.Value.ValueKind == JsonValueKind.String)
+                    minDep = minJson.Value.GetString();
 
                 List<DependencyConfig>? dependsOn = null;
                 if (statJson.DependsOn != null)
@@ -380,7 +363,7 @@ public class BodyModel
                         dependsOn.Add(new DependencyConfig
                         {
                             DepName = depName,
-                            ValJson = JsonHelpers.ToNode(valElement)
+                            ValJson = valElement
                         });
                     }
                 }
@@ -422,13 +405,13 @@ public class BodyModel
 
         foreach (var (statName, cfg) in Stats)
         {
-            float baseVal = cfg.BaseJson != null ? JsonModel.GetFloat((JsonValue)cfg.BaseJson) : 0;
+            float baseVal = cfg.BaseJson != null ? JsonModel.GetFloat(cfg.BaseJson.Value) : 0;
             float maxVal = float.MaxValue;
-            if (cfg.MaxJson?.GetValueKind() == JsonValueKind.Number)
-                maxVal = JsonModel.GetFloat((JsonValue)cfg.MaxJson);
+            if (cfg.MaxJson?.ValueKind == JsonValueKind.Number)
+                maxVal = JsonModel.GetFloat(cfg.MaxJson.Value);
             float minVal = 0;
-            if (cfg.MinJson?.GetValueKind() == JsonValueKind.Number)
-                minVal = JsonModel.GetFloat((JsonValue)cfg.MinJson);
+            if (cfg.MinJson?.ValueKind == JsonValueKind.Number)
+                minVal = JsonModel.GetFloat(cfg.MinJson.Value);
 
             var stat = new Stat(statName, baseVal, maxVal, minVal, cfg.OverCap, cfg.UnderCap)
             {
@@ -452,10 +435,10 @@ public class BodyModel
 
             if (cfg.RegenJson != null)
             {
-                if (cfg.RegenJson.GetValueKind() == JsonValueKind.String)
-                    entry.Regen = cfg.RegenJson.GetValue<string>();
-                else if (cfg.RegenJson.GetValueKind() == JsonValueKind.Number)
-                    entry.Regen = JsonModel.GetFloat((JsonValue)cfg.RegenJson);
+                if (cfg.RegenJson.Value.ValueKind == JsonValueKind.String)
+                    entry.Regen = cfg.RegenJson.Value.GetString()!;
+                else if (cfg.RegenJson.Value.ValueKind == JsonValueKind.Number)
+                    entry.Regen = JsonModel.GetFloat(cfg.RegenJson.Value);
                 else
                     Logger.LogWarning("Invalid regen value for stat " + statName);
             }
@@ -466,10 +449,10 @@ public class BodyModel
                 foreach (var dep in cfg.DependsOn)
                 {
                     Either<string, float> val;
-                    if (dep.ValJson?.GetValueKind() == JsonValueKind.Number)
-                        val = new Either<string, float>(JsonModel.GetFloat((JsonValue)dep.ValJson));
+                    if (dep.ValJson?.ValueKind == JsonValueKind.Number)
+                        val = new Either<string, float>(JsonModel.GetFloat(dep.ValJson.Value));
                     else
-                        val = new Either<string, float>(dep.ValJson!.GetValue<string>());
+                        val = new Either<string, float>(dep.ValJson!.Value.GetString()!);
 
                     if (SidedLogic.Instance.IsClient() || val.IsRight)
                         deps.Add((dep.DepName, val, null));

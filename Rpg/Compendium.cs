@@ -35,7 +35,7 @@ public static class Compendium
     {
         RegisterFolder<Skill>("Skills", Skill.FromJson);
         RegisterFolder<Feature>("Features", Feature.FromJson);
-        RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json));
+        RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json.ToElement()));
         RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
         RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
         RegisterFolder<Midia>("Midia", (fName, json) =>
@@ -183,7 +183,7 @@ public static class Compendium
             {
 
                 Logger.LogError("Exception occurred while building entry: " + folder + "/" + name);
-                Logger.LogError(e.Message);
+                Logger.LogError(e.StackTrace);
                 // ignored
             }
         }

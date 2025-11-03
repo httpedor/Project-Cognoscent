@@ -5,14 +5,14 @@ namespace Rpg;
 
 public static class JsonModel
 {
-    public static float GetFloat(JsonValue json)
+    public static float GetFloat(JsonElement json)
     {
-        switch (json.GetValueKind())
+        switch (json.ValueKind)
         {
             case JsonValueKind.Number:
-                return json.GetValue<float>();
+                return json.GetSingle();
             case JsonValueKind.String:
-                var str = json.GetValue<string>();
+                var str = json.GetString();
                 if (float.TryParse(str, out float v))
                     return v;
                 
@@ -42,7 +42,7 @@ public static class JsonModel
                 throw new Exception("Invalid float: " + json);
         }
     }
-    public static int GetInt(JsonValue json)
+    public static int GetInt(JsonElement json)
     {
         return (int)GetFloat(json);
     }

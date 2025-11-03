@@ -5,10 +5,6 @@ namespace Rpg;
 
 public static class JsonHelpers
 {
-    // Parse JsonElement/nullable JsonElement to JsonNode
-    public static JsonNode? ToNode(JsonElement el) => JsonNode.Parse(el.GetRawText());
-    public static JsonNode? ToNodeOrNull(JsonElement? el) => el.HasValue ? JsonNode.Parse(el.Value.GetRawText()) : null;
-
     // Utility to parse enum operations with fallback
     public static StatModifierType ParseOp(string? op, StatModifierType fallback)
         => Enum.TryParse<StatModifierType>(op ?? string.Empty, true, out var v) ? v : fallback;

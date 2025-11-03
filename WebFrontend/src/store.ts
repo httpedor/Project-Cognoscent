@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import type { Entity } from './rpg'
 
 function getCookie(name: string): string | null {
   const value = `; ${document.cookie}`
@@ -15,6 +16,7 @@ function setCookie(name: string, value: string, days: number) {
 
 export const store = reactive({
   username: '',
+  entities: [] as Entity[],
   setUsername(name: string) {
     this.username = name
     setCookie('username', name, 30) // 30 days

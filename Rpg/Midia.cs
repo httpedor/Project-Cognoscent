@@ -1,5 +1,6 @@
 
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 namespace Rpg;
 
@@ -12,6 +13,7 @@ public enum MidiaType
 }
 public class Midia : ISerializable
 {
+    [JsonIgnore]
     public byte[] Bytes;
     public string Base64 => Convert.ToBase64String(Bytes);
     public MidiaType Type;

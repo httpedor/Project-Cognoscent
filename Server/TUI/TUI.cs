@@ -1,4 +1,5 @@
 using ConsoleRenderer;
+using Rpg;
 using Server.Game;
 
 namespace Server.TUI;
@@ -492,7 +493,8 @@ public static class TUI
         int displayRows = Math.Max(0, logAreaHeight - Ui.BorderChromeHeight);
 
         var renderedLines = new List<(string text, ConsoleColor fg, ConsoleColor bg)>();
-        foreach (var log in webLogs)
+        var cloned = new List<Logger.LogMessage>(webLogs);
+        foreach (var log in cloned)
         {
             if (string.IsNullOrEmpty(log.Message))
             {

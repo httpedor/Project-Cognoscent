@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Numerics;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rpg;
 using Rpg.Inventory;
@@ -12,7 +14,7 @@ namespace Server.Network;
 public class RpgClient
 {
     public bool IsGm => Username.Equals("httpedor");
-    public Socket socket;
+    public Either<Socket, WebSocket> socket;
 
     public string Username
     {
@@ -29,16 +31,63 @@ public class RpgClient
         get;
         private set;
     }
+
+    public bool Connected => socket.Left?.Connected ?? socket.Right?.State == WebSocketState.Open;
+    public string IpAddress
+    {
+        get
+        {
+            if (socket.IsLeft)
+            {
+                return ((System.Net.IPEndPoint)socket.Left!.RemoteEndPoint!).Address.ToString();
+            }
+            else
+            {
+                return "WebSocketClient";
+            }
+        }
+    }
+
     public RpgClient(Socket client)
     {
         socket = client;
         Username = "";
         LoadedBoards = new HashSet<string>();
     }
-
-    public void Disconnect()
+    public RpgClient(WebSocket webSocket)
     {
-        Manager.Disconnect(Username);
+        socket = webSocket;
+        Username = "";
+        LoadedBoards = new HashSet<string>();
+    }
+
+    public void Disconnect(bool sendDisconnect = true)
+    {
+        if (!Connected)
+            return;
+        if (sendDisconnect)
+        {
+            try
+            {
+                Send(new DisconnectPacket());
+            }
+            catch (Exception) { }
+        }
+        if (socket.IsLeft)
+        {
+            socket.Left.Disconnect(false);
+            socket.Left.Shutdown(SocketShutdown.Both);
+            socket.Left.Close();
+        }
+        else
+        {
+            socket.Right.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnect", CancellationToken.None);
+        }
+        if (Username != null)
+        {
+            Manager.Clients.Remove(Username);
+            Logger.Log(Username + " disconnected");
+        }
     }
 
     public void HandlePacket(Packet packet)
@@ -49,9 +98,14 @@ public class RpgClient
                 var loginPacket = (LoginPacket)packet;
                 Username = loginPacket.Username;
                 Device = loginPacket.Device;
-                Manager.Disconnect(Username);
+                if (Username == "" || Username == null)
+                {
+                    Disconnect();
+                    return;
+                }
+                Manager.GetClient(Username)?.Disconnect();
                 Manager.Clients.Add(Username, this);
-                Logger.Log(loginPacket.Username + " logged in with ip " + socket.RemoteEndPoint);
+                Logger.Log(loginPacket.Username + " logged in: " + IpAddress);
                 foreach (string folder in Compendium.Folders)
                 {
                     foreach (var entry in Compendium.GetEntryNames(folder))
@@ -327,6 +381,13 @@ public class RpgClient
                 Manager.SendToBoard(smp, smp.Board.Name);
                 break;
             }
+            case ProtocolId.PRIVATE_MESSAGE:
+            {
+                var pmp = (PrivateMessagePacket)packet;
+                var target = pmp.Recipient?.Creature;
+                Manager.SendToSome(pmp, (client) => (target != null && client.Username == target.Owner) || client.IsGm);
+                break;
+            }
             default:
                 Logger.LogError("Unknown/unsupported packet type " + packet.Id);
                 break;
@@ -337,9 +398,25 @@ public class RpgClient
     {
         try
         {
-            byte[] buffer = Packet.PreProcessPacket(packet);
-            //Console.WriteLine("Sending " + buffer.Length + " bytes(Id:  " + packet.Id +") to " + Username);
-            socket.Send(buffer);
+            if (socket.IsLeft)
+            {
+                byte[] buffer = Packet.PreProcessPacket(packet);
+                //Console.WriteLine("Sending " + buffer.Length + " bytes(Id:  " + packet.Id +") to " + Username);
+                socket.Left.Send(buffer);
+            }
+            else
+            {
+                JsonSerializerOptions options = new()
+                {
+                    IncludeFields = true,
+                    IgnoreReadOnlyFields = false,
+                    IgnoreReadOnlyProperties = false,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+                string json = JsonSerializer.Serialize(packet, packet.GetType(), options);
+                byte[] buffer = System.Text.Encoding.UTF8.GetBytes(json);
+                socket.Right.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
+            }            
         } catch (Exception e)
         {
             Logger.LogError("Failed to send packet to " + Username + ": " + e);
@@ -351,9 +428,11 @@ public class RpgClient
         Send(new BoardAddPacket(board));
         foreach (Entity e in board.GetEntities())
             Send(new EntityCreatePacket(board, e));
+        LoadedBoards.Add(board.Name);
+        if (Device == DeviceType.MOBILE)
+            return;
         for (int i = 0; i < board.GetFloorCount(); i++)
             Send(new FloorImagePacket(board.Name, i, board.GetFloor(i).GetMidia()));
         
-        LoadedBoards.Add(board.Name);
     }
 }

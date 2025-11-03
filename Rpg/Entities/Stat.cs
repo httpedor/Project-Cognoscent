@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection.Metadata;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Rpg;
 
 public enum StatModifierType
@@ -62,8 +63,11 @@ public class Stat : ISerializable
 
     public string Id { get; }
     public string Name;
+    [JsonInclude]
     private float minValue;
+    [JsonInclude]
     private float maxValue;
+    [JsonIgnore]
     public float MinValue
     {
         get => minValue;
@@ -81,6 +85,7 @@ public class Stat : ISerializable
         }
     }
 
+    [JsonIgnore]
     public float MaxValue
     {
         get => maxValue;
@@ -99,11 +104,15 @@ public class Stat : ISerializable
     }
     public bool OverCap { get; private set; }
     public bool UnderCap { get; private set; }
+    [JsonInclude]
     private float baseValue;
+    [JsonInclude]
     private float finalValue;
     public string[] Aliases = [];
+    [JsonInclude]
     private readonly Dictionary<string, StatModifier> modifiers;
 
+    [JsonIgnore]
     public float BaseValue
     {
         get => baseValue;
@@ -122,6 +131,7 @@ public class Stat : ISerializable
         }
     }
 
+    [JsonIgnore]
     public float FinalValue => finalValue;
 
     public Stat(string id, float baseValue, float min = 0, float max = float.MaxValue, bool overCap = true, bool underCap = true)

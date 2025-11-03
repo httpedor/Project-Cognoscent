@@ -440,6 +440,15 @@ public partial class NetworkManager : Node
 
 	            break;
             }
+			case ProtocolId.PRIVATE_MESSAGE:
+			{
+				var pmp = (PrivateMessagePacket)packet;
+				ToastParty.Show(new ToastParty.Config()
+				{
+					Text = (pmp.Sender?.Creature?.Name ?? "Alguém") + " sussurrou para " + (pmp.Recipient?.Creature?.Name ?? "Deus") + ": " + pmp.Message,
+				});
+				break;
+			}
             default:
                 GD.Print("Unknown packet with id " + packet.Id);
                 break;

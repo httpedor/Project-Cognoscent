@@ -17,6 +17,7 @@ export interface StatModifier {
 
 export interface Stat {
   id: string
+  name: string
   baseValue: number
   finalValue: number
   modifiers: { [key: string]: StatModifier }
@@ -25,13 +26,26 @@ export interface Stat {
 export interface Feature {
   name: string
   description: string
-  iconName: string
+  icon: string
 }
 
 export interface Skill {
   name: string
   description: string
   iconName: string
+}
+
+export enum MidiaType {
+  Image = 0,
+  Video = 1,
+  Audio = 2,
+  Binary = 3,
+}
+
+export interface Midia {
+  base64: string
+  scale: Vector3,
+  type: MidiaType
 }
 
 export enum EntityType {
@@ -48,7 +62,7 @@ export interface Entity {
   id: number
   name?: string
   owner?: string
-  display?: string // Base64-encoded image string
+  display?: Midia // Base64-encoded image string
   position: Vector3
   rotation: number
   size: Vector3
@@ -63,13 +77,4 @@ export interface Board {
   chatHistory: string[]
   currentTick: number
   turnMode: boolean
-}
-
-export interface EntityRef {
-  board: string
-  id: number
-}
-export interface CreatureRef {
-  board: string
-  id: string
 }

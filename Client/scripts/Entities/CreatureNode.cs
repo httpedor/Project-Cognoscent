@@ -106,6 +106,21 @@ public partial class CreatureNode : EntityNode
         if (Board.OwnedSelectedEntity != Creature)
             return;
 
+        var ose = GameManager.Instance?.CurrentBoard?.OwnedSelectedEntity;
+        if (ose != null && ose != Creature)
+        {
+            ContextMenu.AddOption("Sussurrar", _ =>
+            {
+                Modal.OpenStringDialog("Sussurrar para " + Creature.Name, message =>
+                {
+                    if (message == null)
+                        return;
+                    
+                    NetworkManager.Instance.SendPacket(new PrivateMessagePacket(ose, Creature, message));
+                });
+            });
+        }
+
         if (Creature.SkillTree != null)
         {
             ContextMenu.AddOption("Habilidades", _ =>
@@ -152,7 +167,7 @@ public partial class CreatureNode : EntityNode
         {
             layerDesc = data.Skill.GetName();
             if (GameManager.Instance.CurrentBoard?.OwnedSelectedEntity != null && GameManager.Instance.CurrentBoard?.OwnedSelectedEntity != Creature)
-                show = data.Skill.CanCreatureSeeSkill(Creature, GameManager.Instance.CurrentBoard!.OwnedSelectedEntity, data.Arguments, data.Source.SkillSource);
+                show = data.Skill.CanCreatureSeeSkill(Creature, GameManager.Instance.CurrentBoard!.OwnedSelectedEntity, data.Arguments, data.Source.SkillSource!);
             
             ProcessAnimation(data, layer);
         }
