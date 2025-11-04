@@ -77,6 +77,19 @@ export enum StatOp {
   RemoveModifier = 3,
 }
 
+export interface Stat {
+  name: string;
+  minValue: number;
+  maxValue: number;
+  baseValue: number;
+  finalValue: number;
+  aliases: string[];
+  modifiers: { [key: string]: StatModifier };
+  id: string;
+  overCap: boolean;
+  underCap: boolean;
+}
+
 export interface StatModifier {
   id: string;
   value: number;
@@ -86,20 +99,98 @@ export interface StatModifier {
 export interface EntityRef {
   board: string;
   id: number;
-  entity: unknown;
 }
 
 export interface CreatureRef {
   board: string;
   id: number;
-  creature: unknown;
 }
 
 export interface Midia {
-  bytes: number[];
   type: MidiaType;
   scale: Vector2;
   base64: string;
+}
+
+export interface BodyPartRef {
+  owner: CreatureRef;
+  path: string;
+  bodyPart: BodyPart;
+}
+
+export interface Injury {
+  type: InjuryType;
+  severity: number;
+}
+
+export interface InjuryType {
+  id: number;
+  pain: number;
+  bleedingRate: number;
+  overkillPercentMin: number;
+  overkillPercentMax: number;
+  instakill: boolean;
+  naturalHeal: number;
+  conversionChances: { [key: string]: number };
+  addChances: { [key: string]: number };
+  conversionSeverity: { [key: string]: number };
+  name: string;
+  destructionTranslation: string;
+}
+
+export interface BodyPart {
+  children: unknown;
+  painMultiplier: number;
+  stats: { [key: string]: unknown[] };
+  damageModifiers: { [key: string]: StatModifier[] };
+  features: { [key: string]: unknown };
+  name: string;
+  bBLink: string;
+  group: string;
+  body: unknown;
+  owner: unknown;
+  size: number;
+  absoluteSize: number;
+  featuresForOwner: Feature[];
+  enabledFeatures: Feature[];
+  selfEnabledFeatures: Feature[];
+  skills: Skill[];
+  equipmentSlots: string[];
+  parent: BodyPart;
+  path: string;
+  root: BodyPart;
+  isRoot: boolean;
+  internalOrgans: BodyPart[];
+  overlappingParts: BodyPart[];
+  allChildren: BodyPart[];
+  injuries: Injury[];
+  pain: number;
+  maxHealth: number;
+  healthStandalone: number;
+  health: number;
+  isAlive: boolean;
+  coveringEquipment: unknown[];
+  items: unknown[];
+  board: unknown;
+  isInternal: boolean;
+  isHard: boolean;
+  isSoft: boolean;
+  hasBone: boolean;
+  overlapsParent: boolean;
+}
+
+export interface Feature {
+  customName: string;
+  customIcon: string;
+  bBHint: string;
+}
+
+export interface Skill {
+  customName: string;
+  customIcon: string;
+  customLayer: string;
+  tags: string[];
+  bBHint: string;
 }
 
 export interface Vector2 {
@@ -160,7 +251,7 @@ export interface CompendiumUpdatePacket {
 }
 
 export interface CreatureEquipItemPacket {
-  bPRef: unknown;
+  bPRef: BodyPartRef;
   slot: string;
   itemRef: unknown;
   equipped: boolean;
@@ -197,7 +288,7 @@ export interface DoorUpdatePacket {
 export interface EntityBodyPartInjuryPacket {
   creatureRef: CreatureRef;
   path: string;
-  injury: unknown;
+  injury: Injury;
   remove: boolean;
   id: ProtocolId;
 }
@@ -205,7 +296,7 @@ export interface EntityBodyPartInjuryPacket {
 export interface EntityBodyPartPacket {
   creatureRef: CreatureRef;
   path: string;
-  part: unknown;
+  part: BodyPart;
   id: ProtocolId;
 }
 
@@ -248,7 +339,7 @@ export interface EntityStatPacket {
   entityRef: EntityRef;
   statId: string;
   operation: StatOp;
-  stat: unknown;
+  stat: Stat;
   value: number;
   valueType: StatValueType;
   modifier: StatModifier | null;
@@ -265,7 +356,7 @@ export interface FeatureUpdatePacket {
   updateType: FeatureUpdateType;
   sourceRef: unknown;
   featureId: string;
-  feature: unknown;
+  feature: Feature;
   id: ProtocolId;
 }
 

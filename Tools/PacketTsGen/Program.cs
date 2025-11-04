@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Text.Json.Serialization;
 
 static class TsGen
 {
@@ -25,6 +26,7 @@ static class TsGen
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Reflection-based code generation tool; not trimming-safe.")]
     public static int Main(string[] args)
     {
+        Console.WriteLine("PacketTsGen starting...");
         try
         {
             if (args.Length < 2)
@@ -55,23 +57,29 @@ static class TsGen
 
             string[] knownTypes =
             [
+                "Stat",
                 "StatModifier",
                 "Rpg.EntityRef",
                 "Rpg.CreatureRef",
                 "Rpg.Midia",
+                "Rpg.BodyPartRef",
+                "Rpg.Injury",
+                "Rpg.InjuryType",
+                "Rpg.BodyPart",
+                "Feature",
+                "Rpg.Skill",
                 "System.Numerics.Vector2",
                 "System.Numerics.Vector3",
             ];
-            int i = 0;
+
             foreach (var kt in knownTypes)
             {
-                if (i > 3)
+                if (kt.StartsWith("System."))
                 {
                     WriteClass(sb, GetRequiredType(typeof(Vector2).Assembly, kt), knownTypes);
                     continue;
                 }
                 WriteClass(sb, GetRequiredType(asm, kt), knownTypes);
-                i++;
             }
 
             // Packets
@@ -127,18 +135,36 @@ static class TsGen
         var ifaceName = t.Name; // keep same name for now
         sb.AppendLine($"export interface {ifaceName} {{");
 
-        foreach (var f in t.GetFields(BindingFlags.Instance | BindingFlags.Public))
+        // Emit fields: include public fields, and also non-public fields annotated with [JsonInclude]
+        var emitted = new HashSet<string>();
+        foreach (var f in t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
             if (f.IsSpecialName) continue;
+            // include if public, or if explicitly annotated with [JsonInclude]
+            if (!f.IsPublic && !f.IsDefined(typeof(JsonIncludeAttribute), inherit: true)) continue;
+            // skip fields with [JsonIgnore]
+            if (f.IsDefined(typeof(JsonIgnoreAttribute), inherit: true)) continue;
+            var name = Camel(f.Name);
+            if (emitted.Contains(name)) continue;
+            emitted.Add(name);
             var tsType = ToTsType(f.FieldType, knownTypes);
-            sb.AppendLine($"  {Camel(f.Name)}: {tsType};");
+            sb.AppendLine($"  {name}: {tsType};");
         }
 
-        foreach (var p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        // Emit properties: include public readable properties, and non-public properties annotated with [JsonInclude]
+        foreach (var p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
-            if (!p.CanRead) continue;
+            // determine if getter is available; PropertyInfo.CanRead is true if any getter exists (public or non-public)
+            var getter = p.GetMethod;
+            var getterPublic = getter != null && getter.IsPublic;
+            if (!getterPublic && !p.IsDefined(typeof(JsonIncludeAttribute), inherit: true)) continue;
+            // skip properties with [JsonIgnore]
+            if (p.IsDefined(typeof(JsonIgnoreAttribute), inherit: true)) continue;
+            var name = Camel(p.Name);
+            if (emitted.Contains(name)) continue;
+            emitted.Add(name);
             var tsType = ToTsType(p.PropertyType, knownTypes);
-            sb.AppendLine($"  {Camel(p.Name)}: {tsType};");
+            sb.AppendLine($"  {name}: {tsType};");
         }
 
         sb.AppendLine("}\n");
@@ -194,8 +220,15 @@ static class TsGen
     [RequiresUnreferencedCode("Uses reflection to resolve types; not trimming-safe.")]
     private static Type GetRequiredType(Assembly asm, string fullName)
     {
+        // Try to resolve by full name first
         var t = asm.GetType(fullName);
-        if (t == null) throw new InvalidOperationException($"Type not found: {fullName}");
-        return t;
+        if (t != null) return t;
+
+        // Fallback: try to find a type whose simple name matches (useful for types in the global namespace)
+        t = asm.GetTypes().FirstOrDefault(x => x.Name == fullName);
+        if (t != null) return t;
+
+        // Not found
+        throw new InvalidOperationException($"Type not found: {fullName}");
     }
 }

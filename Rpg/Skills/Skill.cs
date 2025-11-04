@@ -5,30 +5,29 @@ using System.Text.Json.Nodes;
 
 namespace Rpg;
 
-public abstract class Skill : ISerializable
+public abstract partial class Skill : ISerializable, ITaggable
 {
     public string? CustomName = null;
     public string? CustomIcon = null;
     public string? CustomLayer = null;
-    protected HashSet<string> tags = [];
-    public virtual IEnumerable<string> Tags => tags;
 
     public string BBHint => $"[hint={GetTooltip()}]{GetName()}[/hint]";
 
+    //TODO: Convert this to CompendiumEntryRef, since all skills should be singletons from the Compendium
     public static Skill FromBytes(Stream bytes){
         string path = bytes.ReadString();
         Type? type = Type.GetType(path);
         if (type != null && (type.IsAssignableTo(typeof(ArbitrarySkill)) ||
                              type.IsAssignableTo(typeof(ArbitraryAttackSkill))))
         {
-            return Compendium.GetEntry<Skill>(bytes.ReadString());
+            return Compendium.GetEntry<Skill>(bytes.ReadString())!;
         }
 
         if (type == null)
             throw new Exception("Failed to get skill type: " + path);
         if (type.GetConstructor([typeof(Stream)]) == null)
             throw new Exception("Failed to get skill constructor: " + path);
-        return (Skill)Activator.CreateInstance(type, bytes);
+        return (Skill)Activator.CreateInstance(type, bytes)!;
     }
     
     public static Skill? FromJson(string id, JsonObject obj)
@@ -62,13 +61,6 @@ public abstract class Skill : ISerializable
                     throw new Exception("Unknown skill type: " + type);
             }
 
-            if (obj.ContainsKey("tags"))
-            {
-                foreach (var tagVal in obj["tags"]!.AsArray())
-                {
-                    skill.tags.Add(tagVal.GetValue<string>());
-                }
-            }
             return skill;
         }
         catch (Exception e)
@@ -93,6 +85,7 @@ public abstract class Skill : ISerializable
             CustomIcon = data.ReadString();
         if (data.ReadByte() != 0)
             CustomLayer = data.ReadString();
+        TagsFromBytes(data);
     }
 
     public virtual void ToBytes(Stream stream)
@@ -107,6 +100,7 @@ public abstract class Skill : ISerializable
         stream.WriteByte((byte)(CustomLayer == null ? 0 : 1));
         if (CustomLayer != null)
             stream.WriteString(CustomLayer);
+        TagsToBytes(stream);
     }
 
     public virtual string GetName()
@@ -218,15 +212,6 @@ public abstract class Skill : ISerializable
     public virtual Type[][] GetArguments()
     {
         return new Type[0][];
-    }
-
-    public bool Is(string tag)
-    {
-        return tags.Contains(tag);
-    }
-    public bool HasTag(string tag)
-    {
-        return Is(tag);
     }
 
     public Skill WithName(string name)

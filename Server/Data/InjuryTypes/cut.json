@@ -1,0 +1,19 @@
+{
+  "name": "Corte",
+  "pain": 1.25,
+  "bleed": 0.06,
+  "overkillMin": 0.0,
+  "overkillMax": 10.0,
+  "heal": 1.0,
+  "instakill": false,
+  "destruction": "Cortado Fora",
+  "creations": [
+    {
+      "interval": 21600,
+      "code": "if (rand() < (0.1f * Severity)) new Injury(injuryTypes[\"infection\"], injury.Severity)"
+    }
+  ],
+  "addChances": [
+    { "type": "Infecção", "severity": 1.0, "chance": 15.0 }
+  ]
+}

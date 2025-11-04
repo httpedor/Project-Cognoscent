@@ -1,0 +1,7 @@
+{
+  "name": "Contusão",
+  "parent": "Físico",
+  "onSoft": "Hematoma",
+  "onHard": "Rachadura",
+  "softMod": { "value": -0.1, "operation": "Percent" }
+}

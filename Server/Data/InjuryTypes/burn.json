@@ -1,0 +1,16 @@
+{
+  "name": "Queimadura",
+  "pain": 1.875,
+  "bleed": 0.0,
+  "overkillMin": 40.0,
+  "overkillMax": 100.0,
+  "heal": 2.0,
+  "instakill": false,
+  "destruction": "Queimado",
+  "creations": [
+    {
+      "interval": 21600,
+      "code": "if (rand() < (0.05f * Severity)) new Injury(injuryTypes[\"infection\"], injury.Severity)"
+    }
+  ]
+}

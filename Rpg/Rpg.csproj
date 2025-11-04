@@ -26,10 +26,10 @@
       <RpgDll>$(TargetPath)</RpgDll>
     </PropertyGroup>
     <Message Text="[Rpg] Generating TypeScript packets to $(TsOutPath) ..." Importance="High" />
-  <!-- Build the generator for the current configuration to ensure availability -->
-  <!-- Make the generator build/run non-fatal so a generator issue doesn't break normal library builds -->
-  <Exec Command="&amp;quot;$(DotNetExe)&amp;quot; build &amp;quot;$(PacketTsGenProj)&amp;quot; -c $(Configuration)" ContinueOnError="WarnAndContinue" />
-  <!-- Run via dotnet run to avoid path/quoting/env issues -->
-  <Exec Command="&amp;quot;$(DotNetExe)&amp;quot; run --no-build --project &amp;quot;$(PacketTsGenProj)&amp;quot; -c $(Configuration) -- &amp;quot;$(RpgDll)&amp;quot; &amp;quot;$(TsOutPath)&amp;quot;" ContinueOnError="WarnAndContinue" />
+    <!-- Build the generator for the current configuration to ensure availability -->
+    <!-- Make the generator build/run non-fatal so a generator issue doesn't break normal library builds -->
+    <Exec Command="$(DotNetExe) build $(PacketTsGenProj) -c $(Configuration)" ContinueOnError="WarnAndContinue" />
+    <!-- Run via dotnet run to avoid path/quoting/env issues -->
+    <Exec Command="$(DotNetExe) run --no-build --project $(PacketTsGenProj) -c $(Configuration) -- $(RpgDll) $(TsOutPath)" ContinueOnError="WarnAndContinue" />
   </Target>
 </Project>

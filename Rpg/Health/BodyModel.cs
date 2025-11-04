@@ -31,7 +31,7 @@ public class BodyPartJson
     [JsonPropertyName("slots")] public List<string>? Slots { get; set; }
     [JsonPropertyName("stats")] public List<StatModifierJson>? Stats { get; set; }
     [JsonPropertyName("damageModifiers")] public List<DamageModifierJson>? DamageModifiers { get; set; }
-    [JsonPropertyName("flags")] public List<string>? Flags { get; set; }
+    [JsonPropertyName("tags")] public List<string>? Tags { get; set; }
     [JsonPropertyName("skills")] public List<string>? Skills { get; set; }
     [JsonPropertyName("selfFeatures")] public List<string>? SelfFeatures { get; set; }
     [JsonPropertyName("features")] public List<string>? Features { get; set; }
@@ -89,7 +89,6 @@ public class BodyPartModel
     public JsonElement? AreaJson;
     public float PainMultiplier;
     public Skill[] Skills = Array.Empty<Skill>();
-    public byte Flags;
     public List<BodyPartModel> Children = new();
     public List<string> EquipmentSlots = new();
     public List<Injury> Injuries = new();
@@ -98,6 +97,7 @@ public class BodyPartModel
     // By stat name, list of modifiers defined for that part
     public Dictionary<string, List<PartStatModifierConfig>> Stats = new();
     public Dictionary<DamageType, List<DamageModifierConfig>> DamageModifiers = new();
+    public List<string> Tags = new();
     public JsonElement? Metadata;
 
     public BodyPartModel(JsonElement json)
@@ -164,17 +164,11 @@ public class BodyPartModel
             }
         }
 
-        if (jsonModel.Flags != null)
+        if (jsonModel.Tags != null)
         {
-            foreach (var flag in jsonModel.Flags)
+            foreach (var tag in jsonModel.Tags)
             {
-                switch (flag)
-                {
-                    case "HasBone": Flags |= BodyPart.Flag.HasBone; break;
-                    case "Hard": Flags |= BodyPart.Flag.Hard; break;
-                    case "Internal": Flags |= BodyPart.Flag.Internal; break;
-                    case "Overlaps": Flags |= BodyPart.Flag.Overlaps; break;
-                }
+                Tags.Add(tag.ToLowerInvariant());
             }
         }
 
@@ -234,50 +228,63 @@ public class BodyPartModel
 
     public BodyPart Build(Body? body = null)
     {
-        int maxHealth = MaxHealthJson != null ? JsonModel.GetInt(MaxHealthJson.Value) : 1;
-        float sizePercentage = AreaJson != null ? JsonModel.GetFloat(AreaJson.Value) * 100f : 0;
+        int maxHealth = MaxHealthJson != null ? JsonHelpers.GetInt(MaxHealthJson.Value) : 1;
+        // Area in JSON is a fraction (0..1). Builder previously multiplied by 100 and then divided by 100.
+        // Pass the raw fraction directly to the constructor to preserve behavior.
+        float surfaceArea = AreaJson != null ? JsonHelpers.GetFloat(AreaJson.Value) : 0f;
 
-        var builder = new BodyPart.Builder(Name)
-            .Group(Group)
-            .Health(maxHealth)
-            .Size(sizePercentage)
-            .Pain(PainMultiplier)
-            .Skills(Skills)
-            .Flags(Flags)
-            .Equipment(EquipmentSlots.ToArray())
-            .OwnerFeatures(OwnerFeatures.ToArray())
-            .Features(SelfFeatures.ToArray());
-
+        // Build children first
+        var childParts = new List<BodyPart>(Children.Count);
         foreach (var child in Children)
-            builder.Child(child.Build(body));
+            childParts.Add(child.Build(body));
 
+        // Construct the BodyPart directly (no builder)
+        var ret = new BodyPart(
+            Name,
+            Group,
+            maxHealth,
+            surfaceArea,
+            PainMultiplier,
+            Skills,
+            OwnerFeatures.ToArray(),
+            EquipmentSlots.ToArray(),
+            Injuries.ToArray(),
+            Tags.ToArray(),
+            childParts.ToArray()
+        );
+
+        // Apply per-part stat modifiers
         foreach (var statEntry in Stats)
         {
+            var mods = new List<BodyPart.BodyPartStat>(statEntry.Value.Count);
             foreach (var cfg in statEntry.Value)
             {
-                float atFull = cfg.AtFullJson != null ? JsonModel.GetFloat(cfg.AtFullJson.Value) : 0;
-                float atZero = cfg.AtZeroJson != null ? JsonModel.GetFloat(cfg.AtZeroJson.Value) : 0;
-                builder.Stat(cfg.StatName, atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, cfg.ApplyToOwner);
+                float atFull = cfg.AtFullJson != null ? JsonHelpers.GetFloat(cfg.AtFullJson.Value) : 0;
+                float atZero = cfg.AtZeroJson != null ? JsonHelpers.GetFloat(cfg.AtZeroJson.Value) : 0;
+                mods.Add(new BodyPart.BodyPartStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, cfg.ApplyToOwner));
             }
+            if (mods.Count > 0)
+                ret.Stats[statEntry.Key] = mods.ToArray();
         }
 
+        // Apply damage modifiers (previous builder path did not persist these into the instance)
         foreach (var dmgEntry in DamageModifiers)
         {
+            var mods = new List<StatModifier>(dmgEntry.Value.Count);
             foreach (var cfg in dmgEntry.Value)
             {
-                float value = cfg.ValueJson != null ? JsonModel.GetFloat(cfg.ValueJson.Value) : 0;
-                builder.DamageModifier(cfg.Type, value, cfg.Operation);
+                float value = cfg.ValueJson != null ? JsonHelpers.GetFloat(cfg.ValueJson.Value) : 0;
+                mods.Add(new StatModifier($"{Name}-{dmgEntry.Key.Name}-mod", value, cfg.Operation));
             }
+            if (mods.Count > 0)
+                ret.DamageModifiers[dmgEntry.Key] = mods.ToArray();
         }
 
-        var ret = builder.Build();
+        // Add self-applied features to the part
+        foreach (var feat in SelfFeatures)
+            ret.AddFeature(feat);
 
-        // Apply metadata if any (future extension point)
-        if (Metadata != null)
-        {
-            // ret.CustomDataFromJson(Metadata);
-        }
-
+        // Wire Body (propagates to children)
         ret.Body = body;
         return ret;
     }
@@ -405,13 +412,13 @@ public class BodyModel
 
         foreach (var (statName, cfg) in Stats)
         {
-            float baseVal = cfg.BaseJson != null ? JsonModel.GetFloat(cfg.BaseJson.Value) : 0;
+            float baseVal = cfg.BaseJson != null ? JsonHelpers.GetFloat(cfg.BaseJson.Value) : 0;
             float maxVal = float.MaxValue;
             if (cfg.MaxJson?.ValueKind == JsonValueKind.Number)
-                maxVal = JsonModel.GetFloat(cfg.MaxJson.Value);
+                maxVal = JsonHelpers.GetFloat(cfg.MaxJson.Value);
             float minVal = 0;
             if (cfg.MinJson?.ValueKind == JsonValueKind.Number)
-                minVal = JsonModel.GetFloat(cfg.MinJson.Value);
+                minVal = JsonHelpers.GetFloat(cfg.MinJson.Value);
 
             var stat = new Stat(statName, baseVal, maxVal, minVal, cfg.OverCap, cfg.UnderCap)
             {
@@ -438,7 +445,7 @@ public class BodyModel
                 if (cfg.RegenJson.Value.ValueKind == JsonValueKind.String)
                     entry.Regen = cfg.RegenJson.Value.GetString()!;
                 else if (cfg.RegenJson.Value.ValueKind == JsonValueKind.Number)
-                    entry.Regen = JsonModel.GetFloat(cfg.RegenJson.Value);
+                    entry.Regen = JsonHelpers.GetFloat(cfg.RegenJson.Value);
                 else
                     Logger.LogWarning("Invalid regen value for stat " + statName);
             }
@@ -450,7 +457,7 @@ public class BodyModel
                 {
                     Either<string, float> val;
                     if (dep.ValJson?.ValueKind == JsonValueKind.Number)
-                        val = new Either<string, float>(JsonModel.GetFloat(dep.ValJson.Value));
+                        val = new Either<string, float>(JsonHelpers.GetFloat(dep.ValJson.Value));
                     else
                         val = new Either<string, float>(dep.ValJson!.Value.GetString()!);
 

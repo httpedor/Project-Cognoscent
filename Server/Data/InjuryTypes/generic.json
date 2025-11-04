@@ -1,0 +1,10 @@
+{
+  "name": "Generico",
+  "pain": 0.0,
+  "bleed": 0.0,
+  "overkillMin": 0.0,
+  "overkillMax": 0.0,
+  "heal": 0.0,
+  "instakill": false,
+  "destruction": "Genericado"
+}

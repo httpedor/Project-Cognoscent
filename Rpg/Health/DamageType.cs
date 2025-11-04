@@ -1,44 +1,87 @@
 
 using System.Drawing;
+using System.Text.Json.Nodes;
 
 namespace Rpg;
 
 public class DamageType : ISerializable
 {
-    private static readonly List<DamageType> dts = new();
-    private static readonly Dictionary<string, DamageType> dtsByName = new();
-    public static IEnumerable<DamageType> All => dts;
-    public static readonly DamageType Physical = new DamageType("Físico", InjuryType.Generic, InjuryType.Generic, null).WithColor(System.Drawing.Color.Gray);
-    public static readonly DamageType Sharp = new DamageType("Afiado", InjuryType.Cut, InjuryType.Crack, Physical).HardMod(-0.1f);
-    public static readonly DamageType Slash = new DamageType("Corte", InjuryType.Cut, InjuryType.Crack, Sharp).HardMod(-0.1f);
-    public static readonly DamageType Pierce = new DamageType("Perfuração", InjuryType.Stab, InjuryType.Crack, Sharp);
-    public static readonly DamageType Blunt = new DamageType("Contusão", InjuryType.Bruise, InjuryType.Crack, Physical).SoftMod(-0.1f);
-    public static readonly DamageType Fire = new DamageType("Fogo", InjuryType.Burn, InjuryType.Burn, null).WithColor(System.Drawing.Color.DarkOrange);
+    // Well-known bindings populated via Compendium (kept for backward compatibility)
+    public static DamageType Physical { get; private set; } = null!;
+    public static DamageType Sharp { get; private set; } = null!;
+    public static DamageType Slash { get; private set; } = null!;
+    public static DamageType Pierce { get; private set; } = null!;
+    public static DamageType Blunt { get; private set; } = null!;
+    public static DamageType Fire { get; private set; } = null!;
     
-    public readonly byte Id;
+    public readonly string Id;
     public readonly string Name;
     public Color? Color { get; private set; }
     public string BBHint => 
         Color is Color c
             ? $"[color=#{c.R:X2}{c.G:X2}{c.B:X2}]{Name}[/color]"
             : Name;
-    public readonly DamageType? Parent;
+    public DamageType? Parent { get; private set; }
     public readonly InjuryType OnSoft;
     public readonly InjuryType OnHard;
     private StatModifier? softModifier;
     private StatModifier? hardModifier;
-    private DamageType(string name, InjuryType onSoft, InjuryType onHard, DamageType? parent)
+    private DamageType(string id, string name, InjuryType onSoft, InjuryType onHard, DamageType? parent)
     {
-        Id = (byte)dts.Count;
+        Id = id;
         Name = name;
         OnSoft = onSoft;
         OnHard = onHard;
         Parent = parent;
-        dts.Add(this);
-        dtsByName[name.ToLower()] = this;
 
         if (Color == null)
             Color = parent?.Color;
+    }
+
+    public DamageType(string name, JsonObject json) : this(
+        name,
+        json["name"]?.GetValue<string>() ?? name,
+        InjuryType.ByName(json["onSoft"]?.GetValue<string>() ?? throw new ArgumentException("Missing onSoft")) ?? throw new ArgumentException("Invalid onSoft"),
+        InjuryType.ByName(json["onHard"]?.GetValue<string>() ?? throw new ArgumentException("Missing onHard")) ?? throw new ArgumentException("Invalid onHard"),
+        !string.IsNullOrWhiteSpace(json["parent"]?.GetValue<string>())
+            ? FromName(json["parent"]!.GetValue<string>()!)
+            : null
+    )
+    {
+        if (json["color"] is JsonNode colorNode)
+        {
+            string colorStr = colorNode.GetValue<string>();
+            try
+            {
+                // Try HTML first (#RRGGBB), then known color names
+                Color c = colorStr.StartsWith("#") ? ColorTranslator.FromHtml(colorStr) : System.Drawing.Color.FromName(colorStr);
+                if (c.A != 0 || colorStr.StartsWith("#"))
+                    Color = c;
+            }
+            catch {
+                Logger.LogWarning("[DamageType] Invalid color '" + colorStr + "' in DamageType " + Name);
+            }
+        }
+    }
+
+    private void SetParent(DamageType parent)
+    {
+        Parent = parent;
+        if (Color == null)
+            Color = parent.Color;
+    }
+
+    private static void BindWellKnown(DamageType dt)
+    {
+        switch (dt.Name)
+        {
+            case "Físico": Physical = dt; break;
+            case "Afiado": Sharp = dt; break;
+            case "Corte": Slash = dt; break;
+            case "Perfuração": Pierce = dt; break;
+            case "Contusão": Blunt = dt; break;
+            case "Fogo": Fire = dt; break;
+        }
     }
 
     public bool IsDerivedFrom(DamageType dt)
@@ -51,60 +94,26 @@ public class DamageType : ISerializable
         return Parent.IsDerivedFrom(dt);
     }
 
-    public IEnumerable<StatModifier> GetModifiersForSoft()
-    {
-        if (Parent != null)
-            foreach (StatModifier mod in Parent.GetModifiersForSoft())
-                yield return mod;
-        if (softModifier != null)
-            yield return (StatModifier)softModifier;
-    }
-    public IEnumerable<StatModifier> GetModifiersForHard()
-    {
-        if (Parent != null)
-            foreach (StatModifier mod in Parent.GetModifiersForHard())
-                yield return mod;
-        if (hardModifier != null)
-            yield return (StatModifier)hardModifier;
-    }
-
-    private DamageType SoftMod(float value, StatModifierType op = StatModifierType.Percent)
-    {
-        softModifier = new StatModifier(Name + "-soft-mod", value, op);
-        return this;
-    }
-    private DamageType HardMod(float value, StatModifierType op = StatModifierType.Percent)
-    {
-        hardModifier = new StatModifier(Name + "-hard-mod", value, op);
-        return this;
-    }
-
-    private DamageType WithColor(Color color)
-    {
-        Color = color;
-        return this;
-    }
-
     public void ToBytes(Stream stream)
     {
-        stream.WriteByte(Id);
+        new CompendiumEntryRef<DamageType>(Id).ToBytes(stream);
     }
 
     public static DamageType? FromName(string name)
     {
-        return dtsByName.GetValueOrDefault(name.ToLower());
+        return Compendium.FindEntry<DamageType>(dt => dt.Name == name);
     }
 
-    public static DamageType FromId(byte id)
+    public static DamageType? FromId(string id)
     {
-        return dts[id];
+        return Compendium.GetEntry<DamageType>(id);
     }
     public static DamageType FromBytes(Stream stream)
     {
-        return FromId((byte)stream.ReadByte());
+        return new CompendiumEntryRef<DamageType>(stream).Get()!;
     }
     public override int GetHashCode()
     {
-        return Id;
+        return Id.GetHashCode();
     }
 }

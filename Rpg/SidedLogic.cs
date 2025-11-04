@@ -16,15 +16,4 @@ public abstract class SidedLogic
     public abstract Board? GetBoard(string name);
     public abstract bool IsClient();
     public abstract string GetRpgAssemblyPath();
-
-    public Func<TC, T> Compile<TC, T>(string code, params string[] imports)
-    {
-        var test = CSharpScript.Create<object>(code,
-            ScriptOptions.Default.WithReferences(MetadataReference.CreateFromFile(GetRpgAssemblyPath()))
-                .WithImports(imports), typeof(TC)).CreateDelegate();
-        var script = CSharpScript.Create<T>(code,
-            ScriptOptions.Default.WithReferences(MetadataReference.CreateFromFile(GetRpgAssemblyPath()))
-                .WithImports(imports), typeof(TC)).CreateDelegate();
-        return ctx => script(ctx).Result;
-    }
 }

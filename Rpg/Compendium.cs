@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Drawing;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rpg.Inventory;
@@ -28,7 +29,7 @@ public static class Compendium
 
     private static readonly Dictionary<string, FolderData> folders = new();
     private static readonly Dictionary<Type, string> typeToFolder = new();
-    
+
     public static IEnumerable<string> Folders => folders.Keys;
 
     public static void RegisterDefaults()
@@ -38,6 +39,8 @@ public static class Compendium
         RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json.ToElement()));
         RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
         RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
+        RegisterFolder<InjuryType>("InjuryTypes", (name, json) => new InjuryType(name, json));
+        RegisterFolder<DamageType>("DamageTypes", (name, json) => new DamageType(name, json));
         RegisterFolder<Midia>("Midia", (fName, json) =>
         {
             string fileName = json["fileName"]!.GetValue<string>();
@@ -67,14 +70,14 @@ public static class Compendium
 
         Dictionary<string, JsonObject> processedFiles = new();
         List<(string fName, JsonObject obj)> toProcess = new();
-        foreach (string file in Directory.GetFiles(path))
+        foreach (string file in Directory.GetFiles(path).OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase))
         {
             string json = File.ReadAllText(file);
             string? fName = null;
             JsonObject? parsed = null;
             try
             {
-                var node = JsonNode.Parse(json);
+                var node = JsonNode.Parse(json, null, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
                 if (node is JsonObject obj)
                 {
                     fName = file[(file.LastIndexOf('\\') + 1)..file.LastIndexOf('.')];
@@ -166,6 +169,10 @@ public static class Compendium
             try
             {
                 object? ret = builder(name, data);
+                if (ret is ICustomDataContainer icdc)
+                    icdc.CustomDataFromJson(data);
+                if (ret is ITaggable taggable)
+                    taggable.LoadTagsFromJson(data);
                 if (ret != null && ret.GetType().IsAssignableTo(folders[folder].Type))
                 {
                     entry.Loaded = ret;
@@ -183,7 +190,9 @@ public static class Compendium
             {
 
                 Logger.LogError("Exception occurred while building entry: " + folder + "/" + name);
-                Logger.LogError(e.StackTrace);
+                Logger.LogError(e.ToString());
+                if (e.StackTrace != null)
+                    Logger.LogError(e.StackTrace);
                 // ignored
             }
         }
@@ -258,6 +267,39 @@ public static class Compendium
         if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
         return fd.Entries.Keys.ToArray();
     }
+
+    public static IEnumerable<T> GetEntries<T>() where T : class
+    {
+        string folder = GetFolderName<T>();
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
+        foreach (var entry in fd.Entries)
+        {
+            if (entry.Value.Loaded is T t)
+                yield return t;
+        }
+    }
+
+    public static IEnumerable<object> GetEntries(string folder)
+    {
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + folder);
+        foreach (var entry in fd.Entries)
+        {
+            if (entry.Value.Loaded != null)
+                yield return entry.Value.Loaded;
+        }
+    }
+
+    public static T? FindEntry<T>(Func<T, bool> predicate) where T : class
+    {
+        string folder = GetFolderName<T>();
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
+        foreach (var entry in fd.Entries)
+        {
+            if (entry.Value.Loaded is T t && predicate(t))
+                return t;
+        }
+        throw new Exception("No matching entry found for type: " + typeof(T));
+    }
     
     public static string GetFolderName<T>()
     {
@@ -289,4 +331,43 @@ public static class Compendium
         }
     }
     
+}
+
+public class CompendiumEntryRef<T> : ISerializable where T : class
+{
+    public string Folder { get; }
+    public string Name { get; }
+
+    public CompendiumEntryRef(string folder, string name)
+    {
+        Folder = folder;
+        Name = name;
+    }
+
+    public CompendiumEntryRef(string name)
+    {
+        Folder = Compendium.GetFolderName<T>();
+        Name = name;
+    }
+
+    public CompendiumEntryRef(Stream stream)
+    {
+        Folder = stream.ReadString();
+        Name = stream.ReadString();
+    }
+
+    public T? Get()
+    {
+        return Compendium.GetEntry<T>(Name);
+    }
+    public T? GetEntry()
+    {
+        return Get();
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteString(Folder);
+        stream.WriteString(Name);
+    }
 }

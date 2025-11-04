@@ -5,16 +5,8 @@ using Rpg.Inventory;
 
 namespace Rpg;
 
-public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureContainer
+public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureContainer, ITaggable
 {
-    public static class Flag
-    {
-        public static byte None => 0x0;
-        public static byte HasBone => 0x1;
-        public static byte Hard => 0x2;
-        public static byte Internal => 0x4;
-        public static byte Overlaps => 0x8;
-    }
     public readonly struct BodyPartStat(float atFull, float atZero, StatModifierType op, bool sho, bool ato)
         : ISerializable
     {
@@ -57,10 +49,26 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     public event Action<EquipmentProperty, string>? OnEquipped;
     public event Action<EquipmentProperty>? OnUnequipped;
 
-    public string Name { get; }
-    public string BBLink => Name + (Owner != null ? " de " + Owner.BBLink : "");
-    public string Group { get; }
+    /// <summary>
+    /// The name of the body part. This must be unique within its parent.
+    /// </summary>
+    public readonly string Name;
+    string ISkillSource.Name => Name;
+    string IFeatureContainer.Name => Name;
 
+    /// <summary>
+    /// BBCode link to this body part
+    /// </summary>
+    public string BBLink => Name + (Owner != null ? " de " + Owner.BBLink : "");
+    /// <summary>
+    /// The group this body part belongs to (e.g., "left arm", "right leg", "head").
+    /// This is used to calculate stats and effects that apply to groups of body parts.
+    /// </summary>
+    public readonly string Group;
+
+    /// <summary>
+    /// The body this part belongs to.
+    /// </summary>
     public Body? Body
     {
         get;
@@ -72,29 +80,71 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         }
     }
 
+    /// <summary>
+    /// The creature that owns this body part.
+    /// Shorthand for Body?.Owner
+    /// </summary>
     public Creature? Owner => Body?.Owner;
+    /// <summary>
+    /// The surface area of this body part relative to its parent.
+    /// </summary>
     public float Size { get; }
+    /// <summary>
+    /// The absolute surface area of this body part (relative to the whole body).
+    /// </summary>
     public float AbsoluteSize => Size * (Parent?.Size ?? 1);
-    private byte flags;
     private readonly Feature[] ownerFeatures;
+    /// <summary>
+    /// Features provided to the owner by this body part
+    /// </summary>
     public IEnumerable<Feature> FeaturesForOwner => ownerFeatures;
+    /// <summary>
+    /// All enabled features on this body part and its owner
+    /// </summary>
     public IEnumerable<Feature> EnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature).Concat(Owner != null ? Owner.Features : Enumerable.Empty<Feature>());
+    /// <summary>
+    /// Enabled features that only affect this body part
+    /// </summary>
     public IEnumerable<Feature> SelfEnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature);
 
     private readonly Skill[] skills;
+    /// <summary>
+    /// Skills provided by this body part
+    /// </summary>
     public IEnumerable<Skill> Skills => skills;
     
     private readonly Dictionary<string, Item?> equipmentSlots;
+    /// <summary>
+    /// The equipment slots that this body part has
+    /// </summary>
     public IEnumerable<string> EquipmentSlots => equipmentSlots.Keys;
 
+    /// <summary>
+    /// The parent body part of this part. Null if this is the root part.
+    /// </summary>
     public BodyPart? Parent { get; private set; }
+    /// <summary>
+    /// The full path to this body part in the body hierarchy.
+    /// </summary>
     public string Path => Parent == null ? Name : Parent.Path + "/" + Name;
+    /// <summary>
+    /// The root body part of this body.
+    /// </summary>
     public BodyPart Root => Parent == null ? this : Parent.Root;
     public bool IsRoot => Parent == null;
-    
+
+    /// <summary>
+    /// The child body parts of this part. This can be interpreted as organs, sub-parts or extensions of.
+    /// </summary>
     public readonly IList<BodyPart> Children;
+    /// <summary>
+    /// The internal organs of this body part.
+    /// This is found using the <c>internal</c> tag.
+    /// </summary>
     public IEnumerable<BodyPart> InternalOrgans => Children.Where(child => child.IsInternal);
-    public IEnumerable<BodyPart> OverlappingParts => Children.Where(child => child.OverlapsParent);
+    /// <summary>
+    /// Children including children of children
+    /// </summary>
     public List<BodyPart> AllChildren
     {
         get
@@ -109,11 +159,22 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     }
     
     private readonly List<Injury> injuries;
+    /// <summary>
+    /// The injuries currently affecting this body part.
+    /// </summary>
     public IEnumerable<Injury> Injuries => injuries;
+    /// <summary>
+    /// Some body parts feel more pain than others. This multiplier defines how much more pain this body part feels.
+    /// </summary>
     public readonly float PainMultiplier = 1;
+    /// <summary>
+    /// The total pain currently felt from this body part.
+    /// </summary>
     public double Pain => injuries.Sum(injury => injury.Type.Pain * injury.Severity * PainMultiplier);
     public double MaxHealth { get; private set; }
-    //This should only be used if the parent is alive
+    /// <summary>
+    /// The current health of this body part, ignoring parent body parts.
+    /// </summary>
     public double HealthStandalone
     {
         get
@@ -128,6 +189,9 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             return Math.Max(sum, 0);
         }
     }
+    /// <summary>
+    /// The current health of this body part, considering if the parent is dead.
+    /// </summary>
     public double Health
     {
         get
@@ -145,64 +209,27 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     /// What stats are provided by this body part. Dynamically updated on HP(100% to 0%)
     /// </summary>
     public readonly Dictionary<string, BodyPartStat[]> Stats = new();
+    /// <summary>
+    /// Damage modifiers applied when this body part takes damage of a certain type.
+    /// </summary>
     public readonly Dictionary<DamageType, StatModifier[]> DamageModifiers = new();
     
+    /// <summary>
+    /// Equipment that is currently protecting this body part.
+    /// </summary>
     public IEnumerable<EquipmentProperty> CoveringEquipment => Body?.GetCoveringEquipment(this) ?? Enumerable.Empty<EquipmentProperty>();
+    /// <summary>
+    /// Items currently equipped on this body part.
+    /// </summary>
     public IEnumerable<Item> Items => equipmentSlots.Values.Where(x => x != null)!;
     public Board? Board => Owner?.Board;
 
-    public bool IsInternal
-    {
-        get => (flags & Flag.Internal) != 0;
-        set
-        {
-            if (value)
-                flags |= Flag.Internal;
-            else
-                flags &= (byte)~Flag.Internal;
-        }
-    }
-    public bool IsHard
-    {
-        get => (flags & Flag.Hard) != 0;
-        set
-        {
-            if (value)
-                flags |= Flag.Hard;
-            else
-                flags &= (byte)~Flag.Hard;
-        }
-    }
-    public bool IsSoft
-    {
-        get => !IsHard;
-        set => IsHard = !value;
-    }
-    public bool HasBone
-    {
-        get => (flags & Flag.HasBone) != 0;
-        set
-        {
-            if (value)
-                flags |= Flag.HasBone;
-            else
-                flags &= (byte)~Flag.HasBone;
-        }
-    }
-    public bool OverlapsParent
-    {
-        get => (flags & Flag.Overlaps) != 0;
-        set
-        {
-            if (value)
-                flags |= Flag.Overlaps;
-            else
-                flags &= (byte)~Flag.Overlaps;
-        }
-    }
+    public bool IsInternal => Is(BodyTags.Internal);
+    public bool IsHard => Is(BodyTags.Hard);
+    public bool IsSoft => !Is(BodyTags.Hard);
 
 
-    public BodyPart(string name, string group, int maxHealth, float surfaceArea, float painMult, Skill[] actions, Feature[] features, string[] equipmentSlots, Injury[] conditions, byte flags, params BodyPart[] children)
+    public BodyPart(string name, string group, int maxHealth, float surfaceArea, float painMult, Skill[] actions, Feature[] features, string[] equipmentSlots, Injury[] conditions, string[] tags, params BodyPart[] children)
     {
         Name = name;
         Group = group;
@@ -212,11 +239,11 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         skills = actions;
         ownerFeatures = features;
         Size = surfaceArea;
-        this.flags = flags;
         this.equipmentSlots = new Dictionary<string, Item?>();
         foreach (string slot in equipmentSlots)
             this.equipmentSlots[slot] = null;
         injuries = new List<Injury>(conditions);
+        this.tags = new HashSet<string>(tags);
 
         foreach (BodyPart child in children)
             child.Parent = this;
@@ -227,7 +254,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         Group = stream.ReadString();
         MaxHealth = stream.ReadDouble();
         Size = stream.ReadFloat();
-        flags = (byte)stream.ReadByte();
+
         equipmentSlots = new Dictionary<string, Item?>();
         injuries = new List<Injury>();
 
@@ -282,29 +309,10 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             ownerFeatures[i] = Feature.FromBytes(stream);
         }
 
-        count = stream.ReadByte();
-        for (int i = 0; i < count; i++)
-        {
-            bool enabled = stream.ReadByte() != 0;
-            var feat = Feature.FromBytes(stream);
-            features[feat.GetId()] = (feat, enabled);
-        }
-
-        count = stream.ReadByte();
-        for (int i = 0; i < count; i++)
-        {
-            string id = stream.ReadString();
-            uint size = stream.ReadUInt32();
-            byte[] data = new byte[size];
-            stream.ReadExactly(data);
-            customData[id] = data;
-        }
+        FeaturesFromBytes(stream);
+        CustomDataFromBytes(stream);
+        TagsFromBytes(stream);
         Body = body;
-    }
-
-    public bool HasFlag(byte flag)
-    {
-        return (flags & flag) != 0;
     }
 
     public bool CanEquipSlot(string slot)
@@ -414,9 +422,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     {
 
         DamageType type = source.Type;
-        List<StatModifier> dmgMods = new();
-        dmgMods.AddRange(DamageModifiers.GetValueOrDefault(type, Array.Empty<StatModifier>()));
-        dmgMods.AddRange(IsSoft ? type.GetModifiersForSoft() : type.GetModifiersForHard());
+        List<StatModifier> dmgMods = [.. DamageModifiers.GetValueOrDefault(type, Array.Empty<StatModifier>())];
         if (Owner != null)
         {
             foreach (Feature feat in Owner.Features.Concat(Features))
@@ -444,9 +450,10 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         if (damage <= 0)
             return 0;
 
-        if (damage > Health/2 && HasBone)
+        //TODO: Rewrite bone damage logic
+        if (damage > Health/2 && )
         {
-            double boneDmgChance = (damage - Health/2) / Health/2;
+            double boneDmgChance = (damage - Health/2) / (Health/2);
             if (RpgMath.RandomFloat(0, 1) < boneDmgChance)
             {
                 double boneDmg = damage/2;
@@ -600,7 +607,6 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         stream.WriteString(Group);
         stream.WriteDouble(MaxHealth);
         stream.WriteFloat(Size);
-        stream.WriteByte(flags);
         
         stream.WriteByte((byte)equipmentSlots.Count);
         foreach (var slot in equipmentSlots)
@@ -648,21 +654,10 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         {
             ownerFeature.ToBytes(stream);
         }
-        
-        stream.WriteByte((byte)features.Count);
-        foreach (var tuple in features.Values)
-        {
-            stream.WriteByte((byte)(tuple.enabled ? 1 : 0));
-            tuple.feature.ToBytes(stream);
-        }
-        
-        stream.WriteByte((byte)customData.Count);
-        foreach (var pair in customData)
-        {
-            stream.WriteString(pair.Key);
-            stream.WriteUInt32((uint)pair.Value.Length);
-            stream.Write(pair.Value);
-        }
+
+        FeaturesToBytes(stream);
+        CustomDataToBytes(stream);
+        TagsToBytes(stream);
     }
 
     public JsonObject ToJson()
@@ -687,20 +682,6 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
                 slotsArray.Add(slot);
             }
             json["slots"] = slotsArray;
-        }
-
-        if (flags != Flag.None)
-        {
-            var flagsArray = new JsonArray();
-            if (HasBone)
-                flagsArray.Add("HasBone");
-            if (IsHard)
-                flagsArray.Add("IsHard");
-            if (IsInternal)
-                flagsArray.Add("Internal");
-            if (OverlapsParent)
-                flagsArray.Add("Overlaps");
-            json["flags"] = flagsArray;
         }
 
         if (skills.Length > 0)
@@ -804,155 +785,6 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
         return stats.Where(stat => stat.op == StatModifierType.Flat).Sum(stat => stat.CalculateFor(this).Value);
     }
-
-    public static class Groups
-    {
-        public const string UPPER_LEFT = "upper-left";
-        public const string UPPER_RIGHT = "upper-right";
-        public const string LOWER_LEFT = "lower-left";
-        public const string LOWER_RIGHT = "lower-right";
-    }
-
-    public class Builder(string name)
-    {
-        private string name = name;
-        private string group = "default";
-        private int maxHealth = 1;
-        private float painMult;
-        private float sizePercentage;
-        private Skill[] skills = Array.Empty<Skill>();
-        private byte flags;
-        private readonly List<BodyPart> children = new();
-        private readonly List<string> equipmentSlots = [];
-        private readonly List<Injury> injuries = [];
-        private readonly List<Feature> features = [];
-        private readonly List<Feature> selfFeatures = [];
-        private readonly Dictionary<string, List<BodyPartStat>> stats = new();
-        private readonly Dictionary<DamageType, List<StatModifier>> damageMods = new();
-
-        public Builder Name(string name)
-        {
-            this.name = name;
-            return this;
-        }
-
-        public Builder Health(int maxHealth)
-        {
-            this.maxHealth = maxHealth;
-            return this;
-        }
-
-        public Builder Size(float percentage)
-        {
-            sizePercentage = percentage/100;
-            return this;
-        }
-
-        public Builder Skills(params Skill[] actions)
-        {
-            this.skills = actions;
-            return this;
-        }
-
-        public Builder Features(params Feature[] features)
-        {
-            selfFeatures.AddRange(features);
-            return this;
-        }
-        public Builder OwnerFeatures(params Feature[] features)
-        {
-            this.features.AddRange(features);
-            return this;
-        }
-        
-        public Builder Equipment(params string[] slots)
-        {
-            equipmentSlots.AddRange(slots);
-            return this;
-        }
-
-        public Builder Flags(params byte[] flags)
-        {
-            foreach (byte flag in flags)
-            {
-                this.flags |= flag;
-            }
-            return this;
-        }
-
-        public Builder Hard()
-        {
-            return Flags(Flag.Hard);
-        }
-        public Builder Overlaps()
-        {
-            return Flags(Flag.Overlaps);
-        }
-        public Builder HasBone()
-        {
-            return Flags(Flag.HasBone);
-        }
-        public Builder Internal()
-        {
-            return Flags(Flag.Internal);
-        }
-
-        public Builder Pain(float mult)
-        {
-            painMult = mult;
-            return this;
-        }
-
-        public Builder Child(BodyPart child)
-        {
-            children.Add(child);
-            return this;
-        }
-
-        public Builder Children(params BodyPart[] children)
-        {
-            this.children.AddRange(children);
-            return this;
-        }
-
-        public Builder Children(params Builder[] newChildren)
-        {
-            return Children(newChildren.Select(c => c.Build()).ToArray());
-        }
-
-        public Builder Group(string group)
-        {
-            this.group = group;
-            return this;
-        }
-
-        public Builder Stat(string stat, float atFull, float atZero = 0, StatModifierType operation = StatModifierType.Flat, bool standaloneHPOnly = false, bool applyToOwner = true)
-        {
-            if (!stats.ContainsKey(stat))
-                stats[stat] = new List<BodyPartStat>();
-            stats[stat].Add(new BodyPartStat(atFull, atZero, operation, standaloneHPOnly, applyToOwner));
-            return this;
-        }
-
-        public Builder DamageModifier(DamageType type, float value, StatModifierType operation = StatModifierType.Percent)
-        {
-            if (!damageMods.ContainsKey(type))
-                damageMods[type] = new();
-            damageMods[type].Add(new StatModifier($"{name}-{type.Name}-mod", value, operation));
-            return this;
-        }
-
-        public BodyPart Build()
-        {
-            var ret = new BodyPart(name, group, maxHealth, sizePercentage, painMult, skills, features.ToArray(), equipmentSlots.ToArray(), injuries.ToArray(), flags, children.ToArray());
-            foreach (var entry in stats)
-                ret.Stats[entry.Key] = entry.Value.ToArray();
-            foreach (var feat in selfFeatures)
-                ret.AddFeature(feat);
-            return ret;
-        }
-    }
-
 }
 
 public class BodyPartRef(CreatureRef owner, string path) : ISerializable

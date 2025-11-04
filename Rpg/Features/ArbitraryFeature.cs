@@ -23,16 +23,16 @@ public class ArbitraryFeature : Feature
         public ISkillSource? skillSource;
     }
 
-    private readonly Func<Context, object>? onTick;
-    private readonly Func<Context, object>? onEnable;
-    private readonly Func<Context, object>? onDisable;
+    private readonly Action<Context>? onTick;
+    private readonly Action<Context>? onEnable;
+    private readonly Action<Context>? onDisable;
     private readonly Func<Context, (bool, string?)>? doesGetAttacked;
     private readonly Func<Context, (bool, string?)>? doesAttack;
     private readonly Func<Context, (bool, string?)>? doesExecuteSkill;
-    private readonly Func<Context, object>? onAttacked;
-    private readonly Func<Context, object>? onAttack;
-    private readonly Func<Context, object>? onExecuteSkill;
-    private readonly Func<Context, object>? onInjured;
+    private readonly Action<Context>? onAttacked;
+    private readonly Action<Context>? onAttack;
+    private readonly Action<Context>? onExecuteSkill;
+    private readonly Action<Context>? onInjured;
     private readonly Func<Context, double>? modifyReceivingDamage;
     private readonly Func<Context, double>? modifyAttackingDamage;
 
@@ -62,29 +62,18 @@ public class ArbitraryFeature : Feature
 
         if (!SidedLogic.Instance.IsClient())
         {
-            Func<Context, T> Compile<T>(string code)
-            {
-                var script = CSharpScript.Create<T>(
-                    code,
-                    ScriptOptions.Default.WithReferences(typeof(Creature).Assembly).WithImports("Rpg"),
-                    typeof(Context)
-                ).CreateDelegate();
-
-                return ctx => script(ctx).Result;
-            }
-
-            if (onTick != null) this.onTick = Compile<object>(onTick);
-            if (onEnable != null) this.onEnable = Compile<object>(onEnable);
-            if (onDisable != null) this.onDisable = Compile<object>(onDisable);
-            if (doesGetAttacked != null) this.doesGetAttacked = Compile<(bool, string?)>(doesGetAttacked);
-            if (doesAttack != null) this.doesAttack = Compile<(bool, string?)>(doesAttack);
-            if (doesExecuteSkill != null) this.doesExecuteSkill = Compile<(bool, string?)>(doesExecuteSkill);
-            if (onAttacked != null) this.onAttacked = Compile<object>(onAttacked);
-            if (onAttack != null) this.onAttack = Compile<object>(onAttack);
-            if (onExecuteSkill != null) this.onExecuteSkill = Compile<object>(onExecuteSkill);
-            if (onInjured != null) this.onInjured = Compile<object>(onInjured);
-            if (modifyReceivingDamage != null) this.modifyReceivingDamage = Compile<double>(modifyReceivingDamage);
-            if (modifyAttackingDamage != null) this.modifyAttackingDamage = Compile<double>(modifyAttackingDamage);
+            if (onTick != null) this.onTick = Scripting.Compile<Context>(onTick);
+            if (onEnable != null) this.onEnable = Scripting.Compile<Context>(onEnable);
+            if (onDisable != null) this.onDisable = Scripting.Compile<Context>(onDisable);
+            if (doesGetAttacked != null) this.doesGetAttacked = Scripting.Compile<Context, (bool, string?)>(doesGetAttacked);
+            if (doesAttack != null) this.doesAttack = Scripting.Compile<Context, (bool, string?)>(doesAttack);
+            if (doesExecuteSkill != null) this.doesExecuteSkill = Scripting.Compile<Context, (bool, string?)>(doesExecuteSkill);
+            if (onAttacked != null) this.onAttacked = Scripting.Compile<Context>(onAttacked);
+            if (onAttack != null) this.onAttack = Scripting.Compile<Context>(onAttack);
+            if (onExecuteSkill != null) this.onExecuteSkill = Scripting.Compile<Context>(onExecuteSkill);
+            if (onInjured != null) this.onInjured = Scripting.Compile<Context>(onInjured);
+            if (modifyReceivingDamage != null) this.modifyReceivingDamage = Scripting.Compile<Context, double>(modifyReceivingDamage);
+            if (modifyAttackingDamage != null) this.modifyAttackingDamage = Scripting.Compile<Context, double>(modifyAttackingDamage);
         }
     }
 

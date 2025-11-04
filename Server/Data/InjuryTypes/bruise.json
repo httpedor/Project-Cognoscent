@@ -1,0 +1,10 @@
+{
+  "name": "Hematoma",
+  "pain": 1.25,
+  "bleed": 0.0,
+  "overkillMin": 40.0,
+  "overkillMax": 100.0,
+  "heal": 1.25,
+  "instakill": false,
+  "destruction": "Estilhaçado"
+}

@@ -49,6 +49,11 @@ public struct StatModifier : ISerializable
         stream.WriteFloat(Value);
         stream.WriteByte((byte)Type);
     }
+
+    public static implicit operator StatModifier((string id, float value, StatModifierType type) tuple)
+    {
+        return new StatModifier(tuple.id, tuple.value, tuple.type);
+    }
 }
 
 public class Stat : ISerializable

@@ -1,0 +1,11 @@
+{
+  "name": "Perfuração",
+  "pain": 1.25,
+  "bleed": 0.06,
+  "overkillMin": 40.0,
+  "overkillMax": 100.0,
+  "heal": 1.0,
+  "instakill": false,
+  "destruction": "Perfurado"
+  //TODO: Add infection chance
+}

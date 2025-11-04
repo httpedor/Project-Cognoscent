@@ -18,6 +18,8 @@ public readonly struct EntityRef(string board, int id) : ISerializable
 {
     public readonly string Board = board;
     public readonly int Id = id;
+
+    [JsonIgnore]
     public Entity? Entity
     {
         get

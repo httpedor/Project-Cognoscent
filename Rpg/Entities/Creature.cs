@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Numerics;
+using System.Text.Json.Serialization;
 using Rpg.Inventory;
 
 namespace Rpg;
@@ -8,6 +9,8 @@ public readonly struct CreatureRef(string board, int id)
 {
     public readonly string Board = board;
     public readonly int Id = id;
+
+    [JsonIgnore]
     public Creature? Creature
     {
         get

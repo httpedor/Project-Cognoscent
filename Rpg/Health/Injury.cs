@@ -1,19 +1,36 @@
+using System.Collections.Immutable;
+using System.Text.Json.Nodes;
 
-using Rpg;
+namespace Rpg;
 
+using ConversionEntry = (Func<Injury, BodyPart, Injury?> conversionFunc, float interval);
+using CreationEntry = (Func<Injury, BodyPart, Injury?> creationFunc, float interval);
+
+//TODO: Injury treatments. For example, bandaged, cooled, disinfected, etc.
+// Each injury type can then interpret these treatments differently.
+// E.g: A burn might need to be cooled to heal faster, or bandaged to reduce infection chance. Or a cut might need to be bandaged to reduce bleeding.
 public class InjuryType : ISerializable
 {
-    private static List<InjuryType> registeredTypes = new List<InjuryType>();
-    private static Dictionary<string, InjuryType> perName = new();
-    public static readonly InjuryType Generic = register(new InjuryType(0, 0, 0, 0, "Generico", "Genericado"));
-    public static readonly InjuryType Infection = register(new InjuryType(0, 0, 0, 0, "Infecção", "Necrosado", 1));
-    public static readonly InjuryType Burn = register(new InjuryType(1.875f, 0, 40, 100, "Queimadura", "Queimado", 2).AddInjuryCreationChance(new Injury(Infection, 1), 8));
-    public static readonly InjuryType Bruise = register(new InjuryType(1.25f, 0, 40, 100, "Hematoma", "Estilhaçado", 1.25f));
-    public static readonly InjuryType Cut = register(new InjuryType(1.25f, 0.06f, 0, 10, "Corte", "Cortado Fora", 1).AddInjuryCreationChance(new Injury(Infection, 1), 15));
-    public static readonly InjuryType Stab = register(new InjuryType(1.25f, 0.06f, 40, 100, "Perfuração", "Perfurado", 1).AddInjuryCreationChance(new Injury(Infection, 1), 15));
-    public static readonly InjuryType Crack = register(new InjuryType(1, 0, 40, 100, "Rachadura", "Quebrado", 0.5f));
+    private class CodeContext
+    {
+        Injury injury;
+        BodyPart part;
+        Dictionary<string, InjuryType> injuryTypes;
+        public CodeContext(Injury injury, BodyPart part)
+        {
+            this.injury = injury;
+            this.part = part;
 
-    public readonly byte Id;
+            injuryTypes = Compendium.GetEntries<InjuryType>().ToDictionary(it => it.Id, it => it);
+        }
+
+        public float rand(float min = 0f, float max = 1f)
+        {
+            Random rng = new();
+            return (float)(rng.NextDouble() * (max - min) + min);
+        }
+    }
+    public readonly string Id;
     /// <summary>
     /// Pain value per damage
     /// </summary>
@@ -39,25 +56,25 @@ public class InjuryType : ISerializable
     /// </summary>
     public readonly float NaturalHeal;
     /// <summary>
-    /// The chance of this injury converting into others
+    /// Every <c>interval</c> seconds, the <c>creationFunc</c> is called to possibly create another injury.
+    /// If the function returns null, no injury is created.
+    /// TODO: Implement this
     /// </summary>
-    public readonly Dictionary<Injury, float> ConversionChances = new();
+    public readonly ImmutableArray<CreationEntry> InjuryCreations = [];
     /// <summary>
-    /// The chance of this injury creating others
+    /// Every <c>interval</c> seconds, the <c>conversionFunc</c> is called to possibly convert this injury into another.
+    /// If the function returns null, no conversion occurs.
+    /// TODO: Implement this
     /// </summary>
-    public readonly Dictionary<Injury, float> AddChances = new();
-    /// <summary>
-    /// The severity needed for this injury to turn into another type.
-    /// </summary>
-    public readonly Dictionary<InjuryType, float> ConversionSeverity = new();
+    public readonly ImmutableArray<ConversionEntry> InjuryConversions = [];
     public readonly string Name;
     /// <summary>
     /// This is used in the last damage applied to the part befored it died is this
     /// </summary>
     public readonly string DestructionTranslation;
-    private InjuryType(float pain, float bleed, float opmin, float opmax, string translation, string destructionTranslation, float heal = 0, bool instakill = false)
+    private InjuryType(string id, float pain, float bleed, float opmin, float opmax, string translation, string destructionTranslation, float heal = 0, bool instakill = false)
     {
-        Id = (Byte)registeredTypes.Count;
+        Id = id;
         Pain = pain;
         BleedingRate = bleed;
         OverkillPercentMax = opmax;
@@ -68,56 +85,103 @@ public class InjuryType : ISerializable
         DestructionTranslation = destructionTranslation;
     }
 
+    public InjuryType(string id, JsonObject json) : this(
+        id,
+        json["pain"]!.GetValue<float>(),
+        json["bleed"]!.GetValue<float>(),
+        json["overkillMin"]!.GetValue<float>(),
+        json["overkillMax"]!.GetValue<float>(),
+        json["name"]!.GetValue<string>(),
+        json["destruction"]!.GetValue<string>(),
+        json.ContainsKey("heal") ? json["heal"]!.GetValue<float>() : 0,
+        json.ContainsKey("instakill") ? json["instakill"]!.GetValue<bool>() : false
+    )
+    {
+        if (json["creations"] is JsonArray addArr)
+        {
+            List<CreationEntry> creations = new();
+            foreach (var node in addArr)
+            {
+                if (node is not JsonObject o)
+                {
+                    Logger.LogWarning("[InjuryType] Invalid injury creation entry in InjuryType " + Id);
+                    continue;
+                }
+                float? interval = o["interval"]?.GetValue<float>();
+                string? code = o["code"]?.GetValue<string>();
+                if (interval == null || string.IsNullOrWhiteSpace(code))
+                {
+                    Logger.LogWarning("[InjuryType] Invalid injury creation entry in InjuryType " + Id);
+                    continue;
+                }
+                if (SidedLogic.Instance.IsClient())
+                    continue;
+                try
+                {
+                    var func = Scripting.Compile<CodeContext, Injury?>(code);
+                    creations.Add(((injury, part) => func(new CodeContext(injury, part)), interval.Value));
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError("[InjuryType] Could not compile injury creation script in InjuryType " + Id + ": " + e);
+                }
+            }
+        }
+
+        if (json["conversions"] is JsonArray convArr)
+        {
+            List<ConversionEntry> conversions = new();
+
+            foreach (var node in convArr)
+            {
+                if (node is not JsonObject o)
+                {
+                    Logger.LogWarning("[InjuryType] Invalid injury conversion entry in InjuryType " + Id);
+                    continue;
+                }
+                float? interval = o["interval"]?.GetValue<float>();
+                string? code = o["code"]?.GetValue<string>();
+                if (interval == null || string.IsNullOrWhiteSpace(code))
+                {
+                    Logger.LogWarning("[InjuryType] Invalid injury conversion entry in InjuryType " + Id);
+                    continue;
+                }
+                if (SidedLogic.Instance.IsClient())
+                    continue;
+                try
+                {
+                    var func = Scripting.Compile<CodeContext, Injury?>(code);
+                    conversions.Add(((injury, part) => func(new CodeContext(injury, part)), interval.Value));
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError("[InjuryType] Could not compile injury conversion script in InjuryType " + Id + ": " + e);
+                }
+            }
+        }
+    }
+
     public void ToBytes(Stream stream)
     {
-        stream.WriteByte(Id);
-    }
-
-    private InjuryType AddInjuryConversionChance(Injury injury, float chance)
-    {
-        ConversionChances[injury] = chance;
-        return this;
-    }
-    private InjuryType AddInjuryConversionSeverity(InjuryType type, float severity)
-    {
-        ConversionSeverity[type] = severity;
-        return this;
-    }
-    private InjuryType AddInjuryCreationChance(Injury injury, float chance)
-    {
-        AddChances[injury] = chance;
-        return this;
-    }
-
-    private static InjuryType register(InjuryType type)
-    {
-        registeredTypes.Add(type);
-        perName[type.Name] = type;
-        return type;
+        new CompendiumEntryRef<InjuryType>(Id).ToBytes(stream);
     }
 
     public static IEnumerable<InjuryType> GetInjuryTypes()
     {
-        return registeredTypes;
+        return Compendium.GetEntries<InjuryType>();
     }
     public static InjuryType? ByName(string translation)
     {
-        return perName[translation];
-    }
-    public static InjuryType? ById(int id)
-    {
-        if (registeredTypes.Count <= id || id < 0)
-            return null;
-        return registeredTypes[id];
+        return Compendium.FindEntry<InjuryType>(it => it.Name == translation);
     }
     public static InjuryType FromBytes(Stream stream)
     {
-        return ById(stream.ReadByte());
+        return new CompendiumEntryRef<InjuryType>(stream).Get()!;
     }
 
     public override Int32 GetHashCode()
     {
-        return Id;
+        return Id.GetHashCode();
     }
 }
 public class Injury : ISerializable
@@ -149,6 +213,17 @@ public class Injury : ISerializable
         return obj is Injury condition &&
                Type.Name == condition.Type.Name &&
                Math.Abs(Severity - condition.Severity) < 0.0001;
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            int hash = 17;
+            hash = hash * 31 + (Type?.Name?.GetHashCode() ?? 0);
+            hash = hash * 31 + Math.Round(Severity, 4).GetHashCode();
+            return hash;
+        }
     }
 
 }
