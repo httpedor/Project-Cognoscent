@@ -30,7 +30,7 @@ public enum ProtocolId
     ENTITY_VELOCITY,
     ENTITY_BODY_PART,
     ENTITY_BODY_PART_INJURY,
-    ENTITY_STAT,
+    STAT_UPDATE,
     FEATURE_UPDATE,
     CREATURE_EQUIP_ITEM,
     CREATURE_SKILL_UPDATE,
@@ -645,112 +645,40 @@ public class EntityBodyPartInjuryPacket : Packet
     }
 }
 
-public class EntityStatPacket : Packet
+public class StatHolderUpdatePacket : Packet
 {
-    public enum StatOp : byte
+    public override ProtocolId Id => ProtocolId.STAT_UPDATE;
+
+    public StatHolderRef HolderRef;
+    public List<Stat> Stats = new List<Stat>();
+
+    // Create packet from a stat holder: sends all stats
+    public StatHolderUpdatePacket(IStatHolder holder)
     {
-        Create = 0,
-        SetValue = 1,
-        SetModifier = 2,
-        RemoveModifier = 3
+        HolderRef = new StatHolderRef(holder);
+        foreach (var s in holder.Stats)
+            Stats.Add(s.Clone());
     }
 
-    public override ProtocolId Id => ProtocolId.ENTITY_STAT;
-
-    public EntityRef EntityRef;
-    public string StatId = string.Empty;
-    public StatOp Operation;
-
-    // Payloads
-    public Stat? Stat; // for Create
-    public float Value; // for SetValue
-    public StatValueType ValueType; // for SetValue
-    public StatModifier? Modifier; // for SetModifier
-    public string? ModifierId; // for RemoveModifier
-
-    // Constructors for convenience
-    public EntityStatPacket(Entity entity, Stat stat)
+    // Deserialize
+    public StatHolderUpdatePacket(Stream stream)
     {
-        EntityRef = new EntityRef(entity);
-        Stat = stat.Clone();
-        StatId = stat.Id;
-        Operation = StatOp.Create;
-    }
-
-    public EntityStatPacket(Entity entity, string statId, float value, StatValueType type = StatValueType.Base)
-    {
-        EntityRef = new EntityRef(entity);
-        StatId = statId;
-        Value = value;
-        ValueType = type;
-        Operation = StatOp.SetValue;
-    }
-
-    public EntityStatPacket(Entity entity, string statId, StatModifier modifier)
-    {
-        EntityRef = new EntityRef(entity);
-        StatId = statId;
-        Modifier = modifier;
-        Operation = StatOp.SetModifier;
-    }
-
-    public EntityStatPacket(Entity entity, string statId, string modifierId)
-    {
-        EntityRef = new EntityRef(entity);
-        StatId = statId;
-        ModifierId = modifierId;
-        Operation = StatOp.RemoveModifier;
-    }
-
-    public EntityStatPacket(Stream stream)
-    {
-        EntityRef = new EntityRef(stream);
-        StatId = stream.ReadString();
-        Operation = (StatOp)stream.ReadByte();
-        switch (Operation)
+        HolderRef = new StatHolderRef(stream);
+        ushort statCount = stream.ReadUInt16();
+        for (int i = 0; i < statCount; i++)
         {
-            case StatOp.Create:
-                Stat = new Stat(stream);
-                break;
-            case StatOp.SetValue:
-                ValueType = (StatValueType)stream.ReadByte();
-                Value = stream.ReadFloat();
-                break;
-            case StatOp.SetModifier:
-                Modifier = new StatModifier(stream);
-                break;
-            case StatOp.RemoveModifier:
-                ModifierId = stream.ReadString();
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            Stat stat = new Stat(stream);
+            Stats.Add(stat);
         }
     }
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        EntityRef.ToBytes(stream);
-        stream.WriteString(StatId);
-        stream.WriteByte((byte)Operation);
-        switch (Operation)
-        {
-            case StatOp.Create:
-                Stat!.ToBytes(stream);
-                break;
-            case StatOp.SetValue:
-                stream.WriteByte((byte)ValueType);
-                stream.WriteFloat(Value);
-                break;
-            case StatOp.SetModifier:
-                Modifier!.Value.ToBytes(stream);
-                break;
-            case StatOp.RemoveModifier:
-                stream.WriteString(ModifierId!);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
+        HolderRef.ToBytes(stream);
+        stream.WriteUInt16((ushort)Stats.Count);
+        foreach (var stat in Stats)
+            stat.ToBytes(stream);
     }
 }
 
@@ -766,17 +694,17 @@ public class FeatureUpdatePacket : Packet
 
     public override ProtocolId Id => ProtocolId.FEATURE_UPDATE;
     public FeatureUpdateType UpdateType;
-    public FeatureSourceRef SourceRef;
+    public FeatureContainerRef SourceRef;
     public string? FeatureId;
     public Feature? Feature;
-    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureSourceRef @ref, Feature feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureContainerRef @ref, Feature feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
         Feature = feature;
         FeatureId = feature?.GetId();
     }
-    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureSourceRef @ref, string feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureContainerRef @ref, string feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
@@ -785,7 +713,7 @@ public class FeatureUpdatePacket : Packet
     public FeatureUpdatePacket(Stream stream)
     {
         UpdateType = (FeatureUpdateType)stream.ReadByte();
-        SourceRef = new FeatureSourceRef(stream);
+        SourceRef = new FeatureContainerRef(stream);
         if (UpdateType == FeatureUpdateType.ADD)
             Feature = Feature.FromBytes(stream);
         else
@@ -808,7 +736,7 @@ public class FeatureUpdatePacket : Packet
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ENABLE,
-            new FeatureSourceRef(entity),
+            new FeatureContainerRef(entity),
             id
         );
     }
@@ -821,7 +749,7 @@ public class FeatureUpdatePacket : Packet
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.DISABLE,
-            new FeatureSourceRef(entity),
+            new FeatureContainerRef(entity),
             id
         );
     }
@@ -834,7 +762,7 @@ public class FeatureUpdatePacket : Packet
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ADD,
-            new FeatureSourceRef(entity),
+            new FeatureContainerRef(entity),
             feature
         );
     }
@@ -843,7 +771,7 @@ public class FeatureUpdatePacket : Packet
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.REMOVE,
-            new FeatureSourceRef(entity),
+            new FeatureContainerRef(entity),
             id
         );
     }

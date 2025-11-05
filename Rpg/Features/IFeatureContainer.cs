@@ -3,15 +3,15 @@ using TraitGenerator;
 
 namespace Rpg;
 
-public class FeatureSourceRef
+public class FeatureContainerRef
 {
     public IFeatureContainer? FeatureSource;
-    public FeatureSourceRef(IFeatureContainer featureSource)
+    public FeatureContainerRef(IFeatureContainer featureSource)
     {
         FeatureSource = featureSource;
     }
 
-    public FeatureSourceRef(Stream stream)
+    public FeatureContainerRef(Stream stream)
     {
         byte type = (byte)stream.ReadByte();
         FeatureSource = type switch

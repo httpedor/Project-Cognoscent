@@ -37,7 +37,7 @@ public partial class BodyViewer : Tree
 			actions = actions.Substring(0, actions.Length - 2);
 		item.SetText(2, actions);
 		var stats = new StringBuilder("");
-		foreach (var stat in part.Stats)
+		foreach (var stat in part.ProvidedStats)
 		{
 			stats.Append(stat.Key);
 			stats.Append(":");

@@ -126,6 +126,9 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
     public IEnumerable<Stat> Stats => stats.Values;
     [JsonIgnore]
     public OBB Hitbox => new(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
+    public uint CreationTick { get; set; } = 0;
+    [JsonIgnore]
+    public uint ExistanceTicks => Board.CurrentTick - CreationTick;
 
     public Board Board { get; set; }
 
@@ -146,6 +149,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         Position = stream.ReadVec3();
         Size = stream.ReadVec3();
         Rotation = stream.ReadFloat();
+        CreationTick = stream.ReadUInt32();
         CustomDataFromBytes(stream);
         FeaturesFromBytes(stream);
         StatsFromBytes(stream);
@@ -170,6 +174,7 @@ public abstract partial class Entity : ISerializable, IFeatureContainer, IStatHo
         stream.WriteVec3(Position);
         stream.WriteVec3(Size);
         stream.WriteFloat(Rotation);
+        stream.WriteUInt32(CreationTick);
         CustomDataToBytes(stream);
         FeaturesToBytes(stream);
         StatsToBytes(stream);

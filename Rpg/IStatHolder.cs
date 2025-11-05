@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TraitGenerator;
 
 namespace Rpg;
@@ -65,6 +66,7 @@ abstract class StatHolderMixin : IStatHolder
         {
             stats[alias] = stat;
         }
+        stat.Holder = (IStatHolder)(object)this;
         OnStatCreated?.Invoke(stats[id]);
         return stat;
     }
@@ -88,3 +90,46 @@ abstract class StatHolderMixin : IStatHolder
     }
 }
 
+public class StatHolderRef : ISerializable
+{
+    public IStatHolder? Holder;
+    public StatHolderRef(IStatHolder holder)
+    {
+        this.Holder = holder;
+    }
+
+    // Expose the referenced holder (Entity, BodyPart or null)
+
+    public void ToBytes(Stream stream)
+    {
+        switch (Holder)
+        {
+            case null:
+                stream.WriteByte(0);
+                break;
+            case Entity e:
+                stream.WriteByte(1);
+                new EntityRef(e).ToBytes(stream);
+                break;
+            case BodyPart bp:
+                stream.WriteByte(2);
+                new BodyPartRef(bp).ToBytes(stream);
+                break;
+            default:
+                throw new NotSupportedException("Unsupported IStatHolder type for serialization: " + Holder.GetType().FullName);
+        }
+    }
+
+    public StatHolderRef(Stream stream)
+    {
+        byte type = (byte)stream.ReadByte();
+        Holder = type switch
+        {
+            0 => null,
+            1 => new EntityRef(stream).Entity,
+            2 => new BodyPartRef(stream).BodyPart,
+            _ => throw new Exception("Unknown IStatHolder type: " + type)
+        };
+    }
+
+}

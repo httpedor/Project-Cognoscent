@@ -4,16 +4,51 @@ namespace Server.Network;
 
 public static class NetworkHooks
 {
-    public static void HookStat(Stat stat, Entity entity)
+    private static HashSet<WeakReference<BodyPart>> hookedBodyParts = new();
+    
+    public static void ClearDestroyedObjects()
     {
-        stat.BaseValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue), entity.Board.Name);
-        stat.ModifierUpdated += modifier => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, modifier), entity.Board.Name);
-        stat.ModifierRemoved += modifier => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, modifier.Id), entity.Board.Name);
-        stat.MinValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue, StatValueType.Min), entity.Board.Name);
-        stat.MaxValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue, StatValueType.Max), entity.Board.Name);
+        hookedBodyParts.RemoveWhere(wr => !wr.TryGetTarget(out _));
     }
 
     public static void HookEntity(Entity entity)
     {
+    }
+
+    public static void HookBodyPart(BodyPart part)
+    {
+        if (hookedBodyParts.Any(wr => wr.TryGetTarget(out var bp) && bp == part))
+            return;
+
+        hookedBodyParts.Add(new WeakReference<BodyPart>(part));
+
+        part.OnChildAdded += grandChild =>
+        {
+            Network.Manager.SendIfBoardValid(new EntityBodyPartPacket(grandChild), part.Owner?.Board.Name);
+            HookBodyPart(grandChild);
+        };
+
+        part.OnChildRemoved += grandChild => {
+            if (part.Owner == null)
+                return;
+            Network.Manager.SendIfBoardValid(new EntityBodyPartPacket(part.Owner, part.Path + "/" + grandChild.Name), part.Owner.Board.Name);
+        };
+
+        part.OnInjuryAdded += condition => {
+            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, condition), part.Owner?.Board.Name);
+        };
+        part.OnInjuryRemoved += condition => {
+            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, condition, true), part.Owner?.Board.Name);
+        };
+        part.OnEquipped += (equipment, slot) => {
+            Network.Manager.SendIfBoardValid(new CreatureEquipItemPacket(part, slot, equipment.Item), part.Owner?.Board.Name);
+        };
+        part.OnUnequipped += equipment => {
+            Network.Manager.SendIfBoardValid(new CreatureEquipItemPacket(equipment.Item), part.Owner?.Board.Name);
+        };
+        part.OnFeatureAdded += feature =>
+        {
+        
+        };
     }
 }

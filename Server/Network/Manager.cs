@@ -53,6 +53,11 @@ public static class Manager
                 client.Send(packet);
         }
     }
+    public static void SendIfBoardValid(Packet packet, string? boardName)
+    {
+        if (boardName != null)
+            SendToBoard(packet, boardName);
+    }
     public static void SendToOthersInBoard(Packet packet, string boardname, string username)
     {
         foreach (RpgClient? client in Clients.Values)

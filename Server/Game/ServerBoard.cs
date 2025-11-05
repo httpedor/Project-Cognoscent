@@ -50,6 +50,10 @@ public class ServerBoard : Board, ISerializable
         foreach (Entity entity in entities)
         {
             entity.Tick();
+            if (entity.ExistanceTicks % 20 == 0)
+            {
+                Manager.SendToBoard(new StatHolderUpdatePacket(entity), this);
+            }
         }
         if (TurnMode || CurrentTick % 50 == 0)
             Manager.SendToBoard(new CombatModePacket(this), this);
@@ -63,6 +67,9 @@ public class ServerBoard : Board, ISerializable
             
         }
         base.Tick();
+
+        if (CurrentTick % 600 == 0)
+            NetworkHooks.ClearDestroyedObjects();
     }
 
     public override void AddEntity(Entity entity)
@@ -77,23 +84,6 @@ public class ServerBoard : Board, ISerializable
         entity.OnFeatureEnabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Enable(entity, feat), Name);
         entity.OnFeatureDisabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Disable(entity, feat), Name);
         entity.OnPositionChanged += (_, _) => (entity.Floor as ServerFloor)?.UpdateEntityCollisionGrid(entity);
-        
-        void addStatEvents(Stat stat)
-        {
-            stat.BaseValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue), Name);
-            stat.ModifierUpdated += modifier => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, modifier), Name);
-            stat.ModifierRemoved += modifier => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, modifier.Id), Name);
-            stat.MinValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue, Rpg.StatValueType.Min), Name);
-            stat.MaxValueChanged += (newValue, _) => Network.Manager.SendToBoard(new EntityStatPacket(entity, stat.Id, newValue, Rpg.StatValueType.Max), Name);
-        }
-        foreach (Stat stat in entity.Stats)
-        {
-            addStatEvents(stat);
-        }
-        entity.OnStatCreated += stat => {
-            addStatEvents(stat);
-            Network.Manager.SendToBoard(new EntityStatPacket(entity, stat), this);
-        };
         
         if (entity is Creature creature)
         {
@@ -143,39 +133,9 @@ public class ServerBoard : Board, ISerializable
                 Network.Manager.SendToBoard(new ActionLayerRemovePacket(creature, layer), Name);
             };
 
-            void OnBodyPartChildAdd(BodyPart child)
-            {
-                child.OnChildAdded += grandChild =>
-                {
-                    Network.Manager.SendToBoard(new EntityBodyPartPacket(grandChild), this);
-                    OnBodyPartChildAdd(grandChild);
-                };
-
-                child.OnChildRemoved += grandChild => {
-                    Network.Manager.SendToBoard(new EntityBodyPartPacket(creature, child.Path + "/" + grandChild.Name), Name);
-                    grandChild.ClearEvents();
-                };
-
-                child.OnInjuryAdded += condition => {
-                    Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(child, condition), Name);
-                };
-                child.OnInjuryRemoved += condition => {
-                    Network.Manager.SendToBoard(new EntityBodyPartInjuryPacket(child, condition, true), Name);
-                };
-                child.OnEquipped += (equipment, slot) => {
-                    Network.Manager.SendToBoard(new CreatureEquipItemPacket(child, slot, equipment.Item), this);
-                };
-                child.OnUnequipped += equipment => {
-                    Network.Manager.SendToBoard(new CreatureEquipItemPacket(equipment.Item), this);
-                };
-                child.OnFeatureAdded += feature =>
-                {
-                
-                };
-            }
             foreach (BodyPart part in creature.Body.Parts)
             {
-                OnBodyPartChildAdd(part);
+                NetworkHooks.HookBodyPart(part);
             }
         }
 

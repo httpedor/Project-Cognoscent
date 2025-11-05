@@ -5,7 +5,7 @@ using Rpg.Inventory;
 
 namespace Rpg;
 
-public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureContainer, ITaggable
+public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureContainer, ITaggable, IStatHolder
 {
     public readonly struct BodyPartStat(float atFull, float atZero, StatModifierType op, bool sho, bool ato)
         : ISerializable
@@ -99,13 +99,40 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     /// </summary>
     public IEnumerable<Feature> FeaturesForOwner => ownerFeatures;
     /// <summary>
-    /// All enabled features on this body part and its owner
+    /// All enabled features on this body part and its owner.
     /// </summary>
-    public IEnumerable<Feature> EnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature).Concat(Owner != null ? Owner.Features : Enumerable.Empty<Feature>());
+    public IEnumerable<Feature> EnabledFeatures
+    {
+        get
+        {
+            foreach (var t in features.Values)
+            {
+                if (t.enabled)
+                    yield return t.feature;
+            }
+
+            if (Owner != null)
+            {
+                foreach (var f in Owner.Features)
+                    yield return f;
+            }
+        }
+    }
+
     /// <summary>
-    /// Enabled features that only affect this body part
+    /// Enabled features that only affect this body part.
     /// </summary>
-    public IEnumerable<Feature> SelfEnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature);
+    public IEnumerable<Feature> SelfEnabledFeatures
+    {
+        get
+        {
+            foreach (var t in features.Values)
+            {
+                if (t.enabled)
+                    yield return t.feature;
+            }
+        }
+    }
 
     private readonly Skill[] skills;
     /// <summary>
@@ -133,36 +160,48 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     public BodyPart Root => Parent == null ? this : Parent.Root;
     public bool IsRoot => Parent == null;
 
+    private readonly Dictionary<string, BodyPart> children;
     /// <summary>
-    /// The child body parts of this part. This can be interpreted as organs, sub-parts or extensions of.
+    /// The child body parts of this part. This can be interpreted as organs, sub-parts or extensions of this part.
     /// </summary>
-    public readonly IList<BodyPart> Children;
+    public IReadOnlyCollection<BodyPart> Children => children.Values;
     /// <summary>
     /// The internal organs of this body part.
     /// This is found using the <c>internal</c> tag.
     /// </summary>
-    public IEnumerable<BodyPart> InternalOrgans => Children.Where(child => child.IsInternal);
-    /// <summary>
-    /// Children including children of children
-    /// </summary>
-    public List<BodyPart> AllChildren
+    public IEnumerable<BodyPart> InternalOrgans
     {
         get
         {
-            var children = new List<BodyPart>(Children);
+            foreach (var child in Children)
+            {
+                if (child.IsInternal)
+                    yield return child;
+            }
+        }
+    }
+    /// <summary>
+    /// Children including children of children.
+    /// </summary>
+    public IEnumerable<BodyPart> AllChildren
+    {
+        get
+        {
             foreach (BodyPart child in Children)
             {
-                children.AddRange(child.AllChildren);
+                yield return child;
+                foreach (BodyPart descendant in child.AllChildren)
+                    yield return descendant;
             }
-            return children;
         }
     }
     
     private readonly List<Injury> injuries;
     /// <summary>
     /// The injuries currently affecting this body part.
+    /// Exposed as a read-only list to prevent external mutation.
     /// </summary>
-    public IEnumerable<Injury> Injuries => injuries;
+    public IReadOnlyList<Injury> Injuries => injuries.AsReadOnly();
     /// <summary>
     /// Some body parts feel more pain than others. This multiplier defines how much more pain this body part feels.
     /// </summary>
@@ -208,7 +247,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     /// <summary>
     /// What stats are provided by this body part. Dynamically updated on HP(100% to 0%)
     /// </summary>
-    public readonly Dictionary<string, BodyPartStat[]> Stats = new();
+    public readonly Dictionary<string, BodyPartStat[]> ProvidedStats = new();
     /// <summary>
     /// Damage modifiers applied when this body part takes damage of a certain type.
     /// </summary>
@@ -221,7 +260,17 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     /// <summary>
     /// Items currently equipped on this body part.
     /// </summary>
-    public IEnumerable<Item> Items => equipmentSlots.Values.Where(x => x != null)!;
+    public IEnumerable<Item> Items
+    {
+        get
+        {
+            foreach (var it in equipmentSlots.Values)
+            {
+                if (it != null)
+                    yield return it;
+            }
+        }
+    }
     public Board? Board => Owner?.Board;
 
     public bool IsInternal => Is(BodyTags.Internal);
@@ -235,7 +284,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         Group = group;
         MaxHealth = maxHealth;
         PainMultiplier = painMult;
-        Children = new List<BodyPart>(children);
+        this.children = new Dictionary<string, BodyPart>(children.Length);
         skills = actions;
         ownerFeatures = features;
         Size = surfaceArea;
@@ -246,7 +295,12 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         this.tags = new HashSet<string>(tags);
 
         foreach (BodyPart child in children)
+        {
+            if (this.children.ContainsKey(child.Name))
+                throw new ArgumentException($"Duplicate child name '{child.Name}' when creating BodyPart '{Name}'.");
+            this.children[child.Name] = child;
             child.Parent = this;
+        }
     }
     public BodyPart(Stream stream, Body? body = null)
     {
@@ -279,14 +333,17 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             skills[i] = Skill.FromBytes(stream);
         }
 
-        Children = new List<BodyPart>();
         int childCount = stream.ReadByte();
+        children = new Dictionary<string, BodyPart>(childCount);
         for (int i = 0; i < childCount; i++)
         {
-            Children.Add(new BodyPart(stream, body)
+            var child = new BodyPart(stream, body)
             {
                 Parent = this
-            });
+            };
+            if (children.ContainsKey(child.Name))
+                throw new ArgumentException($"Duplicate child name '{child.Name}' when deserializing BodyPart '{Name}'.");
+            children[child.Name] = child;
         }
 
         int count = stream.ReadByte();
@@ -299,7 +356,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             {
                 stats[j] = new BodyPartStat(stream);
             }
-            Stats[statName] = stats;
+            ProvidedStats[statName] = stats;
         }
 
         count = stream.ReadByte();
@@ -309,6 +366,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             ownerFeatures[i] = Feature.FromBytes(stream);
         }
 
+        StatsFromBytes(stream);
         FeaturesFromBytes(stream);
         CustomDataFromBytes(stream);
         TagsFromBytes(stream);
@@ -327,7 +385,9 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
     public BodyPart? GetChild(string name)
     {
-        return Children.FirstOrDefault(child => child.Name.Equals(name));
+        if (children.TryGetValue(name, out var child))
+            return child;
+        return null;
     }
 
     public BodyPart? GetChildByPath(string path)
@@ -349,7 +409,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
     public bool HasChild(string name)
     {
-        return GetChild(name) != null;
+        return children.ContainsKey(name);
     }
 
     public void RemoveChild(string name)
@@ -357,21 +417,26 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         BodyPart? child = GetChild(name);
         if (child == null) return;
 
-        Body?.OnPartRemoved(child);
-        child.Parent = null;
-        child.Body = null;
-        Children.Remove(child);
+    Body?.OnPartRemoved(child);
+    child.Parent = null;
+    child.Body = null;
+    children.Remove(child.Name);
 
         OnChildRemoved?.Invoke(child);
     }
     public void AddChild(BodyPart child)
     {
+        // Remove from previous parent if any
         child.Parent?.RemoveChild(child.Name);
-        
-        Children.Add(child);
+
+        // If we already have a child with the same name, remove it first to keep uniqueness
+        if (children.ContainsKey(child.Name))
+            RemoveChild(child.Name);
+
+        children[child.Name] = child;
         child.Parent = this;
         child.Body = Body;
-    
+
         Body?.OnPartAdded(child);
 
         OnChildAdded?.Invoke(child);
@@ -383,7 +448,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         if (Owner == null)
             return;
 
-        foreach (var entry in Stats)
+    foreach (var entry in ProvidedStats)
         {
             var stat = Owner.GetStat(entry.Key);
             if (stat == null)
@@ -403,7 +468,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         if (Owner == null)
             return;
         
-        foreach (var entry in Stats)
+    foreach (var entry in ProvidedStats)
         {
             var stat = Owner.GetStat(entry.Key);
             if (stat == null)
@@ -425,7 +490,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         List<StatModifier> dmgMods = [.. DamageModifiers.GetValueOrDefault(type, Array.Empty<StatModifier>())];
         if (Owner != null)
         {
-            foreach (Feature feat in Owner.Features.Concat(Features))
+            foreach (Feature feat in EnabledFeatures)
                 dmgMods.AddRange(feat.ModifyReceivingDamageModifiers(this, source, amount));
         }
 
@@ -433,7 +498,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         string formula = damage.ToString("0.##") + " após modificadores";
         if (Owner != null)
         {
-            foreach (Feature feat in Owner.Features.Concat(Features))
+            foreach (Feature feat in EnabledFeatures)
             {
                 var info = feat.ModifyReceivingDamage(this, source, damage);
                 if (damage == info.Item1)
@@ -460,7 +525,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     {
         injuries.Add(condition);
         OnInjuryAdded?.Invoke(condition);
-        Body?._invokeInjuryEvent(this, condition, true);
+        Body?.NotifyInjury(this, condition, true);
 
         if (Health <= 0)
             Body?.OnPartDie(this);
@@ -468,7 +533,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         if (!SidedLogic.Instance.IsClient())
         {
             UpdateStatModifiers();
-            foreach (var feat in SelfEnabledFeatures.Concat(Owner?.EnabledFeatures ?? []))
+            foreach (var feat in EnabledFeatures)
             {
                 feat.OnInjured(this, condition);
             }
@@ -483,7 +548,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             {
                 injuries.RemoveAt(i);
                 OnInjuryRemoved?.Invoke(condition);
-                Body?._invokeInjuryEvent(this, condition, false);
+                Body?.NotifyInjury(this, condition, false);
                 return;
             }
         }
@@ -621,14 +686,14 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         {
             action.ToBytes(stream);
         }
-        stream.WriteByte((byte)Children.Count);
-        foreach (BodyPart child in Children)
+        stream.WriteByte((byte)children.Count);
+        foreach (BodyPart child in children.Values)
         {
             child.ToBytes(stream);
         }
 
-        stream.WriteByte((byte)Stats.Count);
-        foreach (var entry in Stats)
+        stream.WriteByte((byte)ProvidedStats.Count);
+        foreach (var entry in ProvidedStats)
         {
             stream.WriteString(entry.Key);
             stream.WriteByte((byte)entry.Value.Length);
@@ -644,6 +709,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             ownerFeature.ToBytes(stream);
         }
 
+        StatsToBytes(stream);
         FeaturesToBytes(stream);
         CustomDataToBytes(stream);
         TagsToBytes(stream);
@@ -683,20 +749,20 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             json["skills"] = skillsArray;
         }
 
-        if (Children.Count > 0)
+        if (children.Count > 0)
         {
             var childrenArray = new JsonArray();
-            foreach (var child in Children)
+            foreach (var child in children.Values)
             {
                 childrenArray.Add(child.ToJson());
             }
             json["children"] = childrenArray;
         }
 
-        if (Stats.Count > 0)
+        if (ProvidedStats.Count > 0)
         {
             var statsArray = new JsonArray();
-            foreach (var entry in Stats)
+            foreach (var entry in ProvidedStats)
             {
                 var statName = entry.Key;
                 foreach (var stat in entry.Value)
@@ -749,8 +815,9 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         }
         sb.AppendLine(Name);
 
-        for (int i = 0; i < Children.Count; i++)
-            sb.Append(Children[i].PrintPretty(indent, i == Children.Count - 1));
+        var childList = children.Values.ToList();
+        for (int i = 0; i < childList.Count; i++)
+            sb.Append(childList[i].PrintPretty(indent, i == childList.Count - 1));
 
         return sb.ToString();
     }
@@ -760,19 +827,11 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         return "BodyPart[" + Name + "]";
     }
 
-    public void ClearEvents()
-    {
-        OnChildAdded = null;
-        OnChildRemoved = null;
-        OnInjuryAdded = null;
-        OnInjuryRemoved = null;
-    }
-
     public float GetStat(string id, float defaultValue = 0)
     {
-        if (!Stats.TryGetValue(id, out var stats)) return defaultValue;
+    if (!ProvidedStats.TryGetValue(id, out var stats)) return defaultValue;
 
-        return stats.Where(stat => stat.op == StatModifierType.Flat).Sum(stat => stat.CalculateFor(this).Value);
+    return stats.Where(stat => stat.op == StatModifierType.Flat).Sum(stat => stat.CalculateFor(this).Value);
     }
 }
 

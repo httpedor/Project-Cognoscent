@@ -253,52 +253,40 @@ public partial class NetworkManager : Node
 					part.AddInjury(ebpcp.Injury);
 				break;
 			}
-			case ProtocolId.ENTITY_STAT:
+			case ProtocolId.STAT_UPDATE:
 			{
-				var esp = (EntityStatPacket)packet;
-				Entity? entity = esp.EntityRef.Entity;
-				if (entity == null)
+				var sup = (Rpg.StatHolderUpdatePacket)packet;
+				IStatHolder? holder = sup.HolderRef.Holder;
+				if (holder == null)
 					break;
 
-				switch (esp.Operation)
+				foreach (var incoming in sup.Stats)
 				{
-					case EntityStatPacket.StatOp.Create:
-						if (esp.Stat != null)
-							entity.CreateStat(esp.Stat);
-						break;
-					case EntityStatPacket.StatOp.SetValue:
+					Stat? existing = holder.GetStat(incoming.Id);
+					if (existing == null)
 					{
-						Stat? stat = entity.GetStat(esp.StatId);
-						if (stat == null)
-							break;
-						switch (esp.ValueType)
-						{
-							case Rpg.StatValueType.Min:
-								stat.MinValue = esp.Value;
-								break;
-							case Rpg.StatValueType.Max:
-								stat.MaxValue = esp.Value;
-								break;
-							default:
-								stat.BaseValue = esp.Value;
-								break;
-						}
-						break;
+						holder.CreateStat(incoming);
+						continue;
 					}
-					case EntityStatPacket.StatOp.SetModifier:
+
+					// Update values
+					existing.BaseValue = incoming.BaseValue;
+					existing.MinValue = incoming.MinValue;
+					existing.MaxValue = incoming.MaxValue;
+
+					// Sync modifiers: add/update incoming
+					var incomingMods = incoming.GetModifiers().ToList();
+					var incomingIds = new HashSet<string>(incomingMods.Select(m => m.Id));
+					foreach (var mod in incomingMods)
+						existing.SetModifier(mod);
+
+					// Remove modifiers that are not present in incoming
+					var existingMods = existing.GetModifiers().Select(m => m.Id).ToList();
+					foreach (var id in existingMods)
 					{
-						if (esp.Modifier.HasValue)
-							entity.GetStat(esp.StatId)?.SetModifier(esp.Modifier.Value);
-						break;
+						if (!incomingIds.Contains(id))
+							existing.RemoveModifier(id);
 					}
-					case EntityStatPacket.StatOp.RemoveModifier:
-					{
-						if (!string.IsNullOrEmpty(esp.ModifierId))
-							entity.GetStat(esp.StatId)?.RemoveModifier(esp.ModifierId);
-						break;
-					}
-					default:
-						throw new ArgumentOutOfRangeException();
 				}
 				break;
 			}

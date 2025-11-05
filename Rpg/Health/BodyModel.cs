@@ -29,13 +29,14 @@ public class BodyPartJson
     [JsonPropertyName("area")] public JsonElement Area { get; set; }
     [JsonPropertyName("painMultiplier")] public float PainMultiplier { get; set; }
     [JsonPropertyName("slots")] public List<string>? Slots { get; set; }
-    [JsonPropertyName("stats")] public List<StatModifierJson>? Stats { get; set; }
+    [JsonPropertyName("providedStats")] public List<StatModifierJson>? ProvidedStats { get; set; }
     [JsonPropertyName("damageModifiers")] public List<DamageModifierJson>? DamageModifiers { get; set; }
     [JsonPropertyName("tags")] public List<string>? Tags { get; set; }
     [JsonPropertyName("skills")] public List<string>? Skills { get; set; }
     [JsonPropertyName("selfFeatures")] public List<string>? SelfFeatures { get; set; }
     [JsonPropertyName("features")] public List<string>? Features { get; set; }
     [JsonPropertyName("children")] public List<BodyPartJson>? Children { get; set; }
+    [JsonPropertyName("stats")] public Dictionary<string, JsonElement>? Stats { get; set; }
     [JsonPropertyName("metadata")] public JsonElement? Metadata { get; set; }
 }
 
@@ -95,7 +96,8 @@ public class BodyPartModel
     public List<Feature> OwnerFeatures = new();
     public List<Feature> SelfFeatures = new();
     // By stat name, list of modifiers defined for that part
-    public Dictionary<string, List<PartStatModifierConfig>> Stats = new();
+    public Dictionary<string, List<PartStatModifierConfig>> ProvidedStats = new();
+    public Dictionary<string, float> Stats = new();
     public Dictionary<DamageType, List<DamageModifierConfig>> DamageModifiers = new();
     public List<string> Tags = new();
     public JsonElement? Metadata;
@@ -112,9 +114,9 @@ public class BodyPartModel
         PainMultiplier = jsonModel.PainMultiplier;
         EquipmentSlots = jsonModel.Slots ?? new();
 
-        if (jsonModel.Stats != null)
+        if (jsonModel.ProvidedStats != null)
         {
-            foreach (var stat in jsonModel.Stats)
+            foreach (var stat in jsonModel.ProvidedStats)
             {
                 if (string.IsNullOrWhiteSpace(stat.Stat)) continue;
 
@@ -128,12 +130,19 @@ public class BodyPartModel
                     ApplyToOwner = true
                 };
 
-                if (!Stats.TryGetValue(cfg.StatName, out var list))
+                if (!ProvidedStats.TryGetValue(cfg.StatName, out var list))
                 {
                     list = new List<PartStatModifierConfig>();
-                    Stats[cfg.StatName] = list;
+                    ProvidedStats[cfg.StatName] = list;
                 }
                 list.Add(cfg);
+            }
+        }
+        if (jsonModel.Stats != null)
+        {
+            foreach (var (statName, statValue) in jsonModel.Stats)
+            {
+                Stats[statName] = JsonHelpers.GetFloat(statValue);
             }
         }
 
@@ -254,17 +263,21 @@ public class BodyPartModel
         );
 
         // Apply per-part stat modifiers
-        foreach (var statEntry in Stats)
+        foreach (var provided in ProvidedStats)
         {
-            var mods = new List<BodyPart.BodyPartStat>(statEntry.Value.Count);
-            foreach (var cfg in statEntry.Value)
+            var mods = new List<BodyPart.BodyPartStat>(provided.Value.Count);
+            foreach (var cfg in provided.Value)
             {
                 float atFull = cfg.AtFullJson != null ? JsonHelpers.GetFloat(cfg.AtFullJson.Value) : 0;
                 float atZero = cfg.AtZeroJson != null ? JsonHelpers.GetFloat(cfg.AtZeroJson.Value) : 0;
                 mods.Add(new BodyPart.BodyPartStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, cfg.ApplyToOwner));
             }
             if (mods.Count > 0)
-                ret.Stats[statEntry.Key] = mods.ToArray();
+                ret.ProvidedStats[provided.Key] = mods.ToArray();
+        }
+        foreach (var statEntry in Stats)
+        {
+            ret.CreateStat(new Stat(statEntry.Key, statEntry.Value, 0, 100, false, false));
         }
 
         // Apply damage modifiers (previous builder path did not persist these into the instance)
@@ -292,7 +305,7 @@ public class BodyPartModel
 
 public class BodyModel
 {
-    public sealed class StatConfig
+    public class StatConfig
     {
         public JsonElement? BaseJson;
         public JsonElement? MaxJson;

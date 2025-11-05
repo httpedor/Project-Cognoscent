@@ -32,8 +32,8 @@ public class Body : ISerializable
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
     //This is to use with injuryTypes creation and conversion
-    private readonly HashSet<Injury> injuries = new();
-    private readonly HashSet<BodyPart> parts = new();
+    private readonly HashSet<Injury> injuriesCache = new();
+    private readonly HashSet<BodyPart> partsCache = new();
     public sealed class StatEntry
     {
         public Stat Def;
@@ -57,7 +57,7 @@ public class Body : ISerializable
     internal readonly Dictionary<string, StatEntry> stats = new();
     internal readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
-    public IEnumerable<Injury> Injuries => injuries;
+    public IEnumerable<Injury> Injuries => injuriesCache;
 
     public Creature? Owner
     {
@@ -176,7 +176,7 @@ public class Body : ISerializable
         }
     }
 
-    public IEnumerable<BodyPart> Parts => parts;
+    public IEnumerable<BodyPart> Parts => partsCache;
 
     public static Func<float, float, (float, StatModifierType)> CompileDep(string code)
     {
@@ -299,7 +299,7 @@ public class Body : ISerializable
 
     public void OnPartAdded(BodyPart part)
     {
-        parts.Add(part);
+        partsCache.Add(part);
         foreach (string slot in part.EquipmentSlots)
         {
             if (!equipmentSlots.ContainsKey(slot))
@@ -315,7 +315,7 @@ public class Body : ISerializable
         partsByGroup[part.Group].Add(part);
         foreach (var injury in part.Injuries)
         {
-            injuries.Add(injury);
+            injuriesCache.Add(injury);
         }
         ApplyPartToOwner(part);
     }
@@ -348,7 +348,7 @@ public class Body : ISerializable
 
     public void OnPartRemoved(BodyPart part)
     {
-        parts.Remove(part);
+        partsCache.Remove(part);
         foreach (string slot in part.EquipmentSlots)
             equipmentSlots[slot].Remove(part);
         partsCovered.Remove(part);
@@ -357,6 +357,8 @@ public class Body : ISerializable
             partsByName.Remove(part.Name);
         partsByGroup[part.Group].Remove(part);
         UnapplyPartToOwner(part);
+        foreach (var injury in part.Injuries)
+            injuriesCache.Remove(injury);
         foreach (var child in part.Children)
             OnPartRemoved(child);
     }
@@ -505,7 +507,7 @@ public class Body : ISerializable
             baseVal *= effectiveness;
         foreach (BodyPart part in GetPartsOnGroup(group))
         {
-            if (!part.Stats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
+            if (!part.ProvidedStats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
                 continue;
             statMods.AddRange(partStat.Where(mod => !onlySelfStats || !mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
         }
@@ -525,17 +527,20 @@ public class Body : ISerializable
         return GetPartsWithSlot(ep.Slot).Any(part => part.GetEquippedItem(ep.Slot) == item);
     }
  
-    public void _invokeInjuryEvent(BodyPart bp, Injury inj, bool added)
+    public void NotifyInjury(BodyPart bp, Injury inj, bool added)
     {
+        if (bp.Body != this)
+            throw new InvalidOperationException("Injury event invoked on a body part that does not belong to this body.");
+
         if (added)
         {
-            injuries.Add(inj);
+            injuriesCache.Add(inj);
             OnInjuryAdded?.Invoke(bp, inj);
         }
         else
         {
-            injuries.Remove(inj);
+            injuriesCache.Remove(inj);
             OnInjuryRemoved?.Invoke(bp, inj);
         }
     }
- }
+}

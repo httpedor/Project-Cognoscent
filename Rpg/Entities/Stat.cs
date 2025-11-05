@@ -66,6 +66,8 @@ public class Stat : ISerializable
     public event Action<float, float>? MinValueChanged;
     public event Action<float, float>? MaxValueChanged;
 
+    public IStatHolder? Holder;
+
     public string Id { get; }
     public string Name;
     [JsonInclude]

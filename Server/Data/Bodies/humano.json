@@ -28,7 +28,7 @@
                     "tags": [
                       "Internal"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 1,
                         "atZero": 0,
@@ -54,7 +54,7 @@
                 "slots": [
                   "ear"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0.5,
                     "atZero": 0,
@@ -74,7 +74,7 @@
                 "slots": [
                   "ear"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0.5,
                     "atZero": 0,
@@ -94,7 +94,7 @@
                 "slots": [
                   "eye"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0.5,
                     "atZero": 0,
@@ -114,7 +114,7 @@
                 "slots": [
                   "eye"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0.5,
                     "atZero": 0,
@@ -131,7 +131,7 @@
                 "tags": [
                   "overlaps"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0,
                     "atZero": -0.1,
@@ -153,7 +153,7 @@
                     "tags": [
                       "Internal"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.8,
@@ -168,7 +168,7 @@
                   "IsHard",
                   "overlaps"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0,
                     "atZero": -0.8,
@@ -187,7 +187,7 @@
         "slots": [
           "neck"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -1,
@@ -231,7 +231,7 @@
                       "bone",
                       "overlaps"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.15,
@@ -253,7 +253,7 @@
                     "slots": [
                       "finger"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -275,7 +275,7 @@
                     "slots": [
                       "finger"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -297,7 +297,7 @@
                     "slots": [
                       "finger"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -319,7 +319,7 @@
                     "slots": [
                       "finger"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -341,7 +341,7 @@
                   "hand",
                   "hold"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0,
                     "atZero": -0.1,
@@ -365,7 +365,7 @@
             "slots": [
               "arm"
             ],
-            "stats": [
+            "providedStats": [
               {
                 "atFull": 0,
                 "atZero": -0.1,
@@ -389,7 +389,7 @@
         "slots": [
           "shoulder"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -0.1,
@@ -426,7 +426,7 @@
                       "bone",
                       "overlaps"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.15,
@@ -445,7 +445,7 @@
                       "bone",
                       "overlaps"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -464,7 +464,7 @@
                       "bone",
                       "overlaps"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -483,7 +483,7 @@
                       "bone",
                       "overlaps"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -502,7 +502,7 @@
                       "bone",
                       "overlaps"
                     ],
-                    "stats": [
+                    "providedStats": [
                       {
                         "atFull": 0,
                         "atZero": -0.05,
@@ -524,7 +524,7 @@
                   "hand",
                   "hold"
                 ],
-                "stats": [
+                "providedStats": [
                   {
                     "atFull": 0,
                     "atZero": -0.1,
@@ -548,7 +548,7 @@
             "slots": [
               "arm"
             ],
-            "stats": [
+            "providedStats": [
               {
                 "atFull": 0,
                 "atZero": -0.1,
@@ -572,7 +572,7 @@
         "slots": [
           "shoulder"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -0.1,
@@ -589,7 +589,7 @@
         "tags": [
           "Internal"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0.5,
             "atZero": 0,
@@ -606,7 +606,7 @@
         "tags": [
           "Internal"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0.5,
             "atZero": 0,
@@ -623,7 +623,7 @@
         "tags": [
           "Internal"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -0.25,
@@ -640,7 +640,7 @@
         "tags": [
           "Internal"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -0.25,
@@ -657,7 +657,7 @@
         "tags": [
           "Internal"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 1,
             "atZero": 0,
@@ -684,7 +684,7 @@
             "slots": [
               "foot"
             ],
-            "stats": [
+            "providedStats": [
               {
                 "atFull": 0,
                 "atZero": -0.15,
@@ -702,7 +702,7 @@
         "slots": [
           "leg"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -0.35,
@@ -729,7 +729,7 @@
             "slots": [
               "foot"
             ],
-            "stats": [
+            "providedStats": [
               {
                 "atFull": 0,
                 "atZero": -0.15,
@@ -747,7 +747,7 @@
         "slots": [
           "leg"
         ],
-        "stats": [
+        "providedStats": [
           {
             "atFull": 0,
             "atZero": -0.35,

@@ -66,6 +66,8 @@ public abstract class Board
         entityCache[entity.Id] = entity;
         entityCacheByType[entity.GetEntityType()].Add(entity);
         entity.Board = this;
+        if (entity.CreationTick == 0)
+            entity.CreationTick = CurrentTick;
 
         if (entity is IItemHolder ih)
         {
