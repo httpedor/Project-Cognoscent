@@ -31,6 +31,8 @@ public class Body : ISerializable
     private readonly Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
+    //This is to use with injuryTypes creation and conversion
+    private readonly HashSet<Injury> injuries = new();
     private readonly HashSet<BodyPart> parts = new();
     public sealed class StatEntry
     {
@@ -55,6 +57,7 @@ public class Body : ISerializable
     internal readonly Dictionary<string, StatEntry> stats = new();
     internal readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
+    public IEnumerable<Injury> Injuries => injuries;
 
     public Creature? Owner
     {
@@ -310,6 +313,10 @@ public class Body : ISerializable
         if (!partsByGroup.ContainsKey(part.Group))
             partsByGroup[part.Group] = new HashSet<BodyPart>();
         partsByGroup[part.Group].Add(part);
+        foreach (var injury in part.Injuries)
+        {
+            injuries.Add(injury);
+        }
         ApplyPartToOwner(part);
     }
 
@@ -521,8 +528,14 @@ public class Body : ISerializable
     public void _invokeInjuryEvent(BodyPart bp, Injury inj, bool added)
     {
         if (added)
+        {
+            injuries.Add(inj);
             OnInjuryAdded?.Invoke(bp, inj);
+        }
         else
+        {
+            injuries.Remove(inj);
             OnInjuryRemoved?.Invoke(bp, inj);
+        }
     }
  }

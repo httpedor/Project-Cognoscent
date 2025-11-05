@@ -4,15 +4,23 @@ using System.Text.Json.Nodes;
 
 namespace Rpg;
 
-public class DamageType : ISerializable
+public partial class DamageType : ISerializable, ITaggable, ICustomDataContainer
 {
-    // Well-known bindings populated via Compendium (kept for backward compatibility)
-    public static DamageType Physical { get; private set; } = null!;
-    public static DamageType Sharp { get; private set; } = null!;
-    public static DamageType Slash { get; private set; } = null!;
-    public static DamageType Pierce { get; private set; } = null!;
-    public static DamageType Blunt { get; private set; } = null!;
-    public static DamageType Fire { get; private set; } = null!;
+    private class InjuryResolverContext
+    {
+        public DamageSource source;
+        public double damage;
+        public BodyPart part;
+        public DamageType self;
+    
+        public InjuryResolverContext(DamageSource source, double damage, BodyPart part, DamageType self)
+        {
+            this.source = source;
+            this.damage = damage;
+            this.part = part;
+            this.self = self;
+        }
+    }
     
     public readonly string Id;
     public readonly string Name;
@@ -22,16 +30,12 @@ public class DamageType : ISerializable
             ? $"[color=#{c.R:X2}{c.G:X2}{c.B:X2}]{Name}[/color]"
             : Name;
     public DamageType? Parent { get; private set; }
-    public readonly InjuryType OnSoft;
-    public readonly InjuryType OnHard;
-    private StatModifier? softModifier;
-    private StatModifier? hardModifier;
-    private DamageType(string id, string name, InjuryType onSoft, InjuryType onHard, DamageType? parent)
+    public readonly Func<DamageSource, double, BodyPart, Injury> InjuryResolver;
+    private DamageType(string id, string name, Func<DamageSource, double, BodyPart, Injury> injuryResolver, DamageType? parent)
     {
         Id = id;
         Name = name;
-        OnSoft = onSoft;
-        OnHard = onHard;
+        InjuryResolver = injuryResolver;
         Parent = parent;
 
         if (Color == null)
@@ -41,13 +45,42 @@ public class DamageType : ISerializable
     public DamageType(string name, JsonObject json) : this(
         name,
         json["name"]?.GetValue<string>() ?? name,
-        InjuryType.ByName(json["onSoft"]?.GetValue<string>() ?? throw new ArgumentException("Missing onSoft")) ?? throw new ArgumentException("Invalid onSoft"),
-        InjuryType.ByName(json["onHard"]?.GetValue<string>() ?? throw new ArgumentException("Missing onHard")) ?? throw new ArgumentException("Invalid onHard"),
+        null!,
         !string.IsNullOrWhiteSpace(json["parent"]?.GetValue<string>())
             ? FromName(json["parent"]!.GetValue<string>()!)
             : null
     )
     {
+        var defInjury = Compendium.GetDefaultEntry<InjuryType>();
+        if (json["injury"] is JsonNode injuryNode)
+        {
+            string injuryStr = injuryNode.GetValue<string>();
+            if (Compendium.IsEntry<InjuryType>(injuryStr))
+            {
+                var injuryType = Compendium.GetEntry<InjuryType>(injuryStr)!;
+                InjuryResolver = (source, damage, part) => new Injury(injuryType, damage);
+            }
+            else
+            {
+                try
+                {
+                    var func = Scripting.Compile<InjuryResolverContext, Either<Injury, InjuryType>>(injuryStr);
+                    InjuryResolver = (source, damage, part) => func(new InjuryResolverContext(source, damage, part, this))
+                    .Match<Injury>(
+                        injury => injury,
+                        injuryType => new Injury(injuryType, damage)
+                    );
+                } catch
+                {
+                    Logger.LogWarning("[DamageType] Invalid injury code in DamageType " + Name);
+                    Logger.LogWarning("[DamageType] Did you mean to reference an InjuryType by name? '" + injuryStr + "' is not registered.");
+                    InjuryResolver = (source, damage, part) => new Injury(defInjury, damage);
+                }
+            }
+        }
+        else
+            InjuryResolver = (source, damage, part) => new Injury(defInjury, damage);
+
         if (json["color"] is JsonNode colorNode)
         {
             string colorStr = colorNode.GetValue<string>();
@@ -61,26 +94,6 @@ public class DamageType : ISerializable
             catch {
                 Logger.LogWarning("[DamageType] Invalid color '" + colorStr + "' in DamageType " + Name);
             }
-        }
-    }
-
-    private void SetParent(DamageType parent)
-    {
-        Parent = parent;
-        if (Color == null)
-            Color = parent.Color;
-    }
-
-    private static void BindWellKnown(DamageType dt)
-    {
-        switch (dt.Name)
-        {
-            case "Físico": Physical = dt; break;
-            case "Afiado": Sharp = dt; break;
-            case "Corte": Slash = dt; break;
-            case "Perfuração": Pierce = dt; break;
-            case "Contusão": Blunt = dt; break;
-            case "Fogo": Fire = dt; break;
         }
     }
 

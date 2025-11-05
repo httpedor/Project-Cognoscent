@@ -45,6 +45,12 @@ public static class CustomDataContainerExtensions
             container.SetCustomData(id, bytes);
         }
 
+        public void SetCustomData(string id, JsonObject json)
+        {
+            var bytes = Encoding.UTF8.GetBytes(json.ToJsonString());
+            container.SetCustomData(id, bytes);
+        }
+
         public uint GetCustomDataUInt(string id)
         {
             return BitConverter.ToUInt32(container.GetCustomData(id));
@@ -63,7 +69,15 @@ public static class CustomDataContainerExtensions
             return Encoding.UTF8.GetString(bytes);
         }
 
-        public void CustomDataFromJson(JsonObject json)
+        public JsonObject? GetCustomDataJson(string id)
+        {
+            var str = container.GetCustomDataString(id);
+            if (str == null)
+                return null;
+            return JsonNode.Parse(str) as JsonObject;
+        }
+
+        public void LoadCustomDataFromJson(JsonObject json)
         {
             foreach (var pair in json)
             {
@@ -82,6 +96,10 @@ public static class CustomDataContainerExtensions
                     {
                         container.SetCustomData(pair.Key, (byte)1);
                     }
+                }
+                else if (node is JsonObject jo)
+                {
+                    container.SetCustomData(pair.Key, jo);
                 }
             }
         }

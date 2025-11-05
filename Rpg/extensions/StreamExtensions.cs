@@ -175,5 +175,96 @@ public static class StreamExtensions
     {
         stream.Write(BitConverter.GetBytes(value));
     }
+
+    public static void WritePrimitive<T>(this Stream stream, T value) where T : unmanaged
+    {
+        switch (value)
+        {
+            case byte b:
+                stream.WriteByte(0);
+                stream.WriteByte(b);
+                break;
+            case ushort us:
+                stream.WriteByte(1);
+                stream.WriteUInt16(us);
+                break;
+            case uint ui:
+                stream.WriteByte(2);
+                stream.WriteUInt32(ui);
+                break;
+            case ulong ul:
+                stream.WriteByte(3);
+                stream.WriteUInt64(ul);
+                break;
+            case short s:
+                stream.WriteByte(4);
+                stream.WriteInt16(s);
+                break;
+            case int i:
+                stream.WriteByte(5);
+                stream.WriteInt32(i);
+                break;
+            case long l:
+                stream.WriteByte(6);
+                stream.WriteInt64(l);
+                break;
+            case float f:
+                stream.WriteByte(7);
+                stream.WriteFloat(f);
+                break;
+            case double d:
+                stream.WriteByte(8);
+                stream.WriteDouble(d);
+                break;
+            case bool b:
+                stream.WriteByte(9);
+                stream.WriteBoolean(b);
+                break;
+            default:
+                throw new Exception("Unsupported primitive type: " + value.GetType().Name);
+        }
+    }
+
+    public static T ReadPrimitive<T>(this Stream stream) where T : unmanaged
+    {
+        object ret;
+        byte typeId = (byte)stream.ReadByte();
+        switch (typeId)
+        {
+            case 0:
+                ret = (T)(object)stream.ReadExactly(1)[0];
+                break;
+            case 1:
+                ret = (T)(object)stream.ReadUInt16();
+                break;
+            case 2:
+                ret = (T)(object)stream.ReadUInt32();
+                break;
+            case 3:
+                ret = (T)(object)stream.ReadUInt64();
+                break;
+            case 4:
+                ret = (T)(object)stream.ReadInt16();
+                break;
+            case 5:
+                ret = (T)(object)stream.ReadInt32();
+                break;
+            case 6:
+                ret = (T)(object)stream.ReadInt64();
+                break;
+            case 7:
+                ret = (T)(object)stream.ReadFloat();
+                break;
+            case 8:
+                ret = (T)(object)stream.ReadDouble();
+                break;
+            case 9:
+                ret = (T)(object)stream.ReadBoolean();
+                break;
+            default:
+                throw new Exception("Unsupported primitive type ID: " + typeId);
+        }
+        return (T)ret;
+    }
 }
 

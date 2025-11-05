@@ -450,19 +450,8 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         if (damage <= 0)
             return 0;
 
-        //TODO: Rewrite bone damage logic
-        if (damage > Health/2 && )
-        {
-            double boneDmgChance = (damage - Health/2) / (Health/2);
-            if (RpgMath.RandomFloat(0, 1) < boneDmgChance)
-            {
-                double boneDmg = damage/2;
-                damage -= boneDmg;
-                AddInjury(new Injury(type.OnHard, boneDmg));
-            }
-        }
-        
-        AddInjury(new Injury(IsSoft ? type.OnSoft : type.OnHard, damage));
+        //TODO: Figure out damage overflow to parents and internals
+        AddInjury(source.Type.InjuryResolver(source, damage, this));
         
         return damage;
     }

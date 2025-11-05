@@ -97,7 +97,8 @@ abstract class TaggableMixin : ITaggable
 public static class BodyTags
 {
     /// <summary>
-    /// Hard body parts, like bones.
+    /// Hard body parts, like bones or shells.
+    /// Sharp damage is less effective against these.
     /// </summary>
     public const string Hard = "hard";
     /// <summary>
@@ -111,7 +112,7 @@ public static class BodyTags
     public const string Socket = "socket";
 
     /// <summary>
-    /// Body parts that can be broken, like arms or legs.
+    /// Body parts that can be broken from its parent, like arms or legs.
     /// </summary>
     public const string Joint = "joint";
 

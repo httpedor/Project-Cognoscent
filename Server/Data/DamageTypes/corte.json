@@ -1,7 +1,0 @@
-{
-  "name": "Corte",
-  "parent": "Afiado",
-  "onSoft": "Corte",
-  "onHard": "Rachadura",
-  "hardMod": { "value": -0.1, "operation": "Percent" }
-}

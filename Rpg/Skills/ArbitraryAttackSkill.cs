@@ -80,7 +80,7 @@ public class ArbitraryAttackSkill : AttackSkill
                 { creature = executor, arguments = arguments, source = source, target = target });
             return (ret.Item1, ret.Item2, null);
         }
-        return (0, DamageType.Physical, null);
+        return (0, Compendium.GetDefaultEntry<DamageType>(), null);
     }
 
     public override void OnAttack(Creature executor, List<SkillArgument> arguments, ISkillSource source, IDamageable target, bool hit)

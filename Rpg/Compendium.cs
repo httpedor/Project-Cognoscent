@@ -22,25 +22,20 @@ public static class Compendium
 
     private class FolderData
     {
-        public Type Type { get; set; } = typeof(object);
+        public Type Type = typeof(object);
         public Dictionary<string, CompendiumEntry> Entries { get; } = new();
-        public Func<string, JsonObject, object?>? Builder { get; set; }
+        public Func<string, JsonObject, object?>? Builder;
+        public string Default = "";
     }
 
     private static readonly Dictionary<string, FolderData> folders = new();
     private static readonly Dictionary<Type, string> typeToFolder = new();
+    private static readonly List<string> loadOrder = new();
 
-    public static IEnumerable<string> Folders => folders.Keys;
+    public static IEnumerable<string> Folders => loadOrder.AsReadOnly();
 
     public static void RegisterDefaults()
     {
-        RegisterFolder<Skill>("Skills", Skill.FromJson);
-        RegisterFolder<Feature>("Features", Feature.FromJson);
-        RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json.ToElement()));
-        RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
-        RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
-        RegisterFolder<InjuryType>("InjuryTypes", (name, json) => new InjuryType(name, json));
-        RegisterFolder<DamageType>("DamageTypes", (name, json) => new DamageType(name, json));
         RegisterFolder<Midia>("Midia", (fName, json) =>
         {
             string fileName = json["fileName"]!.GetValue<string>();
@@ -53,6 +48,13 @@ public static class Compendium
                 ret = new Midia(data, fileName);
             return ret;
         });
+        RegisterFolder<InjuryType>("InjuryTypes", (name, json) => new InjuryType(name, json));
+        RegisterFolder<DamageType>("DamageTypes", (name, json) => new DamageType(name, json));
+        RegisterFolder<Skill>("Skills", Skill.FromJson);
+        RegisterFolder<Feature>("Features", Feature.FromJson);
+        RegisterFolder<Item>("Items", (name, json) => new Item(name, json));
+        RegisterFolder<SkillTree>("SkillTrees", (_, json) => new SkillTree(json));
+        RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json.ToElement()));
         RegisterFolder<string>("Notes", (_, json) => json["text"]?.GetValue<string>() ?? "");
 
         foreach (Feature feat in Features.All)
@@ -137,7 +139,8 @@ public static class Compendium
             
             typeToFolder[type] = folder;
         }
-        
+
+        loadOrder.Add(folder);
         OnFolderRegistered?.Invoke(folder);
     }
 
@@ -161,6 +164,8 @@ public static class Compendium
         if (name.EndsWith("_base"))
             entry.IsBase = true;
         folders[folder].Entries[name] = entry;
+        if (data["default"] is JsonValue defVal && defVal.GetValueKind() == JsonValueKind.True)
+            folders[folder].Default = name;
         OnEntryRegistered?.Invoke(folder, name, data);
         if (entry.IsBase)
             return null;
@@ -169,8 +174,8 @@ public static class Compendium
             try
             {
                 object? ret = builder(name, data);
-                if (ret is ICustomDataContainer icdc)
-                    icdc.CustomDataFromJson(data);
+                if (ret is ICustomDataContainer icdc && data["customData"] is JsonObject cdata)
+                    icdc.LoadCustomDataFromJson(cdata);
                 if (ret is ITaggable taggable)
                     taggable.LoadTagsFromJson(data);
                 if (ret != null && ret.GetType().IsAssignableTo(folders[folder].Type))
@@ -299,6 +304,33 @@ public static class Compendium
                 return t;
         }
         throw new Exception("No matching entry found for type: " + typeof(T));
+    }
+
+    public static bool EntryExists<T>(string name, bool includeBase = true) where T : class
+    {
+        string folder = GetFolderName<T>();
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
+        if (!includeBase)
+        {
+            return fd.Entries.TryGetValue(name, out var entry) && !entry.IsBase;
+        }
+        return fd.Entries.ContainsKey(name);
+    }
+    public static bool IsEntry<T>(string name, bool includeBase = true) where T : class
+    {
+        return EntryExists<T>(name, includeBase);
+    }
+    
+    public static T GetDefaultEntry<T>() where T : class
+    {
+        string folder = GetFolderName<T>();
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
+        foreach (var entry in fd.Entries)
+        {
+            if (entry.Value.IsBase && entry.Value.Loaded is T t)
+                return t;
+        }
+        throw new Exception("No default entry found for type: " + typeof(T));
     }
     
     public static string GetFolderName<T>()

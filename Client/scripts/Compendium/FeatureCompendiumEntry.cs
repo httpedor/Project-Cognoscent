@@ -110,7 +110,7 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                     newObj["interval"] = result.Intervalo;
                     
                     NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj));
-                }, (TipoDeDano: DamageType.Physical, Dano: 1f, Intervalo: json["interval"]?.GetValue<int>() ?? 0));
+                }, (TipoDeDano: Compendium.GetDefaultEntry<DamageType>(), Dano: 1f, Intervalo: json["interval"]?.GetValue<int>() ?? 0));
                 break;
             }
         }
@@ -136,7 +136,7 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                 {
                     case "damage_over_time":
                     {
-                        newObj["damage_type"] = DamageType.Physical.Name;
+                        newObj["damage_type"] = Compendium.GetDefaultEntry<DamageType>().Name;
                         newObj["damage"] = 1;
                         break;
                     }
