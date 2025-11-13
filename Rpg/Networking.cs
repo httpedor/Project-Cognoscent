@@ -610,21 +610,38 @@ public class EntityBodyPartPacket : Packet
 
 public class EntityBodyPartInjuryPacket : Packet
 {
+    public enum InjuryPacketType
+    {
+        ADD,
+        REMOVE,
+        REPLACE
+    }
     public CreatureRef CreatureRef;
     public readonly string Path;
+    public readonly Injury? OldInjury;
     public readonly Injury Injury;
-    public readonly bool Remove;
+    public readonly InjuryPacketType Type;
 
     public override ProtocolId Id => ProtocolId.ENTITY_BODY_PART_INJURY;
 
-    public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, bool remove = false)
+    public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, InjuryPacketType type)
     {
         if (part.Owner == null)
             throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
         CreatureRef = new CreatureRef(part.Owner);
         Path = part.Path;
         Injury = condition;
-        Remove = remove;
+        Type = type;
+    }
+    public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, Injury old)
+    {
+        if (part.Owner == null)
+            throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
+        CreatureRef = new CreatureRef(part.Owner);
+        Path = part.Path;
+        Injury = condition;
+        OldInjury = old;
+        Type = InjuryPacketType.REPLACE;
     }
 
     public EntityBodyPartInjuryPacket(Stream stream)
@@ -632,7 +649,9 @@ public class EntityBodyPartInjuryPacket : Packet
         CreatureRef = new CreatureRef(stream);
         Path = stream.ReadString();
         Injury = new Injury(stream);
-        Remove = stream.ReadByte() == 1;
+        Type = (InjuryPacketType)stream.ReadByte();
+        if (Type == InjuryPacketType.REPLACE)
+            OldInjury = new Injury(stream);
     }
 
     public override void ToBytes(Stream stream)
@@ -641,7 +660,9 @@ public class EntityBodyPartInjuryPacket : Packet
         CreatureRef.ToBytes(stream);
         stream.WriteString(Path);
         Injury.ToBytes(stream);
-        stream.WriteByte(Remove ? (byte)1 : (byte)0);
+        stream.WriteByte((byte)Type);
+        if (Type == InjuryPacketType.REPLACE)
+            OldInjury!.Value.ToBytes(stream);
     }
 }
 

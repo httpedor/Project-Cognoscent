@@ -247,10 +247,19 @@ public partial class NetworkManager : Node
 				if (part == null)
 					break;
 
-				if (ebpcp.Remove)
-					part.RemoveInjury(ebpcp.Injury);
-				else
-					part.AddInjury(ebpcp.Injury);
+				switch (ebpcp.Type)
+				{
+					case EntityBodyPartInjuryPacket.InjuryPacketType.ADD:
+						part.AddInjury(ebpcp.Injury);
+						break;
+					case EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE:
+						part.RemoveInjury(ebpcp.Injury);
+						break;
+					case EntityBodyPartInjuryPacket.InjuryPacketType.REPLACE:
+						part.RemoveInjury(ebpcp.OldInjury!.Value);
+						part.AddInjury(ebpcp.Injury);
+						break;
+				}
 				break;
 			}
 			case ProtocolId.STAT_UPDATE:

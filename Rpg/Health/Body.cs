@@ -26,13 +26,14 @@ public class StatDepCodeGlobals
 public class Body : ISerializable
 {
     public event Action<BodyPart, Injury>? OnInjuryAdded;
+    public event Action<BodyPart, Injury>? OnInjuryChanged;
     public event Action<BodyPart, Injury>? OnInjuryRemoved;
     private readonly Dictionary<string, HashSet<BodyPart>> equipmentSlots = new();
     private readonly Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
     //This is to use with injuryTypes creation and conversion
-    private readonly HashSet<Injury> injuriesCache = new();
+    private readonly Dictionary<Injury, BodyPart> injuriesCache = new();
     private readonly HashSet<BodyPart> partsCache = new();
     public sealed class StatEntry
     {
@@ -57,7 +58,7 @@ public class Body : ISerializable
     internal readonly Dictionary<string, StatEntry> stats = new();
     internal readonly List<Feature> features = new();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
-    public IEnumerable<Injury> Injuries => injuriesCache;
+    public IEnumerable<Injury> Injuries => injuriesCache.Keys;
 
     public Creature? Owner
     {
@@ -273,6 +274,48 @@ public class Body : ISerializable
                 stat.BaseValue = Math.Clamp(stat.BaseValue + (regenAmount * (1/50f)), stat.MinValue, stat.MaxValue);
             }
         }
+
+        foreach (var (oldInjury, part) in injuriesCache.ToArray())
+        {
+            var injury = oldInjury;
+            if (Owner.ExistanceTicks % 50 == 0)
+            {
+                injury = new Injury { Type = oldInjury.Type, Severity = oldInjury.Severity - oldInjury.Type.NaturalHeal };
+                if (injury.Severity <= 0)
+                {
+                    part.RemoveInjury(injury);
+                    continue;
+                }
+                else
+                {
+                    part.ChangeInjury(injury, injury);
+                }
+            }
+            foreach (var creation in injury.Type.InjuryCreations)
+            {
+                if (Owner.ExistanceTicks % creation.interval == 0)
+                {
+                    var newInjury = creation.creationFunc(injury, part);
+                    if (newInjury.HasValue)
+                    {
+                        part.AddInjury(newInjury.Value);
+                    }
+                }
+            }
+
+            foreach (var conversion in injury.Type.InjuryConversions)
+            {
+                if (Owner.ExistanceTicks % conversion.interval == 0)
+                {
+                    var newInjury = conversion.conversionFunc(injury, part);
+                    if (newInjury.HasValue)
+                    {
+                        part.RemoveInjury(injury);
+                        part.AddInjury(newInjury.Value);
+                    }
+                }
+            }
+        }
     }
 
     public void ApplyPartToOwner(BodyPart part)
@@ -315,7 +358,7 @@ public class Body : ISerializable
         partsByGroup[part.Group].Add(part);
         foreach (var injury in part.Injuries)
         {
-            injuriesCache.Add(injury);
+            injuriesCache[injury] = part;
         }
         ApplyPartToOwner(part);
     }
@@ -527,20 +570,25 @@ public class Body : ISerializable
         return GetPartsWithSlot(ep.Slot).Any(part => part.GetEquippedItem(ep.Slot) == item);
     }
  
-    public void NotifyInjury(BodyPart bp, Injury inj, bool added)
+    public void NotifyInjury(BodyPart bp, Injury inj, EntityBodyPartInjuryPacket.InjuryPacketType type)
     {
         if (bp.Body != this)
             throw new InvalidOperationException("Injury event invoked on a body part that does not belong to this body.");
 
-        if (added)
+        if (type == EntityBodyPartInjuryPacket.InjuryPacketType.ADD)
         {
-            injuriesCache.Add(inj);
+            injuriesCache[inj] = bp;
             OnInjuryAdded?.Invoke(bp, inj);
+        }
+        else if (type == EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE)
+        {
+            injuriesCache.Remove(inj);
+            OnInjuryRemoved?.Invoke(bp, inj);
         }
         else
         {
             injuriesCache.Remove(inj);
-            OnInjuryRemoved?.Invoke(bp, inj);
+            injuriesCache[inj] = bp;
         }
     }
 }

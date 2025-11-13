@@ -32,11 +32,11 @@ public class InjuryType : ISerializable
     }
     public readonly string Id;
     /// <summary>
-    /// Pain value per damage
+    /// Pain value per severity
     /// </summary>
     public readonly float Pain;
     /// <summary>
-    /// Bleed value per damage
+    /// Bleed value per severity
     /// </summary>
     public readonly float BleedingRate;
     /// <summary>
@@ -52,19 +52,17 @@ public class InjuryType : ISerializable
     /// </summary>
     public readonly bool Instakill;
     /// <summary>
-    /// The rate at which the severity of this injury lowers
+    /// The rate at which the severity of this injury lowers every second.
     /// </summary>
     public readonly float NaturalHeal;
     /// <summary>
     /// Every <c>interval</c> seconds, the <c>creationFunc</c> is called to possibly create another injury.
     /// If the function returns null, no injury is created.
-    /// TODO: Implement this
     /// </summary>
     public readonly ImmutableArray<CreationEntry> InjuryCreations = [];
     /// <summary>
     /// Every <c>interval</c> seconds, the <c>conversionFunc</c> is called to possibly convert this injury into another.
     /// If the function returns null, no conversion occurs.
-    /// TODO: Implement this
     /// </summary>
     public readonly ImmutableArray<ConversionEntry> InjuryConversions = [];
     public readonly string Name;
@@ -184,7 +182,7 @@ public class InjuryType : ISerializable
         return Id.GetHashCode();
     }
 }
-public class Injury : ISerializable
+public struct Injury : ISerializable
 {
     public InjuryType Type;
     public double Severity;

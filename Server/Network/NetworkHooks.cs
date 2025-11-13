@@ -35,10 +35,13 @@ public static class NetworkHooks
         };
 
         part.OnInjuryAdded += condition => {
-            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, condition), part.Owner?.Board.Name);
+            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, condition, EntityBodyPartInjuryPacket.InjuryPacketType.ADD), part.Owner?.Board.Name);
         };
         part.OnInjuryRemoved += condition => {
-            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, condition, true), part.Owner?.Board.Name);
+            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, condition, EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE), part.Owner?.Board.Name);
+        };
+        part.OnInjuryChanged += (newCondition, oldCondition) => {
+            Network.Manager.SendIfBoardValid(new EntityBodyPartInjuryPacket(part, newCondition, oldCondition), part.Owner?.Board.Name);
         };
         part.OnEquipped += (equipment, slot) => {
             Network.Manager.SendIfBoardValid(new CreatureEquipItemPacket(part, slot, equipment.Item), part.Owner?.Board.Name);

@@ -46,6 +46,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     public event Action<BodyPart>? OnChildRemoved;
     public event Action<Injury>? OnInjuryAdded;
     public event Action<Injury>? OnInjuryRemoved;
+    public event Action<Injury, Injury>? OnInjuryChanged;
     public event Action<EquipmentProperty, string>? OnEquipped;
     public event Action<EquipmentProperty>? OnUnequipped;
 
@@ -525,7 +526,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     {
         injuries.Add(condition);
         OnInjuryAdded?.Invoke(condition);
-        Body?.NotifyInjury(this, condition, true);
+        Body?.NotifyInjury(this, condition, EntityBodyPartInjuryPacket.InjuryPacketType.ADD);
 
         if (Health <= 0)
             Body?.OnPartDie(this);
@@ -540,6 +541,20 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
         }
     }
 
+    public void ChangeInjury(Injury oldCondition, Injury newCondition)
+    {
+        for (int i = 0; i < injuries.Count; i++)
+        {
+            if (injuries[i].Equals(oldCondition))
+            {
+                injuries[i] = newCondition;
+                OnInjuryChanged?.Invoke(newCondition, oldCondition);
+                Body?.NotifyInjury(this, oldCondition, EntityBodyPartInjuryPacket.InjuryPacketType.REPLACE);
+                return;
+            }
+        }
+    }
+
     public void RemoveInjury(Injury condition)
     {
         for (int i = injuries.Count - 1; i >= 0; i--)
@@ -548,7 +563,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             {
                 injuries.RemoveAt(i);
                 OnInjuryRemoved?.Invoke(condition);
-                Body?.NotifyInjury(this, condition, false);
+                Body?.NotifyInjury(this, condition, EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE);
                 return;
             }
         }
