@@ -33,7 +33,7 @@ public class ParrySkill : Skill
             case BodyPartSkillArgument bpsa:
             {
                 var part = bpsa.Part;
-                return part != null && part.Owner == executor && part is { IsAlive: true, IsInternal: false };
+                return part != null && part.Creature == executor && part is { IsAlive: true, IsInternal: false };
             }
             case ItemSkillArgument isa:
             {

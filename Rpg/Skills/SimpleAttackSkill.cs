@@ -28,10 +28,10 @@ public class SimpleAttackSkill : AttackSkill
         Creature creature;
         switch (target)
         {
-            case BodyPart { Owner: null }:
+            case BodyPart { Creature: null }:
                 return (true, null);
             case BodyPart bp:
-                creature = bp.Owner;
+                creature = bp.Creature;
                 break;
             case Creature c:
                 creature = c;

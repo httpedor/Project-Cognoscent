@@ -1,7 +1,3 @@
-﻿using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
-
-namespace Rpg;
 public class ArbitraryFeature : Feature
 {
     protected readonly string id;

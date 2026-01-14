@@ -1,0 +1,62 @@
+using System.Numerics;
+using System.Text.Json.Serialization;
+
+namespace Rpg.Entities;
+
+public class TokenUpdateEvent : ComponentEvent
+{
+    public Vector3 OldPosition;
+    public float OldRotation;
+    public Vector3 OldSize;
+    public Midia? OldMidia;
+    public TokenUpdateEvent(Component component, Vector3 oldPosition, float oldRotation, Vector3 oldSize, Midia? oldMidia) : base(component)
+    {
+        OldPosition = oldPosition;
+        OldRotation = oldRotation;
+        OldSize = oldSize;
+        OldMidia = oldMidia;
+    }
+}
+public partial class TokenComponent : Component, ITickableComponent
+{
+    private Vector3 oldPosition;
+    private float oldRotation;
+    private Vector3 oldSize;
+    private Midia? oldMidia;
+
+    public Vector3 Position;
+    public float Rotation;
+    public Vector3 Size = Vector3.One;
+    public Midia? Midia;
+
+    [JsonIgnore]
+    public bool IsPlaced => Board != null;
+    [JsonIgnore]
+    public Vector2 Direction => new(MathF.Cos(Rotation), MathF.Sin(Rotation));
+    [JsonIgnore]
+    public int FloorIndex => (int)Position.Z;
+    [JsonIgnore]
+    public Floor? Floor => Board?.GetFloor(FloorIndex);
+    [JsonIgnore]
+    public bool IsGrounded => Position.Z % 1 == 0;
+    [JsonIgnore]
+    public Vector2? PixelSize => Floor == null ? null : new Vector2(Floor.TileSize.X * Size.X, Floor.TileSize.Y * Size.Y);
+
+    [JsonIgnore]
+    public OBB Hitbox => new(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
+
+    public void PreTick()
+    {
+        oldPosition = Position;
+        oldRotation = Rotation;
+        oldSize = Size;
+        oldMidia = Midia;
+    }
+    public void PostTick()
+    {
+        if (Position != oldPosition || Rotation != oldRotation || Size != oldSize || Midia != oldMidia)
+        {
+            Entity.DispatchEvent(new TokenUpdateEvent(this, oldPosition, oldRotation, oldSize, oldMidia));
+        }
+    }
+}

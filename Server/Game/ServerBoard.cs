@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Rpg;
+using Rpg.Entities;
 using Rpg.Inventory;
 using Server.Network;
 
@@ -9,7 +10,7 @@ namespace Server.Game;
 
 public class ServerBoard : Board, ISerializable
 {
-    private readonly LinkedList<(Creature executor, ActionLayer layer)> actionQueue = [];
+    private readonly LinkedList<(CreatureComponent executor, ActionLayer layer)> actionQueue = [];
 
     public ServerBoard(string name)
     {
@@ -33,8 +34,12 @@ public class ServerBoard : Board, ISerializable
         ushort entityCount = stream.ReadUInt16();
         for (int i = 0; i < entityCount; i++)
         {
-            Entity entity = Entity.FromBytes(stream);
+            Entity entity = new Entity(stream);
             AddEntity(entity);
+        }
+        foreach (var entity in entityCache.Values)
+        {
+            entity.Initialize();
         }
     }
 
@@ -47,12 +52,12 @@ public class ServerBoard : Board, ISerializable
 
     public override void Tick()
     {
-        foreach (Entity entity in entities)
+        foreach (Entity entity in entityCache.Values)
         {
             entity.Tick();
-            if (entity.ExistanceTicks % 20 == 0)
+            if (entity.TryGetComponent<StatsComponent>(out var stats) && entity.ExistanceTicks % 20 == 0)
             {
-                Manager.SendToBoard(new StatHolderUpdatePacket(entity), this);
+                Manager.SendToBoard(new StatHolderUpdatePacket(stats), this);
             }
         }
         if (TurnMode || CurrentTick % 50 == 0)
@@ -76,15 +81,6 @@ public class ServerBoard : Board, ISerializable
     {
         base.AddEntity(entity);
         Network.Manager.SendToBoard(new EntityCreatePacket(this, entity), Name);
-        entity.OnPositionChanged += (pos, _) => Manager.SendToBoard(new EntityPositionPacket(entity, pos), entity.Board.Name);
-        entity.OnRotationChanged += (newRot, _) => Network.Manager.SendToBoard(new EntityRotationPacket(entity, newRot), Name);
-        entity.OnDisplayChanged += newDisplay => Network.Manager.SendToBoard(new EntityMidiaPacket(entity, newDisplay), Name);
-        entity.OnFeatureAdded += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Add(entity, feat), Name);
-        entity.OnFeatureRemoved += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Remove(entity, feat), Name);
-        entity.OnFeatureEnabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Enable(entity, feat), Name);
-        entity.OnFeatureDisabled += feat => Network.Manager.SendToBoard(FeatureUpdatePacket.Disable(entity, feat), Name);
-        entity.OnPositionChanged += (_, _) => (entity.Floor as ServerFloor)?.UpdateEntityCollisionGrid(entity);
-        
         if (entity is Creature creature)
         {
             creature.OnSkillStart += skill => {
@@ -141,12 +137,51 @@ public class ServerBoard : Board, ISerializable
 
     }
 
+    public override void HandleEvent(ComponentEvent e)
+    {
+        base.HandleEvent(e);
+
+        switch (e)
+        {
+            case TokenUpdateEvent tue:
+                var token = (TokenComponent)tue.Component;
+                Network.Manager.SendToBoard(new TokenUpdatePacket(token), this);
+                if (tue.OldPosition != token.Position && token.IsPlaced)
+                {
+                    (token.Floor as ServerFloor)?.UpdateEntityCollisionGrid(token);
+                }
+                break;
+            case FeatureAddedEvent fae:
+                Network.Manager.SendToBoard(
+                    FeatureUpdatePacket.Add(new EntityWith<FeaturesComponent>(fae.Component.Entity), fae.Feature),
+                    this);
+                break;
+            case FeatureRemovedEvent fre:
+                Network.Manager.SendToBoard(
+                    FeatureUpdatePacket.Remove(new EntityWith<FeaturesComponent>(fre.Component.Entity), fre.Feature),
+                    this
+                );
+                break;
+            case FeatureEnabledEvent fee:
+                Network.Manager.SendToBoard(
+                    FeatureUpdatePacket.Enable(new EntityWith<FeaturesComponent>(fee.Component.Entity), fee.Feature),
+                    this
+                );
+                break;
+            case FeatureDisabledEvent fde:
+                Network.Manager.SendToBoard(
+                    FeatureUpdatePacket.Disable(new EntityWith<FeaturesComponent>(fde.Component.Entity), fde.Feature),
+                    this
+                );
+                break;
+        }
+    }
+
     public override void RemoveEntity(Entity? entity)
     {
         if (entity != null)
         {
             Network.Manager.SendToBoard(new EntityRemovePacket(entity), Name);
-            entity.ClearEvents();
         }
 
         base.RemoveEntity(entity);
@@ -182,8 +217,8 @@ public class ServerBoard : Board, ISerializable
             floor.ToBytes(stream);
         }
 
-        stream.WriteUInt16((ushort)entities.Count);
-        foreach (Entity entity in entities)
+        stream.WriteUInt16((ushort)entityCache.Count);
+        foreach (Entity entity in entityCache.Values)
         {
             entity.ToBytes(stream);
         }

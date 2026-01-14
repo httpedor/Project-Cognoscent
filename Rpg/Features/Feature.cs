@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Rpg;
+using Rpg.Entities;
 
 public abstract class Feature : ISerializable
 {
@@ -14,7 +15,11 @@ public abstract class Feature : ISerializable
         var type = Type.GetType(path);
         if (type != null && (type.IsAssignableTo(typeof(ArbitraryFeature))))
         {
-            return Compendium.GetEntry<Feature>(bytes.ReadString());
+            string id = bytes.ReadString();
+            var ret = Compendium.GetEntry<Feature>(id);
+            if (ret == null)
+                throw new Exception("Failed to get feature from compendium: " + id);
+            return ret;
         }
 
         if (type == null)
@@ -189,21 +194,24 @@ public abstract class Feature : ISerializable
         return GetName().ToLower();
     }
 
-    public virtual void OnAdded(IFeatureContainer source)
+    public virtual void OnAdded(Entity source)
     {
     }
 
-    public virtual void OnRemoved(IFeatureContainer source)
+    public virtual void OnRemoved(Entity source)
     {
     }
 
-    public virtual void OnEnable(IFeatureContainer source)
+    public virtual void OnEnable(Entity source)
     {
-        if (source is not Entity entity) return;
+        if (!source.TryGetComponent<StatsComponent>(out var stats))
+        {
+            return;
+        }
         
         foreach (var kvp in statModifiers)
         {
-            var stat = entity.GetStat(kvp.Key);
+            var stat = stats.GetStat(kvp.Key);
             if (stat == null)
                 continue;
             foreach (StatModifier modifier in kvp.Value)
@@ -212,13 +220,16 @@ public abstract class Feature : ISerializable
             }
         }
     }
-    public virtual void OnDisable(IFeatureContainer source)
+    public virtual void OnDisable(Entity source)
     {
-        if (source is not Entity entity) return;
+        if (!source.TryGetComponent<StatsComponent>(out var stats))
+        {
+            return;
+        }
         
         foreach (var kvp in statModifiers)
         {
-            var stat = entity.GetStat(kvp.Key);
+            var stat = stats.GetStat(kvp.Key);
             if (stat == null)
                 continue;
             foreach (StatModifier modifier in kvp.Value)
@@ -228,13 +239,13 @@ public abstract class Feature : ISerializable
         }
     }
 
-    public virtual void OnTick(IFeatureContainer source)
+    public virtual void OnTick(Entity source)
     {
         
     }
 
     /// <summary>
-    /// Called when an AttackSkill is about to hit an IFeatureSource with this Feature
+    /// Called when an AttackSkill is about to hit an Entity with this Feature
     /// </summary>
     /// <param name="source">The source of this feature. Keep in mind this is also an IFeatureSource</param>
     /// <param name="damage">The DamageSource</param>
@@ -242,12 +253,12 @@ public abstract class Feature : ISerializable
     /// <returns>A tuple with a boolean representing if it did hit, and if it didn't, a string with the reason(this can be null)</returns>
     public virtual (bool, string?) DoesGetAttacked(IDamageable source, DamageSource damage, bool hit)
     {
-        return (true, null);
+        return (hit, null);
     }
 
-    public virtual (bool, string?) DoesAttack(IFeatureContainer source, IDamageable attacked, DamageSource damage, bool hit)
+    public virtual (bool, string?) DoesAttack(Entity source, IDamageable attacked, DamageSource damage, bool hit)
     {
-        return (true, null);
+        return (hit, null);
     }
     public virtual (bool, string?) DoesExecuteSkill(Creature executor, Skill skill, List<SkillArgument> arguments)
     {

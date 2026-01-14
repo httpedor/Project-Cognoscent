@@ -1,6 +1,6 @@
-namespace Rpg;
+namespace Rpg.Entities;
 
-public class LightEntity : Entity
+public partial class LightComponent : Component
 {
     public float Range;
     public float Intensity;
@@ -8,23 +8,21 @@ public class LightEntity : Entity
     public float MaxIntensity;
     public UInt32 Color;
     public bool Shadows;
-    public override EntityType GetEntityType()
-    {
-        return EntityType.Light;
-    }
 
-    public LightEntity() : base()
+    [RequiredComponent(typeof(TokenComponent))]
+    public TokenComponent token;
+
+    public LightComponent()
     {
 
     }
-    public LightEntity(Stream stream) : base(stream)
+    public LightComponent(Stream stream) : base(stream)
     {
         Range = stream.ReadFloat();
         Intensity = stream.ReadFloat();
         Color = stream.ReadUInt32();
         Shadows = stream.ReadByte() != 0;
     }
-
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);

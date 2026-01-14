@@ -1,8 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
+using Rpg.Entities;
 using Rpg.Inventory;
 
 namespace Rpg;
@@ -13,8 +11,8 @@ using StatThreshold = (float min, float max, Action<StatThresholdGlobals>? onEnt
 
 public class StatThresholdGlobals
 {
-    public required Body body;
-    public required Creature creature;
+    public required BodyComponent body;
+    public required CreatureComponent creature;
     public float value;
     public required Stat stat;
 }
@@ -23,16 +21,12 @@ public class StatDepCodeGlobals
     public float x;
     public float y;
 }
-public class Body : ISerializable
+public partial class BodyComponent : Component, ISerializable, ITickableComponent
 {
-    public event Action<BodyPart, Injury>? OnInjuryAdded;
-    public event Action<BodyPart, Injury>? OnInjuryChanged;
-    public event Action<BodyPart, Injury>? OnInjuryRemoved;
     private readonly Dictionary<string, HashSet<BodyPart>> equipmentSlots = new();
     private readonly Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
-    //This is to use with injuryTypes creation and conversion
     private readonly Dictionary<Injury, BodyPart> injuriesCache = new();
     private readonly HashSet<BodyPart> partsCache = new();
     public sealed class StatEntry
@@ -60,11 +54,16 @@ public class Body : ISerializable
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
     public IEnumerable<Injury> Injuries => injuriesCache.Keys;
 
-    public Creature? Owner
+    /// <summary>
+    /// The creature that this body belongs to, if any.
+    /// </summary>
+    [OptionalComponent(typeof(CreatureComponent))]
+    public CreatureComponent? Creature
     {
         get;
         set
         {
+            //FIXME: Redo all this
             if (field != null)
             {
                 foreach (var part in Parts)
@@ -194,7 +193,7 @@ public class Body : ISerializable
         return (x, y) => script(new StatDepCodeGlobals{x = x, y=y});
     }
 
-    public Body(string name, BodyPart root, bool isHumanoid = false)
+    public BodyComponent(string name, BodyPart root, bool isHumanoid = false)
     {
         IsHumanoid = isHumanoid;
         Name = name;
@@ -202,7 +201,7 @@ public class Body : ISerializable
         IsReady = true;
     }
 
-    public Body(Stream stream)
+    public BodyComponent(Stream stream)
     {
         Name = stream.ReadString();
         IsHumanoid = stream.ReadByte() != 0;
@@ -248,21 +247,21 @@ public class Body : ISerializable
         IsReady = true;
     }
 
-    public void Tick()
+    public void OnTick()
     {
-        if (Owner == null)
+        if (Creature == null)
             return;
 
         foreach (var kv in stats)
         {
             var statName = kv.Key;
             var entry = kv.Value;
-            var stat = Owner.GetStat(statName);
+            var stat = Creature.Stats.GetStat(statName);
             if (stat == null) continue;
 
             if (!string.IsNullOrEmpty(entry.MaxDependencyName))
             {
-                var depStat = Owner.GetStat(entry.MaxDependencyName);
+                var depStat = Creature.Stats.GetStat(entry.MaxDependencyName);
                 if (depStat != null)
                     stat.MaxValue = depStat.FinalValue;
             }
@@ -270,7 +269,7 @@ public class Body : ISerializable
             if (entry.Regen != null)
             {
                 var regenInfo = entry.Regen;
-                float regenAmount = regenInfo.IsRight ? regenInfo.Right : Owner.GetStat(regenInfo.Left!)?.FinalValue ?? 0;
+                float regenAmount = regenInfo.IsRight ? regenInfo.Right : Creature.Stats.GetStat(regenInfo.Left!)?.FinalValue ?? 0;
                 stat.BaseValue = Math.Clamp(stat.BaseValue + (regenAmount * (1/50f)), stat.MinValue, stat.MaxValue);
             }
         }
@@ -278,7 +277,7 @@ public class Body : ISerializable
         foreach (var (oldInjury, part) in injuriesCache.ToArray())
         {
             var injury = oldInjury;
-            if (Owner.ExistanceTicks % 50 == 0)
+            if (Creature.Entity.ExistanceTicks % 50 == 0)
             {
                 injury = new Injury { Type = oldInjury.Type, Severity = oldInjury.Severity - oldInjury.Type.NaturalHeal };
                 if (injury.Severity <= 0)
@@ -293,7 +292,7 @@ public class Body : ISerializable
             }
             foreach (var creation in injury.Type.InjuryCreations)
             {
-                if (Owner.ExistanceTicks % creation.interval == 0)
+                if (Creature.Entity.ExistanceTicks % creation.interval == 0)
                 {
                     var newInjury = creation.creationFunc(injury, part);
                     if (newInjury.HasValue)
@@ -305,7 +304,7 @@ public class Body : ISerializable
 
             foreach (var conversion in injury.Type.InjuryConversions)
             {
-                if (Owner.ExistanceTicks % conversion.interval == 0)
+                if (Creature.Entity.ExistanceTicks % conversion.interval == 0)
                 {
                     var newInjury = conversion.conversionFunc(injury, part);
                     if (newInjury.HasValue)
@@ -322,11 +321,11 @@ public class Body : ISerializable
     {
         part.UpdateStatModifiers();
 
-        if (Owner != null)
+        if (Creature != null)
         {
             foreach (Feature feat in part.FeaturesForOwner)
             {
-                Owner.AddFeature(feat);
+                Creature.Features.AddFeature(feat);
             }
         }
 
@@ -366,11 +365,11 @@ public class Body : ISerializable
     public void UnapplyPartToOwner(BodyPart part)
     {
         part.RemoveStatModifiers();
-        if (Owner != null)
+        if (Creature != null)
         {
             foreach (Feature feat in part.FeaturesForOwner)
             {
-                Owner.RemoveFeature(feat);
+                Creature.RemoveFeature(feat);
             }
 
             if (part.GetEquippedItem(EquipmentSlot.Hold) != null)
@@ -416,7 +415,7 @@ public class Body : ISerializable
 
         foreach (Feature feat in part.Features)
         {
-            Owner?.RemoveFeature(feat);
+            Creature?.RemoveFeature(feat);
         }
     }
 
@@ -446,11 +445,11 @@ public class Body : ISerializable
 
     public void OnHeld(BodyPart part, Item item)
     {
-        if (Owner != null)
+        if (Creature != null)
         {
             foreach (var entry in item.StatModifiers)
             {
-                Stat? stat = Owner.GetStat(entry.Key);
+                Stat? stat = Creature.GetStat(entry.Key);
                 if (stat == null)
                     continue;
                 foreach (StatModifier mod in entry.Value)
@@ -461,18 +460,18 @@ public class Body : ISerializable
 
             foreach (Feature feat in item.Features)
             {
-                Owner.AddFeature(feat);
+                Creature.AddFeature(feat);
             }
         }
     }
 
     public void OnUnheld(BodyPart part, Item item)
     {
-        if (Owner != null)
+        if (Creature != null)
         {
             foreach (var entry in item.StatModifiers)
             {
-                Stat? stat = Owner.GetStat(entry.Key);
+                Stat? stat = Creature.GetStat(entry.Key);
                 if (stat == null)
                     continue;
                 foreach (StatModifier mod in entry.Value)
@@ -482,7 +481,7 @@ public class Body : ISerializable
             }
             foreach (Feature feat in item.Features)
             {
-                Owner.RemoveFeature(feat);
+                Creature.RemoveFeature(feat);
             }
         }
     }
@@ -544,7 +543,7 @@ public class Body : ISerializable
 
     public float GetStatByGroup(string group, string stat, float? baseValue = null, bool onlySelfStats = false)
     {
-        var baseVal = baseValue ?? Owner?.GetStat(stat)?.BaseValue ?? 0;
+        var baseVal = baseValue ?? Creature?.GetStat(stat)?.BaseValue ?? 0;
         List<StatModifier> statMods = new();
         if (stats.TryGetValue(stat, out StatEntry? statEntry) && statEntry.GroupEffectiveness.TryGetValue(group, out float effectiveness))
             baseVal *= effectiveness;

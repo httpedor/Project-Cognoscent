@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Rpg;
+using Rpg.Entities;
 using Rpg.Inventory;
 // ReSharper disable UnusedMember.Global
 
@@ -22,12 +23,8 @@ public enum ProtocolId
     DOOR_INTERACT,
     COMBAT_MODE,
     ENTITY_CREATE,
-    ENTITY_MIDIA,
     ENTITY_REMOVE,
-    ENTITY_MOVE,
-    ENTITY_POSITION,
-    ENTITY_ROTATION,
-    ENTITY_VELOCITY,
+    TOKEN_UPDATE,
     ENTITY_BODY_PART,
     ENTITY_BODY_PART_INJURY,
     STAT_UPDATE,
@@ -295,45 +292,48 @@ public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : P
 
 public class DoorUpdatePacket : Packet
 {
-    public readonly DoorEntity Door;
-    public readonly DoorRef @ref;
+    public readonly DoorComponent Door;
+    public readonly ComponentRef<DoorComponent> @ref;
 
     public override ProtocolId Id => ProtocolId.DOOR_UPDATE;
 
-    public DoorUpdatePacket(DoorEntity door)
+    public DoorUpdatePacket(DoorComponent door)
     {
         Door = door;
-        @ref = new DoorRef(door);
+        @ref = new ComponentRef<DoorComponent>(door);
     }
     public DoorUpdatePacket(Stream stream)
     {
         stream.ReadByte();
-        Door = new DoorEntity(stream);
-        @ref = new DoorRef(stream);
+        @ref = new ComponentRef<DoorComponent>(stream);
+        Door = new DoorComponent(stream)
+        {
+            Entity = @ref.Component?.Entity
+        };
     }
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        Door.ToBytes(stream);
         @ref.ToBytes(stream);
+        Door.ToBytes(stream);
     }
 
 }
 
 public class DoorInteractPacket : Packet
 {
-    public readonly DoorRef Door;
+    public readonly ComponentRef<DoorComponent> Door;
 
     public override ProtocolId Id => ProtocolId.DOOR_INTERACT;
 
-    public DoorInteractPacket(DoorEntity door)
+    public DoorInteractPacket(DoorComponent door)
     {
-        Door = new DoorRef(door);
+        Door = new ComponentRef<DoorComponent>(door);
     }
     public DoorInteractPacket(Stream stream)
     {
-        Door = new DoorRef(stream);
+        Door = new ComponentRef<DoorComponent>(stream);
     }
 
     public override void ToBytes(Stream stream)
@@ -413,7 +413,7 @@ public class EntityCreatePacket : Packet
     public EntityCreatePacket(Stream stream)
     {
         BoardName = stream.ReadString();
-        Entity = Entity.FromBytes(stream);
+        Entity = new Entity(stream);
     }
 
     public override void ToBytes(Stream stream)
@@ -422,33 +422,6 @@ public class EntityCreatePacket : Packet
 
         stream.WriteString(BoardName);
         Entity.ToBytes(stream);
-    }
-}
-
-public class EntityMidiaPacket : Packet
-{
-    public EntityRef Ref;
-    public readonly Midia Midia;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_MIDIA;
-
-    public EntityMidiaPacket(Entity entity, Midia newMidia)
-    {
-        Ref = new EntityRef(entity);
-        Midia = newMidia;
-    }
-
-    public EntityMidiaPacket(Stream stream)
-    {
-        Ref = new EntityRef(stream);
-        Midia = new Midia(stream);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Ref.ToBytes(stream);
-        Midia.ToBytes(stream);
     }
 }
 
@@ -476,91 +449,25 @@ public class EntityRemovePacket : Packet
     }
 }
 
-public class EntityMovePacket : Packet
+public class TokenUpdatePacket : Packet
 {
-    public EntityRef EntityRef;
-    public Vector2 Position;
+    public override ProtocolId Id => ProtocolId.TOKEN_UPDATE;
+    public readonly ComponentRef<TokenComponent> TokenRef;
 
-    public override ProtocolId Id => ProtocolId.ENTITY_MOVE;
-
-
-    public EntityMovePacket(Entity toMove, Vector2 position)
+    public TokenUpdatePacket(TokenComponent token) : base()
     {
-        EntityRef = new EntityRef(toMove);
-        Position = position;
+        TokenRef = new ComponentRef<TokenComponent>(token);
     }
-
-    public EntityMovePacket(Stream stream)
+    public TokenUpdatePacket(Stream stream)
     {
-        EntityRef = new EntityRef(stream);
-        Position = stream.ReadVec2();
+        TokenRef = new ComponentRef<TokenComponent>(stream);
     }
-
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-
-        EntityRef.ToBytes(stream);
-        stream.WriteVec2(Position);
-    }
-}
-
-public class EntityPositionPacket : Packet
-{
-    public EntityRef EntityRef;
-    public Vector3 Position;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_POSITION;
-
-
-    public EntityPositionPacket(Entity toMove, Vector3 position)
-    {
-        EntityRef = new EntityRef(toMove);
-        Position = position;
+        TokenRef.ToBytes(stream);
     }
 
-    public EntityPositionPacket(Stream stream)
-    {
-        EntityRef = new EntityRef(stream);
-        Position = stream.ReadVec3();
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-
-        EntityRef.ToBytes(stream);
-        stream.WriteVec3(Position);
-    }
-}
-
-public class EntityRotationPacket : Packet
-{
-    public EntityRef EntityRef;
-    public readonly float Rotation;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_ROTATION;
-
-
-    public EntityRotationPacket(Entity toMove, float rotation)
-    {
-        EntityRef = new EntityRef(toMove);
-        Rotation = rotation;
-    }
-
-    public EntityRotationPacket(Stream stream)
-    {
-        EntityRef = new EntityRef(stream);
-        Rotation = stream.ReadFloat();
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-
-        EntityRef.ToBytes(stream);
-        stream.WriteFloat(Rotation);
-    }
 }
 
 public class EntityBodyPartPacket : Packet
@@ -573,9 +480,9 @@ public class EntityBodyPartPacket : Packet
 
     public EntityBodyPartPacket(BodyPart part)
     {
-        if (part.Owner == null)
+        if (part.Creature == null)
             throw new ArgumentException("Part needs an owner for this packet. ", nameof(part));
-        CreatureRef = new CreatureRef(part.Owner);
+        CreatureRef = new CreatureRef(part.Creature);
         Part = part;
         Path = part.Path;
     }
@@ -626,18 +533,18 @@ public class EntityBodyPartInjuryPacket : Packet
 
     public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, InjuryPacketType type)
     {
-        if (part.Owner == null)
+        if (part.Creature == null)
             throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
-        CreatureRef = new CreatureRef(part.Owner);
+        CreatureRef = new CreatureRef(part.Creature);
         Path = part.Path;
         Injury = condition;
         Type = type;
     }
     public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, Injury old)
     {
-        if (part.Owner == null)
+        if (part.Creature == null)
             throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
-        CreatureRef = new CreatureRef(part.Owner);
+        CreatureRef = new CreatureRef(part.Creature);
         Path = part.Path;
         Injury = condition;
         OldInjury = old;
@@ -666,25 +573,26 @@ public class EntityBodyPartInjuryPacket : Packet
     }
 }
 
+//Maybe consider sepparating this into many smaller packets, so it doesn't need to send the entire stat with all modifiers
 public class StatHolderUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.STAT_UPDATE;
 
-    public StatHolderRef HolderRef;
+    public ComponentRef<StatsComponent> HolderRef;
     public List<Stat> Stats = new List<Stat>();
 
     // Create packet from a stat holder: sends all stats
-    public StatHolderUpdatePacket(IStatHolder holder)
+    public StatHolderUpdatePacket(StatsComponent stats)
     {
-        HolderRef = new StatHolderRef(holder);
-        foreach (var s in holder.Stats)
+        HolderRef = new ComponentRef<StatsComponent>(stats);
+        foreach (var s in stats.Stats)
             Stats.Add(s.Clone());
     }
 
     // Deserialize
     public StatHolderUpdatePacket(Stream stream)
     {
-        HolderRef = new StatHolderRef(stream);
+        HolderRef = new ComponentRef<StatsComponent>(stream);
         ushort statCount = stream.ReadUInt16();
         for (int i = 0; i < statCount; i++)
         {
@@ -715,17 +623,17 @@ public class FeatureUpdatePacket : Packet
 
     public override ProtocolId Id => ProtocolId.FEATURE_UPDATE;
     public FeatureUpdateType UpdateType;
-    public FeatureContainerRef SourceRef;
+    public EntityWith<FeaturesComponent> SourceRef;
     public string? FeatureId;
     public Feature? Feature;
-    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureContainerRef @ref, Feature feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, EntityWith<FeaturesComponent> @ref, Feature feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
         Feature = feature;
         FeatureId = feature?.GetId();
     }
-    private FeatureUpdatePacket(FeatureUpdateType updateType, FeatureContainerRef @ref, string feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, EntityWith<FeaturesComponent> @ref, string feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
@@ -734,7 +642,7 @@ public class FeatureUpdatePacket : Packet
     public FeatureUpdatePacket(Stream stream)
     {
         UpdateType = (FeatureUpdateType)stream.ReadByte();
-        SourceRef = new FeatureContainerRef(stream);
+        SourceRef = new EntityWith<FeaturesComponent>(stream);
         if (UpdateType == FeatureUpdateType.ADD)
             Feature = Feature.FromBytes(stream);
         else
@@ -752,51 +660,51 @@ public class FeatureUpdatePacket : Packet
             stream.WriteString(FeatureId);
     }
 
-    public static FeatureUpdatePacket Enable(IFeatureContainer entity, string id)
+    public static FeatureUpdatePacket Enable(EntityWith<FeaturesComponent> entity, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ENABLE,
-            new FeatureContainerRef(entity),
+            entity,
             id
         );
     }
-    public static FeatureUpdatePacket Enable(IFeatureContainer entity, Feature feature)
+    public static FeatureUpdatePacket Enable(EntityWith<FeaturesComponent> entity, Feature feature)
     {
         return Enable(entity, feature.GetId());
     }
-    public static FeatureUpdatePacket Disable(IFeatureContainer entity, string id)
+    public static FeatureUpdatePacket Disable(EntityWith<FeaturesComponent> entity, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.DISABLE,
-            new FeatureContainerRef(entity),
+            entity,
             id
         );
     }
-    public static FeatureUpdatePacket Disable(IFeatureContainer entity, Feature feature)
+    public static FeatureUpdatePacket Disable(EntityWith<FeaturesComponent> entity, Feature feature)
     {
         return Disable(entity, feature.GetId());
     }
-    public static FeatureUpdatePacket Add(IFeatureContainer entity, Feature feature)
+    public static FeatureUpdatePacket Add(EntityWith<FeaturesComponent> entity, Feature feature)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ADD,
-            new FeatureContainerRef(entity),
+            entity,
             feature
         );
     }
-    public static FeatureUpdatePacket Remove(Entity entity, string id)
+    public static FeatureUpdatePacket Remove(EntityWith<FeaturesComponent> entity, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.REMOVE,
-            new FeatureContainerRef(entity),
+            entity,
             id
         );
     }
-    public static FeatureUpdatePacket Remove(Entity entity, Feature feature)
+    public static FeatureUpdatePacket Remove(EntityWith<FeaturesComponent> entity, Feature feature)
     {
         return Remove(entity, feature.GetId());
     }
@@ -814,7 +722,7 @@ public class CreatureEquipItemPacket : Packet
     {
         if (!item.HasProperty<EquipmentProperty>())
             throw new ArgumentException("Item isn't an equipment!");
-        if (bp.Owner == null)
+        if (bp.Creature == null)
             throw new ArgumentException("Bodypart doesn't have an owner!");
         
         BPRef = new BodyPartRef(bp);
@@ -830,7 +738,7 @@ public class CreatureEquipItemPacket : Packet
             throw new ArgumentException("Item isn't an equipment!");
         if (!(item.Holder is BodyPart bp))
             throw new ArgumentException("Item isn't equipped by a BodyPart");
-        if (bp.Owner == null)
+        if (bp.Creature == null)
             throw new ArgumentException("Bodypart doesn't have an owner!");
         BPRef = new BodyPartRef(bp);
         ItemRef = new ItemRef(item);

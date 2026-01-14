@@ -19,7 +19,7 @@
             "name": "Launch Client",
             "type": "coreclr",
             "request": "launch",
-            "program": "C:\\\\Users\\theco\\Documents\\Godot\\Godot 4.exe",
+            "program": "C:\\Apps\\Godot\\Godot.exe",
             "cwd": "${workspaceFolder}/Client",
             "console": "internalConsole",
             "stopAtEntry": false,

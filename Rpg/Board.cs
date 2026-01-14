@@ -1,5 +1,6 @@
 using System.Numerics;
 using Rpg;
+using Rpg.Entities;
 using Rpg.Inventory;
 
 namespace Rpg;
@@ -36,10 +37,10 @@ public abstract class Board
 {
     public string Name = "";
     protected Floor[] floors = Array.Empty<Floor>();
-    protected List<Entity> entities = new();
-    private readonly Dictionary<int, Entity> entityCache = new();
-    private readonly Dictionary<EntityType, List<Entity>> entityCacheByType = new();
-    private readonly Dictionary<int, Item> itemCache = new();
+    protected readonly Dictionary<int, Entity> entityCache = new();
+    private readonly HashSet<int>[] entityIdsByComponentTypeId = Enumerable.Range(0, Component.ComponentCount)
+        .Select(_ => new HashSet<int>())
+        .ToArray();
     protected List<string> chatHistory = new();
     private readonly Dictionary<int, (uint Tick, Action Action)> queuedActions = new();
 
@@ -47,44 +48,89 @@ public abstract class Board
     public bool TurnMode = false;
     public uint CurrentTick = 0;
 
-    protected Board(){
-        foreach (EntityType type in Enum.GetValues<EntityType>())
-            entityCacheByType[type] = new List<Entity>();
+    protected Board()
+    {
 
+    }
 
-        //what the fuck is this shit
-        foreach (Entity ent in GetEntitiesByType(EntityType.Creature))
+    private void IndexEntity(Entity entity)
+    {
+        foreach (var component in entity.Components)
         {
-            RemoveEntity(ent);
+            uint typeId = Component.GetComponentId(component.GetType());
+            entityIdsByComponentTypeId[typeId].Add(entity.Id);
+        }
+    }
+
+    private void UnindexEntity(Entity entity)
+    {
+        foreach (var component in entity.Components)
+        {
+            uint typeId = Component.GetComponentId(component.GetType());
+            entityIdsByComponentTypeId[typeId].Remove(entity.Id);
+        }
+    }
+
+    internal void OnEntityComponentAdded(Entity entity, uint componentTypeId)
+    {
+        entityIdsByComponentTypeId[componentTypeId].Add(entity.Id);
+    }
+
+    internal void OnEntityComponentRemoved(Entity entity, uint componentTypeId)
+    {
+        entityIdsByComponentTypeId[componentTypeId].Remove(entity.Id);
+    }
+
+    public IEnumerable<Entity> GetEntitiesWithComponent(uint componentTypeId)
+    {
+        foreach (int id in entityIdsByComponentTypeId[componentTypeId])
+        {
+            if (entityCache.TryGetValue(id, out var entity))
+                yield return entity;
+        }
+    }
+    public IEnumerable<Entity> GetEntitiesWithComponent(uint componentTypeId, Predicate<Entity> predicate)
+    {
+        foreach (int id in entityIdsByComponentTypeId[componentTypeId])
+        {
+            if (entityCache.TryGetValue(id, out var entity) && predicate(entity))
+                yield return entity;
+        }
+    }
+
+    public IEnumerable<Entity> GetEntitiesWithComponent<TComponent>() where TComponent : Component
+    {
+        return GetEntitiesWithComponent(Component.GetComponentId<TComponent>());
+    }
+
+    public IEnumerable<TComponent> GetComponents<TComponent>() where TComponent : Component
+    {
+        uint typeId = Component.GetComponentId<TComponent>();
+        foreach (var entity in GetEntitiesWithComponent(typeId))
+        {
+            if (entity.GetComponent(typeId) is TComponent component)
+                yield return component;
+        }
+    }
+    public IEnumerable<TComponent> GetComponents<TComponent>(Predicate<TComponent> predicate) where TComponent : Component
+    {
+        uint typeId = Component.GetComponentId<TComponent>();
+        foreach (var entity in GetEntitiesWithComponent(typeId))
+        {
+            if (entity.GetComponent(typeId) is TComponent component && predicate(component))
+                yield return component;
         }
     }
 
     public virtual void AddEntity(Entity entity){
         if (entity.Board != null)
             entity.Board.RemoveEntity(entity);
-        entities.Add(entity);
         entityCache[entity.Id] = entity;
-        entityCacheByType[entity.GetEntityType()].Add(entity);
         entity.Board = this;
         if (entity.CreationTick == 0)
             entity.CreationTick = CurrentTick;
 
-        if (entity is IItemHolder ih)
-        {
-            CacheItems(ih);
-        }
-        return;
-
-        void CacheItems(IItemHolder holder)
-        {
-            foreach (Item item in holder.Items)
-            {
-                itemCache[item.Id] = item;
-                var ihp = item.GetProperty<ItemHolderProperty>();
-                if (ihp != null)
-                    CacheItems(ihp);
-            }
-        }
+        IndexEntity(entity);
     }
     
     public uint GetWhenToPause()
@@ -104,26 +150,10 @@ public abstract class Board
         PauseAt(uint.MaxValue);
     }
 
-    public List<Entity> GetEntities(){
-        return entities;
+    public IEnumerable<Entity> GetEntities(){
+        return entityCache.Values;
     }
 
-    public IEnumerable<Entity> GetEntitiesByType(EntityType type)
-    {
-        return entityCacheByType[type];
-    }
-    public List<T> GetEntities<T>() where T : Entity
-    {
-        List<T> ret = new();
-        foreach (Entity ent in entities)
-        {
-            if (ent is T sub)
-            {
-                ret.Add(sub);
-            }
-        }
-        return ret;
-    }
     public Entity? GetEntityById(int id){
         return entityCache.TryGetValue(id, out Entity? entity) ? entity : null;
     }
@@ -132,16 +162,12 @@ public abstract class Board
     {
         return GetEntityById(id) as T;
     }
-    public Item? GetItemById(int id)
+    public virtual List<CreatureComponent> GetCreaturesByOwner(string owner)
     {
-        return itemCache.TryGetValue(id, out Item? item) ? item : null;
-    }
-    public virtual List<Creature> GetCreaturesByOwner(string owner)
-    {
-        var creatures = new List<Creature>();
-        foreach (Entity entity in entities)
+        var creatures = new List<CreatureComponent>();
+        foreach (var creature in GetComponents<CreatureComponent>())
         {
-            if (entity is Creature creature && creature.Owner.Equals(owner))
+            if (creature.Owner == owner)
                 creatures.Add(creature);
         }
         return creatures;
@@ -149,26 +175,14 @@ public abstract class Board
     public virtual void RemoveEntity(Entity? entity){
         if (entity == null)
             return;
-        entities.Remove(entity);
-        entity.Board = null;
-        entity.ClearEvents();
-        if (entity is IItemHolder ih)
-            UncacheItems(ih);
-        return;
 
-        void UncacheItems(IItemHolder holder)
-        {
-            foreach (Item item in holder.Items)
-            {
-                itemCache.Remove(item.Id);
-                var ihp = item.GetProperty<ItemHolderProperty>();
-                if (ihp != null)
-                    UncacheItems(ihp);
-            }
-        }
+        UnindexEntity(entity);
+        entityCache.Remove(entity.Id);
+
+        entity.Board = null!;
     }
     public void RemoveEntity(int id){
-        RemoveEntity(entities.Find(e => e.Id == id));
+        RemoveEntity(GetEntityById(id));
     }
 
     public void AddFloor(Floor toAdd){
@@ -236,6 +250,10 @@ public abstract class Board
                 pair.Value.Action();
             queuedActions.Remove(pair.Key);
         }
+    }
+    public virtual void HandleEvent(ComponentEvent e)
+    {
+
     }
     public virtual void StartTurnMode()
     {

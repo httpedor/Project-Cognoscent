@@ -1,11 +1,13 @@
+using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Rpg.Entities;
 using Rpg.Inventory;
 
 namespace Rpg;
 
-public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamageable, IFeatureContainer, ITaggable, IStatHolder
+public partial class BodyPart : Component, ISerializable, IDamageable
 {
     public readonly struct BodyPartStat(float atFull, float atZero, StatModifierType op, bool sho, bool ato)
         : ISerializable
@@ -41,26 +43,16 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             return new StatModifier(name, RpgMath.Lerp(atZero, atFull, (float)hpPercentage), op);
         }
     }
-    
-    public event Action<BodyPart>? OnChildAdded;
-    public event Action<BodyPart>? OnChildRemoved;
-    public event Action<Injury>? OnInjuryAdded;
-    public event Action<Injury>? OnInjuryRemoved;
-    public event Action<Injury, Injury>? OnInjuryChanged;
-    public event Action<EquipmentProperty, string>? OnEquipped;
-    public event Action<EquipmentProperty>? OnUnequipped;
 
     /// <summary>
     /// The name of the body part. This must be unique within its parent.
     /// </summary>
     public readonly string Name;
-    string ISkillSource.Name => Name;
-    string IFeatureContainer.Name => Name;
 
     /// <summary>
     /// BBCode link to this body part
     /// </summary>
-    public string BBLink => Name + (Owner != null ? " de " + Owner.BBLink : "");
+    public string BBLink => Name + (Creature != null ? " de " + Creature.BBLink : "");
     /// <summary>
     /// The group this body part belongs to (e.g., "left arm", "right leg", "head").
     /// This is used to calculate stats and effects that apply to groups of body parts.
@@ -70,7 +62,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     /// <summary>
     /// The body this part belongs to.
     /// </summary>
-    public Body? Body
+    public BodyComponent? Body
     {
         get;
         internal set
@@ -83,9 +75,9 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
     /// <summary>
     /// The creature that owns this body part.
-    /// Shorthand for Body?.Owner
+    /// Shorthand for Body?.Creature
     /// </summary>
-    public Creature? Owner => Body?.Owner;
+    public CreatureComponent? Creature => Body?.Creature;
     /// <summary>
     /// The surface area of this body part relative to its parent.
     /// </summary>
@@ -112,9 +104,9 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
                     yield return t.feature;
             }
 
-            if (Owner != null)
+            if (Creature != null)
             {
-                foreach (var f in Owner.Features)
+                foreach (var f in Creature.Features)
                     yield return f;
             }
         }
@@ -272,7 +264,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             }
         }
     }
-    public Board? Board => Owner?.Board;
+    public Board? Board => Creature?.Board;
 
     public bool IsInternal => Is(BodyTags.Internal);
     public bool IsHard => Is(BodyTags.Hard);
@@ -303,7 +295,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             child.Parent = this;
         }
     }
-    public BodyPart(Stream stream, Body? body = null)
+    public BodyPart(Stream stream, BodyComponent? body = null)
     {
         Name = stream.ReadString();
         Group = stream.ReadString();
@@ -446,12 +438,12 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
     public void UpdateStatModifiers()
     {
 
-        if (Owner == null)
+        if (Creature == null)
             return;
 
     foreach (var entry in ProvidedStats)
         {
-            var stat = Owner.GetStat(entry.Key);
+            var stat = Creature.GetStat(entry.Key);
             if (stat == null)
                 continue;
             int i = 0;
@@ -466,12 +458,12 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
     public void RemoveStatModifiers()
     {
-        if (Owner == null)
+        if (Creature == null)
             return;
         
     foreach (var entry in ProvidedStats)
         {
-            var stat = Owner.GetStat(entry.Key);
+            var stat = Creature.GetStat(entry.Key);
             if (stat == null)
                 continue;
             int i = 0;
@@ -489,7 +481,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
         DamageType type = source.Type;
         List<StatModifier> dmgMods = [.. DamageModifiers.GetValueOrDefault(type, Array.Empty<StatModifier>())];
-        if (Owner != null)
+        if (Creature != null)
         {
             foreach (Feature feat in EnabledFeatures)
                 dmgMods.AddRange(feat.ModifyReceivingDamageModifiers(this, source, amount));
@@ -497,7 +489,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
 
         double damage = Stat.ApplyModifiers(dmgMods, (float)amount);
         string formula = damage.ToString("0.##") + " após modificadores";
-        if (Owner != null)
+        if (Creature != null)
         {
             foreach (Feature feat in EnabledFeatures)
             {
@@ -511,7 +503,7 @@ public partial class BodyPart : ISerializable, ISkillSource, IItemHolder, IDamag
             }
         }
         
-        Owner?.Log($"{BBLink} recebeu [hint={formula}]{damage}[/hint] de dano {type.BBHint}.");
+        Creature?.Log($"{BBLink} recebeu [hint={formula}]{damage}[/hint] de dano {type.BBHint}.");
         
         if (damage <= 0)
             return 0;
@@ -856,9 +848,9 @@ public class BodyPartRef(CreatureRef owner, string path) : ISerializable
     public readonly string Path = path;
     public BodyPart? BodyPart => field ??= Owner.Creature?.GetBodyPart(Path);
 
-    public BodyPartRef(BodyPart part) : this(new CreatureRef(part.Owner!), part.Path)
+    public BodyPartRef(BodyPart part) : this(new CreatureRef(part.Creature!), part.Path)
     {
-        if (part.Owner == null)
+        if (part.Creature == null)
             throw new ArgumentException("BodyPart's owner cannot be null when creating a BodyPartRef.");
     }
     public BodyPartRef(Stream stream) : this(new CreatureRef(stream), stream.ReadString())

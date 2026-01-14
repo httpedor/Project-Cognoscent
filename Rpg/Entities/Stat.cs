@@ -58,15 +58,6 @@ public struct StatModifier : ISerializable
 
 public class Stat : ISerializable
 {
-    public event Action<float, float>? ValueChanged;
-    public event Action<float, float>? BaseValueChanged;
-    public event Action<StatModifier>? ModifierAdded;
-    public event Action<StatModifier>? ModifierUpdated;
-    public event Action<StatModifier>? ModifierRemoved;
-    public event Action<float, float>? MinValueChanged;
-    public event Action<float, float>? MaxValueChanged;
-
-    public IStatHolder? Holder;
 
     public string Id { get; }
     public string Name;
@@ -87,7 +78,6 @@ public class Stat : ISerializable
                 baseValue = Math.Max(baseValue, minValue);
             if (old == value)
                 return;
-            MinValueChanged?.Invoke(minValue, old);
             CalculateFinalValue();
         }
     }
@@ -105,7 +95,6 @@ public class Stat : ISerializable
                 baseValue = Math.Min(baseValue, maxValue);
             if (old == value)
                 return;
-            MaxValueChanged?.Invoke(maxValue, old);
             CalculateFinalValue();
         }
     }
@@ -133,7 +122,6 @@ public class Stat : ISerializable
                 baseValue = Math.Max(baseValue, MinValue);
             if (old == value)
                 return;
-            BaseValueChanged?.Invoke(baseValue, old);
             CalculateFinalValue();
         }
     }
@@ -184,7 +172,6 @@ public class Stat : ISerializable
         
         var mod = modifiers[id];
         modifiers.Remove(id);
-        ModifierRemoved?.Invoke(mod);
         CalculateFinalValue();
     }
     public void RemoveModifier(StatModifier modifier)
@@ -194,12 +181,8 @@ public class Stat : ISerializable
 
     public void SetModifier(StatModifier modifier)
     {
-        bool wasThere = modifiers.ContainsKey(modifier.Id);
         modifiers[modifier.Id] = modifier;
         CalculateFinalValue();
-        ModifierUpdated?.Invoke(modifier);
-        if (!wasThere)
-            ModifierAdded?.Invoke(modifier);
     }
     public void SetModifier(string id, float value, StatModifierType type)
     {
@@ -219,7 +202,6 @@ public class Stat : ISerializable
         float old = finalValue;
         float newBase = baseValue;
         finalValue = ApplyModifiers(modifiers.Values, newBase, MinValue, MaxValue, OverCap, UnderCap);
-        ValueChanged?.Invoke(old, finalValue);
     }
 
     public void ToBytes(Stream stream)
@@ -237,17 +219,6 @@ public class Stat : ISerializable
         stream.WriteByte((byte)modifiers.Count);
         foreach (StatModifier modifier in modifiers.Values)
             modifier.ToBytes(stream);
-    }
-
-    public virtual void ClearEvents()
-    {
-        ValueChanged = null;
-        BaseValueChanged = null;
-        ModifierAdded = null;
-        ModifierUpdated = null;
-        ModifierRemoved = null;
-        MinValueChanged = null;
-        MaxValueChanged = null;
     }
 
     public IEnumerable<StatModifier> GetModifiers()

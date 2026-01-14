@@ -1,5 +1,6 @@
 using System.Numerics;
 using Rpg;
+using Rpg.Entities;
 
 namespace Server.Game;
 
@@ -39,7 +40,7 @@ public class ServerFloor : Floor, ISerializable
 {
     public AreaTrigger[] Triggers = Array.Empty<AreaTrigger>();
     private List<Line>[,] collisionGrid = new List<Line>[0, 0];
-    private List<Entity>[,] entityCollisionGrid = new List<Entity>[0, 0];
+    private List<TokenComponent>[,] entityCollisionGrid = new List<TokenComponent>[0, 0];
     private List<AreaTrigger>[,] triggerGrid = new List<AreaTrigger>[0, 0];
     
     public void UpdateCollisionGrid()
@@ -100,7 +101,7 @@ public class ServerFloor : Floor, ISerializable
         }
     }
 
-    public void UpdateEntityCollisionGrid(Entity entity)
+    public void UpdateEntityCollisionGrid(TokenComponent entity)
     {
         var obb = entity.Hitbox;
         var corners = obb.Corners;

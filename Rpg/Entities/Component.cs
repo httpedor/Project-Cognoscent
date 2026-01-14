@@ -1,0 +1,153 @@
+using System;
+using System.Text.Json.Serialization;
+
+namespace Rpg.Entities;
+
+public abstract class ComponentEvent
+{
+    public Component Component;
+    public ComponentEvent(Component component) {
+        Component = component;
+    }
+}
+public interface ComponentEventHandler<T> where T : ComponentEvent
+{
+    void HandleEvent(T componentEvent);
+}
+public class ComponentRef<T> where T : Component {
+    public uint ComponentTypeId;
+    public EntityRef EntityRef;
+    public T? Component => (T?)(EntityRef.Entity?.GetComponent(ComponentTypeId));
+
+    public ComponentRef(Entity entity, uint componentTypeId)
+    {
+        EntityRef = new EntityRef(entity);
+        ComponentTypeId = componentTypeId;
+    }
+    public ComponentRef(T component)
+    {
+        ComponentTypeId = Entities.Component.GetComponentId(typeof(T));
+        EntityRef = new EntityRef(component.Entity);
+    }
+    public ComponentRef(Stream stream)
+    {
+        ComponentTypeId = stream.ReadUInt32();
+        EntityRef = new EntityRef(stream);
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteUInt32(ComponentTypeId);
+        EntityRef.ToBytes(stream);
+    }
+}
+public class GenericComponentRef {
+    public uint ComponentTypeId;
+    public EntityRef EntityRef;
+    public Component? Component => EntityRef.Entity?.GetComponent(ComponentTypeId);
+
+    public GenericComponentRef(Entity entity, uint componentTypeId)
+    {
+        EntityRef = new EntityRef(entity);
+        ComponentTypeId = componentTypeId;
+    }
+    public GenericComponentRef(Component component)
+    {
+        ComponentTypeId = Entities.Component.GetComponentId(component.GetType());
+        EntityRef = new EntityRef(component.Entity);
+    }
+}
+public abstract partial class Component : ISerializable
+{
+    public readonly struct ComponentDependency(uint componentTypeId, Action<Component, Component> assign)
+    {
+        public readonly uint ComponentTypeId = componentTypeId;
+        public readonly Action<Component, Component> Assign = assign;
+    }
+
+    public required Entity Entity;
+
+    [JsonIgnore]
+    public Board? Board => Entity.Board;
+
+    public Component()
+    {
+
+    }
+    public Component(Stream stream)
+    {
+
+    }
+
+    public virtual ComponentDependency[] RequiredComponentDependencies => Array.Empty<ComponentDependency>();
+    public virtual ComponentDependency[] OptionalComponentDependencies => Array.Empty<ComponentDependency>();
+
+    public virtual bool CanBeAddedTo(Entity entity)
+    {
+        return true;
+    }
+    public virtual void OnInit(Entity entity)
+    {
+    }
+    public virtual void OnAddedTo(Entity entity)
+    {
+    }
+    public virtual void OnRemovedFrom(Entity entity)
+    {
+    }
+
+    public virtual void OnComponentAdded(Entity entity, Component component)
+    {
+    }
+    public virtual void OnComponentRemoved(Entity entity, Component component)
+    {
+    }
+
+    public virtual void Destroy()
+    {
+        Entity.RemoveComponent(Component.GetComponentId(GetType()));
+    }
+
+    public virtual void ToBytes(Stream stream)
+    {
+        stream.WriteUInt32(_componentTypeIds[GetType()]);
+    }
+
+    public static Component FromBytes(Stream stream)
+    {
+        uint id = stream.ReadUInt32();
+
+        if (!_componentTypesById.TryGetValue(id, out var type))
+        {
+            throw new InvalidOperationException($"Unknown component type with ID {id}");
+        }
+        var component = (Component)Activator.CreateInstance(type, [stream])!;
+        return component;
+    }
+    public static void AssignDependencies(Entity entity, Component component)
+    {
+        foreach (var dep in component.RequiredComponentDependencies)
+        {
+            var depComponent = entity.GetComponent(dep.ComponentTypeId)
+                ?? throw new InvalidOperationException($"Entity {entity.Id} is missing required component of type ID {dep.ComponentTypeId} for component of type {component.GetType().Name}");
+            dep.Assign(component, depComponent);
+        }
+        foreach (var dep in component.OptionalComponentDependencies)
+        {
+            var depComponent = entity.GetComponent(dep.ComponentTypeId);
+            if (depComponent != null)
+            {
+                dep.Assign(component, depComponent);
+            }
+        }
+    }
+    public static uint GetComponentId<T>() where T : Component
+    {
+        return _componentTypeIds[typeof(T)];
+    }
+    public static uint GetComponentId(Type type)
+    {
+        return _componentTypeIds[type];
+    }
+    public static int ComponentCount => _componentTypesById.Count;
+}

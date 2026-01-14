@@ -105,12 +105,12 @@ public class EquipmentProperty : ItemProperty, ISkillSource
         EquippedPart = equippedPart;
         Item.Holder = equippedPart;
 
-        if (equippedPart.Owner == null)
+        if (equippedPart.Creature == null)
             return;
         
         foreach (var entry in StatModifiers)
         {
-            var stat = equippedPart.Owner.GetStat(entry.Key);
+            var stat = equippedPart.Creature.GetStat(entry.Key);
             if (stat == null)
                 continue;
             foreach (StatModifier mod in entry.Value)
@@ -119,17 +119,17 @@ public class EquipmentProperty : ItemProperty, ISkillSource
 
         foreach (Feature feat in Features)
         {
-            equippedPart.Owner.AddFeature(feat);
+            equippedPart.Creature.AddFeature(feat);
         }
     }
     public virtual void OnUnequip()
     {
-        if (EquippedPart?.Owner == null)
+        if (EquippedPart?.Creature == null)
             return;
         
         foreach (var entry in StatModifiers)
         {
-            var stat = EquippedPart.Owner.GetStat(entry.Key);
+            var stat = EquippedPart.Creature.GetStat(entry.Key);
             if (stat == null)
                 continue;
             foreach (StatModifier mod in entry.Value)
@@ -138,7 +138,7 @@ public class EquipmentProperty : ItemProperty, ISkillSource
 
         foreach (Feature feat in Features)
         {
-            EquippedPart.Owner.RemoveFeature(feat);
+            EquippedPart.Creature.RemoveFeature(feat);
         }
         
         EquippedPart = null;

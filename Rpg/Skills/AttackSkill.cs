@@ -138,8 +138,8 @@ public abstract class AttackSkill : Skill
         Vector3 targetPos;
         if (target is Entity ent)
             targetPos = ent.Position;
-        else if (target is BodyPart { Owner: not null } bp)
-            targetPos = bp.Owner.Position;
+        else if (target is BodyPart { Creature: not null } bp)
+            targetPos = bp.Creature.Position;
         else
             return false;
         float range = GetRange(executor, source);

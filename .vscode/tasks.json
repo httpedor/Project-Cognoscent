@@ -8,21 +8,19 @@
 			"args": [
 				"build",
 				"${workspaceFolder}/TTRpgClient.sln",
-				"/property:GenerateFullPaths=true",
-				"/consoleloggerparameters:NoSummary;ForceNoAlign"
+				"/property:GenerateFullPaths=false"
 			],
 			"problemMatcher": "$msCompile"
 		},
 		{
-			"label": "build (skip tsgen)",
+			"label": "build (tsgen)",
 			"command": "dotnet",
 			"type": "process",
 			"args": [
 				"build",
 				"${workspaceFolder}/TTRpgClient.sln",
-				"/p:GenerateTsPackets=false",
-				"/property:GenerateFullPaths=true",
-				"/consoleloggerparameters:NoSummary;ForceNoAlign"
+				"/p:GenerateTsPackets=true",
+				"/property:GenerateFullPaths=true"
 			],
 			"problemMatcher": "$msCompile",
 			"group": "build"
@@ -38,27 +36,6 @@
 				"${workspaceFolder}/TTRpgClient.sln"
 			],
 			"problemMatcher": "$msCompile"
-		},
-		{
-			"type": "dotnet",
-			"task": "build",
-			"group": "build",
-			"problemMatcher": [],
-			"label": "dotnet: build"
-		},
-		{
-			"label": "build with tsgen",
-			"type": "shell",
-			"command": "dotnet",
-			"args": [
-				"build",
-				"c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\TTRpgClient.sln"
-			],
-			"isBackground": false,
-			"problemMatcher": [
-				"$msCompile"
-			],
-			"group": "build"
 		},
 		{
 			"label": "tsgen",
