@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Rpg;
 using Rpg.Entities;
+using Rpg.Features;
 using Rpg.Inventory;
 // ReSharper disable UnusedMember.Global
 
@@ -30,8 +31,8 @@ public enum ProtocolId
     STAT_UPDATE,
     FEATURE_UPDATE,
     CREATURE_EQUIP_ITEM,
-    CREATURE_SKILL_UPDATE,
-    CREATURE_SKILL_REMOVE,
+    SKILL_UPDATE,
+    SKILL_REMOVE,
     CREATURE_ACTION_LAYER_UPDATE,
     CREATURE_ACTION_LAYER_REMOVE,
     CREATURE_SKILLTREE_UPDATE,
@@ -623,17 +624,17 @@ public class FeatureUpdatePacket : Packet
 
     public override ProtocolId Id => ProtocolId.FEATURE_UPDATE;
     public FeatureUpdateType UpdateType;
-    public EntityWith<FeaturesComponent> SourceRef;
+    public ComponentRef<FeaturesComponent> SourceRef;
     public string? FeatureId;
     public Feature? Feature;
-    private FeatureUpdatePacket(FeatureUpdateType updateType, EntityWith<FeaturesComponent> @ref, Feature feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesComponent> @ref, Feature feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
         Feature = feature;
         FeatureId = feature?.GetId();
     }
-    private FeatureUpdatePacket(FeatureUpdateType updateType, EntityWith<FeaturesComponent> @ref, string feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesComponent> @ref, string feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
@@ -642,7 +643,7 @@ public class FeatureUpdatePacket : Packet
     public FeatureUpdatePacket(Stream stream)
     {
         UpdateType = (FeatureUpdateType)stream.ReadByte();
-        SourceRef = new EntityWith<FeaturesComponent>(stream);
+        SourceRef = new ComponentRef<FeaturesComponent>(stream);
         if (UpdateType == FeatureUpdateType.ADD)
             Feature = Feature.FromBytes(stream);
         else
@@ -660,53 +661,53 @@ public class FeatureUpdatePacket : Packet
             stream.WriteString(FeatureId);
     }
 
-    public static FeatureUpdatePacket Enable(EntityWith<FeaturesComponent> entity, string id)
+    public static FeatureUpdatePacket Enable(FeaturesComponent component, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ENABLE,
-            entity,
+            new ComponentRef<FeaturesComponent>(component),
             id
         );
     }
-    public static FeatureUpdatePacket Enable(EntityWith<FeaturesComponent> entity, Feature feature)
+    public static FeatureUpdatePacket Enable(FeaturesComponent component, Feature feature)
     {
-        return Enable(entity, feature.GetId());
+        return Enable(component, feature.GetId());
     }
-    public static FeatureUpdatePacket Disable(EntityWith<FeaturesComponent> entity, string id)
+    public static FeatureUpdatePacket Disable(FeaturesComponent component, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.DISABLE,
-            entity,
+            new ComponentRef<FeaturesComponent>(component),
             id
         );
     }
-    public static FeatureUpdatePacket Disable(EntityWith<FeaturesComponent> entity, Feature feature)
+    public static FeatureUpdatePacket Disable(FeaturesComponent component, Feature feature)
     {
-        return Disable(entity, feature.GetId());
+        return Disable(component, feature.GetId());
     }
-    public static FeatureUpdatePacket Add(EntityWith<FeaturesComponent> entity, Feature feature)
+    public static FeatureUpdatePacket Add(FeaturesComponent component, Feature feature)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ADD,
-            entity,
+            new ComponentRef<FeaturesComponent>(component),
             feature
         );
     }
-    public static FeatureUpdatePacket Remove(EntityWith<FeaturesComponent> entity, string id)
+    public static FeatureUpdatePacket Remove(FeaturesComponent component, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.REMOVE,
-            entity,
+            new ComponentRef<FeaturesComponent>(component),
             id
         );
     }
-    public static FeatureUpdatePacket Remove(EntityWith<FeaturesComponent> entity, Feature feature)
+    public static FeatureUpdatePacket Remove(FeaturesComponent component, Feature feature)
     {
-        return Remove(entity, feature.GetId());
+        return Remove(component, feature.GetId());
     }
 }
 
@@ -767,51 +768,51 @@ public class CreatureEquipItemPacket : Packet
 
 }
 
-public class CreatureSkillUpdatePacket : Packet
+public class SkillUpdatePacket : Packet
 {
-    public override ProtocolId Id => ProtocolId.CREATURE_SKILL_UPDATE;
-    public CreatureRef CreatureRef;
+    public override ProtocolId Id => ProtocolId.SKILL_UPDATE;
+    public ComponentRef<SkillExecutorComponent> Ref;
     public readonly SkillData Data;
 
-    public CreatureSkillUpdatePacket(Creature entity, SkillData skill)
+    public SkillUpdatePacket(SkillExecutorComponent executor, SkillData skill)
     {
-        CreatureRef = new CreatureRef(entity);
+        Ref = new ComponentRef<SkillExecutorComponent>(executor);
         Data = skill;
     }
 
-    public CreatureSkillUpdatePacket(Stream stream)
+    public SkillUpdatePacket(Stream stream)
     {
-        CreatureRef = new CreatureRef(stream);
+        Ref = new ComponentRef<SkillExecutorComponent>(stream);
         Data = new SkillData(stream);
     }
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        CreatureRef.ToBytes(stream);
+        Ref.ToBytes(stream);
         Data.ToBytes(stream);
     }
 }
-public class CreatureSkillRemovePacket : Packet
+public class SkillRemovePacket : Packet
 {
-    public override ProtocolId Id => ProtocolId.CREATURE_SKILL_REMOVE;
-    public CreatureRef CreatureRef;
+    public override ProtocolId Id => ProtocolId.SKILL_REMOVE;
+    public ComponentRef<SkillExecutorComponent> Ref;
     public readonly int SkillId;
 
-    public CreatureSkillRemovePacket(Creature creature, int id)
+    public SkillRemovePacket(SkillExecutorComponent executor, int id)
     {
-        CreatureRef = new CreatureRef(creature);
+        Ref = new ComponentRef<SkillExecutorComponent>(executor);
         SkillId = id;
     }
-    public CreatureSkillRemovePacket(Stream stream)
+    public SkillRemovePacket(Stream stream)
     {
-        CreatureRef = new CreatureRef(stream);
+        Ref = new ComponentRef<SkillExecutorComponent>(stream);
         SkillId = stream.ReadInt32();
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        CreatureRef.ToBytes(stream);
+        Ref.ToBytes(stream);
         stream.WriteInt32(SkillId);
     }
 }
@@ -819,48 +820,48 @@ public class CreatureSkillRemovePacket : Packet
 public class ActionLayerUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_ACTION_LAYER_UPDATE;
-    public CreatureRef CreatureRef;
+    public ComponentRef<SkillExecutorComponent> Ref;
     public readonly ActionLayer Layer;
 
-    public ActionLayerUpdatePacket(Creature entity, ActionLayer layer)
+    public ActionLayerUpdatePacket(SkillExecutorComponent executor, ActionLayer layer)
     {
-        CreatureRef = new CreatureRef(entity);
+        Ref = new ComponentRef<SkillExecutorComponent>(executor);
         Layer = layer;
     }
 
     public ActionLayerUpdatePacket(Stream stream)
     {
-        CreatureRef = new CreatureRef(stream);
+        Ref = new ComponentRef<SkillExecutorComponent>(stream);
         Layer = new ActionLayer(stream);
     }
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        CreatureRef.ToBytes(stream);
+        Ref.ToBytes(stream);
         Layer.ToBytes(stream);
     }
 }
 public class ActionLayerRemovePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_ACTION_LAYER_REMOVE;
-    public CreatureRef CreatureRef;
+    public ComponentRef<SkillExecutorComponent> Ref;
     public readonly string LayerId;
 
-    public ActionLayerRemovePacket(Creature entity, string id)
+    public ActionLayerRemovePacket(SkillExecutorComponent executor, string id)
     {
-        CreatureRef = new CreatureRef(entity);
+        Ref = new ComponentRef<SkillExecutorComponent>(executor);
         LayerId = id;
     }
     public ActionLayerRemovePacket(Stream stream)
     {
-        CreatureRef = new CreatureRef(stream);
+        Ref = new ComponentRef<SkillExecutorComponent>(stream);
         LayerId = stream.ReadString();
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        CreatureRef.ToBytes(stream);
+        Ref.ToBytes(stream);
         stream.WriteString(LayerId);
     }
 }

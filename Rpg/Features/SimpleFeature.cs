@@ -1,4 +1,6 @@
-﻿namespace Rpg;
+﻿using Rpg.Entities;
+
+namespace Rpg.Features;
 
 public class SimpleFeature : Feature
 {

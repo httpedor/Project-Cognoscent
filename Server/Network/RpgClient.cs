@@ -244,10 +244,6 @@ public class RpgClient
 				if (part == null)
 					break;
 
-				if (ebpcp.Remove)
-					part.RemoveInjury(ebpcp.Injury);
-				else
-					part.AddInjury(ebpcp.Injury);
                 break;
             }
             case ProtocolId.ENTITY_CREATE:
@@ -290,10 +286,10 @@ public class RpgClient
                     bp.RemoveItem(item);
                 break;
             }
-            case ProtocolId.CREATURE_SKILL_UPDATE:
+            case ProtocolId.SKILL_UPDATE:
             {
-                var csu = (CreatureSkillUpdatePacket)packet;
-                Creature? creature = csu.CreatureRef.Creature;
+                var csu = (SkillUpdatePacket)packet;
+                Creature? creature = csu.Ref.Creature;
                 if (creature == null || (creature.Owner != Username && !IsGm))
                     return;
                 
@@ -311,9 +307,9 @@ public class RpgClient
                 }
                 break;
             }
-            case ProtocolId.CREATURE_SKILL_REMOVE:
+            case ProtocolId.SKILL_REMOVE:
             {
-                var csr = (CreatureSkillRemovePacket)packet;
+                var csr = (SkillRemovePacket)packet;
                 Creature? creature = csr.CreatureRef.Creature;
                 if (creature == null)
                     break;

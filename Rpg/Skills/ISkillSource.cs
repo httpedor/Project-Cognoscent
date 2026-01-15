@@ -54,14 +54,3 @@ public class SkillSourceRef
         }
     }
 }
-
-public interface ISkillSource
-{
-    public IEnumerable<Skill> Skills {
-        get;
-    }
-
-    public string Name {
-        get;
-    }
-}

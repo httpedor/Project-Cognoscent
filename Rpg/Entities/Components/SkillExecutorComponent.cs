@@ -1,7 +1,90 @@
+using Rpg.Features;
+
 namespace Rpg.Entities;
 
+public class ActionLayer(string name, string id, uint startTick, uint delay, uint duration, uint cooldown, float concentration, bool cancelable = true) : ISerializable
+{
+    public string Name = name;
+    public string Id = id;
+    public uint StartTick = startTick;
+    public uint Delay = delay;
+    public uint Duration = duration;
+    public uint Cooldown = cooldown;
+    public bool Cancelable = cancelable;
+
+    public float Concentration = concentration;
+    
+    public uint ExecutionStartTick => StartTick + Delay + 1;
+    public uint ExecutionEndTick => ExecutionStartTick + Duration;
+    public uint EndTick => StartTick + Delay + Duration + Cooldown;
+
+    public ActionLayer(Stream stream) : this(
+        stream.ReadString(),
+        stream.ReadString(),
+        stream.ReadUInt32(),
+        stream.ReadUInt32(),
+        stream.ReadUInt32(),
+        stream.ReadUInt32(),
+        stream.ReadFloat(),
+        stream.ReadByte() != 0
+        )
+    {
+        
+    }
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteString(Name);
+        stream.WriteString(Id);
+        stream.WriteUInt32(StartTick);
+        stream.WriteUInt32(Delay);
+        stream.WriteUInt32(Duration);
+        stream.WriteUInt32(Cooldown);
+        stream.WriteFloat(Concentration);
+        stream.WriteByte((byte)(Cancelable ? 1 : 0));
+    }
+}
+public class ActionLayerChangedEvent : ComponentEvent
+{
+    public ActionLayer Layer;
+    public ActionLayerChangedEvent(Component component, ActionLayer layer) : base(component)
+    {
+        Layer = layer;
+    }
+}
+public class ActionLayerRemovedEvent : ComponentEvent
+{
+    public string LayerName;
+    public ActionLayerRemovedEvent(Component component, string layerName) : base(component)
+    {
+        LayerName = layerName;
+    }
+}
+public class SkillStartEvent : ComponentEvent
+{
+    public SkillData SkillData;
+    public SkillStartEvent(Component component, SkillData skillData) : base(component)
+    {
+        SkillData = skillData;
+    }
+}
+public class SkillCancelEvent : ComponentEvent
+{
+    public SkillData SkillData;
+    public bool Interrupted;
+    public SkillCancelEvent(Component component, SkillData skillData, bool interrupted) : base(component)
+    {
+        SkillData = skillData;
+        Interrupted = interrupted;
+    }
+}
 public partial class SkillExecutorComponent : Component
 {
+    [RequiredComponent(typeof(StatsComponent))]
+    private StatsComponent stats;
+    private readonly Dictionary<string, ActionLayer> actionLayers = new();
+    public IEnumerable<string> ActiveActionLayers => actionLayers.Keys;
+    public readonly Dictionary<int, SkillData> ActiveSkills = new();
+
     public ActionLayer? GetActionLayer(string layer)
     {
         return actionLayers!.GetValueOrDefault(layer, null);
@@ -20,14 +103,14 @@ public partial class SkillExecutorComponent : Component
         if (!CanUseActionLayer(layer.Name))
             return;
         actionLayers[layer.Name] = layer;
-        ActionLayerChanged?.Invoke(layer);
+        Entity.DispatchEvent(new ActionLayerChangedEvent(this, layer));
     }
     
     public void CancelActionLayer(string layer)
     {
         if (!actionLayers.Remove(layer, out ActionLayer? al))
             return;
-        ActionLayerRemoved?.Invoke(layer);
+        Entity.DispatchEvent(new ActionLayerRemovedEvent(this, layer));
     }
 
     public void UpdateActionLayer(ActionLayer layer)
@@ -36,49 +119,58 @@ public partial class SkillExecutorComponent : Component
             return;
         actionLayers[layer.Name] = layer;
     }
-    public bool CanExecuteSkill(Skill skill, ISkillSource source)
+    public bool CanExecuteSkill(Skill skill)
     {
-        if (!skill.CanBeUsed(this, source))
+        if (!skill.CanBeUsed(this))
             return false;
-        return skill.GetLayers(this, source).All(CanUseActionLayer);
+        return skill.GetLayers(this).All(CanUseActionLayer);
     }
 
-    public void ExecuteSkill(Skill skill, List<SkillArgument> args, ISkillSource source)
+    public void ExecuteSkill(Skill skill, List<SkillArgument> args)
     {
         if (!skill.ValidateArguments(args))
             throw new ArgumentException("Invalid arguments for skill " + skill.GetName());
-        if (!CanExecuteSkill(skill, source))
-            return;
-        foreach (Feature feature in Features)
+        if (Board == null)
         {
-            (bool, string?) result = feature.DoesExecuteSkill(this, skill, args);
-            if (result.Item1) continue;
-            
-            if (result.Item2 != null)
-                Log("Não é possível executar" + skill.BBHint + " porquê " + result.Item2);
+            Entity.Log(this, "Cannot execute skill when not in a board.", LogLevel.Error);
             return;
         }
+        if (!CanExecuteSkill(skill))
+            return;
+        var cFeatures = Entity.Features;
+        if (cFeatures != null)
+        {
+            foreach (Feature feature in cFeatures.EnabledFeatures)
+            {
+                (bool, string?) result = feature.DoesExecuteSkill(this, skill, args);
+                if (result.Item1) continue;
+                
+                if (result.Item2 != null)
+                    Entity.Log("Não é possível executar" + skill.BBHint + " porquê " + result.Item2);
+                return;
+            }
+        }
 
-        if (!Board.TurnMode && skill.IsCombatSkill(this, args, source))
+        if (!Board.TurnMode && skill.IsCombatSkill(this, args))
         {
             Board.StartTurnMode();
         }
-        var data = new SkillData(skill, args, source, skill.GetLayers(this, source));
+        var data = new SkillData(skill, args, skill.GetLayers(this));
 
         foreach (string layer in data.Layers)
         {
             ActiveSkills[data.Id] = data;
-            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, Math.Max(skill.GetDelay(this, args, source), 0), Math.Max(skill.GetDuration(this, args, source), 0), Math.Max(skill.GetCooldown(this, args, source), 0), 100, skill.CanCancel(this, args, source)));
+            TriggerActionLayer(new ActionLayer(layer, data.Id.ToString(), Board.CurrentTick, Math.Max(skill.GetDelay(this, args), 0), Math.Max(skill.GetDuration(this, args), 0), Math.Max(skill.GetCooldown(this, args), 0), 100, skill.CanCancel(this, args)));
         }
-        skill.Start(this, args, source);
-        OnSkillStart?.Invoke(data);
+        skill.Start(this, args);
+        Entity.DispatchEvent(new SkillStartEvent(this, data));
     }
     public void CancelSkill(int id, bool interrupted = false)
     {
         if (!ActiveSkills.Remove(id, out SkillData? skill))
             return;
-        skill.Skill.Cancel(this, skill.Arguments, skill.Source.SkillSource!, interrupted);
-        OnSkillCancel?.Invoke(skill);
+        skill.Skill.Cancel(this, skill.Arguments, interrupted);
+        Entity.DispatchEvent(new SkillCancelEvent(this, skill, interrupted));
         
         foreach (string layer in skill.Layers)
         {

@@ -36,55 +36,6 @@ public readonly struct EntityRef(string board, int id) : ISerializable
     }
 }
 
-public class EntityWith<T> : ISerializable where T : Component
-{
-    public EntityRef Entity;
-    public T Component;
-
-    public EntityWith(Entity entity)
-    {
-        Entity = new EntityRef(entity);
-        if (entity.TryGetComponent<T>(out var component))
-            Component = component;
-        else
-            throw new InvalidOperationException($"Entity {entity.Id} does not have component of type {typeof(T).Name}");
-    }
-    public EntityWith(T component)
-    {
-        Entity = new EntityRef(component.Entity);
-        Component = component;
-    }
-    public EntityWith(Stream stream)
-    {
-        Entity = new EntityRef(stream);
-        if (Entity.Entity == null)
-            throw new InvalidDataException($"The entity id {Entity.Id} is invalid for board {Entity.Board}");
-
-        uint id = stream.ReadUInt32();
-        Component = (T)Entity.Entity.GetComponent(id)!;
-        if (Component == null)
-            throw new InvalidDataException($"The entity {Entity.Entity.Id}({Entity.Board}) does not have the component {id}");
-    }
-    public void ToBytes(Stream stream)
-    {
-        Entity.ToBytes(stream);
-        stream.WriteUInt32(Rpg.Entities.Component.GetComponentId(typeof(T)));
-    }
-
-    public static implicit operator EntityRef(EntityWith<T> entityWith)
-    {
-        return entityWith.Entity;
-    }
-    public static implicit operator T(EntityWith<T> entityWith)
-    {
-        return entityWith.Component;
-    }
-    public static implicit operator Entity?(EntityWith<T> entityWith)
-    {
-        return entityWith.Entity.Entity;
-    }
-}
-
 public partial class Entity : ISerializable
 {
     private readonly Component?[] componentArray = new Component[Component.ComponentCount];
@@ -102,6 +53,8 @@ public partial class Entity : ISerializable
     [JsonIgnore]
     public uint ExistanceTicks => Board.CurrentTick - CreationTick;
 
+    public Logger Logger;
+
     public Board Board { get; set; }
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
@@ -109,6 +62,7 @@ public partial class Entity : ISerializable
     {
         Id = new Random().Next();
         Name = "Entity" + Id;
+        Logger = new Logger(Name);
     }
 
     public Entity(Stream stream)
@@ -126,6 +80,7 @@ public partial class Entity : ISerializable
                 nonNullComponents.AddLast(component);
             }
         }
+        Logger = new Logger(stream);
     }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
@@ -246,7 +201,6 @@ public partial class Entity : ISerializable
     {
         return componentArray[typeId];
     }
-    [Obsolete("Use GetComponent(uint typeId) instead. It's more efficient.")]
     public T? GetComponent<T>() where T : Component
     {
         return (T?)componentArray[Component.GetComponentId<T>()];
@@ -275,6 +229,15 @@ public partial class Entity : ISerializable
         return false;
     }
 
+    public void Log(string message, LogLevel level = LogLevel.Info, ConsoleColor? color = null)
+    {
+        Logger.Log(message, level, color);
+    }
+    public void Log(Component component, string message, LogLevel level = LogLevel.Info)
+    {
+        Logger.Log($"[{component.GetType().Name}] {message}", level);
+    }
+
     public void DispatchEvent(ComponentEvent componentEvent)
     {
         eventBus.AddLast(componentEvent);
@@ -299,5 +262,6 @@ public partial class Entity : ISerializable
             stream.WriteBoolean(component is not null);
             component?.ToBytes(stream);
         }
+        Logger.ToBytes(stream);
     }
 }

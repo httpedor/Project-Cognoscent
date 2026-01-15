@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -315,13 +316,13 @@ public static class Modal
                 {
                     AllowReselect = true
                 };
-                ob.ItemSelected += id => callback(DamageType.FromId((byte)id));
+                ob.ItemSelected += id => callback(Compendium.GetEntries<DamageType>().First());
                 
-                var values = DamageType.All;
+                var values = Compendium.GetEntries<DamageType>();
                 int j = 0;
                 foreach (var dtVal in values)
                 {
-                    ob.AddItem(dtVal.Name, dtVal.Id);
+                    ob.AddItem(dtVal.Name);
                     if (dtVal == dt)
                         ob.Select(j);
                     j++;

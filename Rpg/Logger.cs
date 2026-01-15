@@ -7,7 +7,7 @@ public enum LogLevel
     Error
 }
 
-public class Logger
+public class Logger : ISerializable
 {
     public struct LogMessage
     {
@@ -37,6 +37,26 @@ public class Logger
     {
         this.maxLogs = maxLogs;
         Name = name;
+    }
+    public Logger(Stream stream)
+    {
+        Name = stream.ReadString();
+        maxLogs = stream.ReadInt32();
+        int logCount = stream.ReadInt32();
+        Logs = new List<LogMessage>();
+        for (int i = 0; i < logCount; i++)
+        {
+            string message = stream.ReadString();
+            ConsoleColor fg = (ConsoleColor)stream.ReadByte();
+            ConsoleColor bg = (ConsoleColor)stream.ReadByte();
+            LogLevel level = (LogLevel)stream.ReadByte();
+            DateTime timestamp = DateTime.FromBinary(stream.ReadInt64());
+            Logs.Add(new LogMessage(message, level, fg)
+            {
+                BackgroundColor = bg,
+                Timestamp = timestamp
+            });
+        }
     }
 
     public void Log(string message, LogLevel level = LogLevel.Info, ConsoleColor? color = null)
@@ -88,5 +108,19 @@ public class Logger
     public static void LogWarning(string message)
     {
         Log(message, LogLevel.Warning);
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteString(Name);
+        stream.WriteInt32(Logs.Count);
+        foreach (var log in Logs)
+        {
+            stream.WriteString(log.Message);
+            stream.WriteByte((byte)log.ForegroundColor);
+            stream.WriteByte((byte)log.BackgroundColor);
+            stream.WriteByte((byte)log.Level);
+            stream.WriteInt64(log.Timestamp.ToBinary());
+        }
     }
 }

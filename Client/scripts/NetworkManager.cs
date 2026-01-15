@@ -350,18 +350,18 @@ public partial class NetworkManager : Node
                     bp.RemoveItem(item);
                 break;
             }
-			case ProtocolId.CREATURE_SKILL_UPDATE:
+			case ProtocolId.SKILL_UPDATE:
 			{
-				var csu = (CreatureSkillUpdatePacket)packet;
-				Creature? creature = csu.CreatureRef.Creature;
+				var csu = (SkillUpdatePacket)packet;
+				Creature? creature = csu.Ref.Creature;
 				if (creature == null)
 					break;
 				creature.ActiveSkills[csu.Data.Id] = csu.Data;
 				break;
 			}
-			case ProtocolId.CREATURE_SKILL_REMOVE:
+			case ProtocolId.SKILL_REMOVE:
 			{
-				var csr = (CreatureSkillRemovePacket)packet;
+				var csr = (SkillRemovePacket)packet;
 				Creature? creature = csr.CreatureRef.Creature;
 				creature?.CancelSkill(csr.SkillId);
 				break;

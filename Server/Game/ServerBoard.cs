@@ -10,7 +10,7 @@ namespace Server.Game;
 
 public class ServerBoard : Board, ISerializable
 {
-    private readonly LinkedList<(CreatureComponent executor, ActionLayer layer)> actionQueue = [];
+    private readonly LinkedList<(SkillExecutorComponent executor, ActionLayer layer)> actionQueue = [];
 
     public ServerBoard(string name)
     {
@@ -72,9 +72,6 @@ public class ServerBoard : Board, ISerializable
             
         }
         base.Tick();
-
-        if (CurrentTick % 600 == 0)
-            NetworkHooks.ClearDestroyedObjects();
     }
 
     public override void AddEntity(Entity entity)
@@ -83,51 +80,6 @@ public class ServerBoard : Board, ISerializable
         Network.Manager.SendToBoard(new EntityCreatePacket(this, entity), Name);
         if (entity is Creature creature)
         {
-            creature.OnSkillStart += skill => {
-                Network.Manager.SendToBoard(new CreatureSkillUpdatePacket(creature, skill), Name);
-            };
-            creature.OnSkillCancel += skill => {
-                Network.Manager.SendToBoard(new CreatureSkillRemovePacket(creature, skill.Id), Name);
-            };
-
-            creature.ActionLayerChanged += layer =>
-            {
-                Network.Manager.SendToBoard(new ActionLayerUpdatePacket(creature, layer), Name);
-                if (!TurnMode)
-                    return;
-                
-                bool foundOld = false;
-                
-                LinkedListNode<(Creature executor, ActionLayer layer)>? chosenPrev = null;
-                var node = actionQueue.First;
-                while (node != null)
-                {
-                    var tuple = node.Value;
-                    if (!foundOld && tuple.layer.Name == layer.Name && tuple.executor == creature)
-                    {
-                        actionQueue.Remove(tuple);
-                        foundOld = true;
-                        continue;
-                    }
-
-                    if (chosenPrev == null && tuple.layer.StartTick > layer.StartTick)
-                        chosenPrev = node;
-                    
-                    if (foundOld && chosenPrev != null)
-                        break;
-                    
-                    node = node.Next;
-                }
-                if (chosenPrev == null)
-                    actionQueue.AddLast(new LinkedListNode<(Creature executor, ActionLayer layer)>((creature, layer)));
-                else
-                    actionQueue.AddBefore(chosenPrev, new LinkedListNode<(Creature executor, ActionLayer layer)>((creature, layer)));
-                
-            };
-            creature.ActionLayerRemoved += layer =>
-            {
-                Network.Manager.SendToBoard(new ActionLayerRemovePacket(creature, layer), Name);
-            };
 
             foreach (BodyPart part in creature.Body.Parts)
             {
@@ -153,27 +105,76 @@ public class ServerBoard : Board, ISerializable
                 break;
             case FeatureAddedEvent fae:
                 Network.Manager.SendToBoard(
-                    FeatureUpdatePacket.Add(new EntityWith<FeaturesComponent>(fae.Component.Entity), fae.Feature),
+                    FeatureUpdatePacket.Add((FeaturesComponent)fae.Component, fae.Feature),
                     this);
                 break;
             case FeatureRemovedEvent fre:
                 Network.Manager.SendToBoard(
-                    FeatureUpdatePacket.Remove(new EntityWith<FeaturesComponent>(fre.Component.Entity), fre.Feature),
+                    FeatureUpdatePacket.Remove((FeaturesComponent)fre.Component, fre.Feature),
                     this
                 );
                 break;
             case FeatureEnabledEvent fee:
                 Network.Manager.SendToBoard(
-                    FeatureUpdatePacket.Enable(new EntityWith<FeaturesComponent>(fee.Component.Entity), fee.Feature),
+                    FeatureUpdatePacket.Enable((FeaturesComponent)fee.Component, fee.Feature),
                     this
                 );
                 break;
             case FeatureDisabledEvent fde:
                 Network.Manager.SendToBoard(
-                    FeatureUpdatePacket.Disable(new EntityWith<FeaturesComponent>(fde.Component.Entity), fde.Feature),
+                    FeatureUpdatePacket.Disable((FeaturesComponent)fde.Component, fde.Feature),
                     this
                 );
                 break;
+            case SkillStartEvent sse:
+                Network.Manager.SendToBoard(new SkillUpdatePacket((SkillExecutorComponent)sse.Component, sse.SkillData), this);
+                break;
+            case SkillCancelEvent sce:
+                Network.Manager.SendToBoard(new SkillRemovePacket((SkillExecutorComponent)sce.Component, sce.SkillData.Id), this);
+                break;
+            case ActionLayerChangedEvent alce:
+            {
+                var exec = (SkillExecutorComponent)alce.Component;
+                Network.Manager.SendToBoard(new ActionLayerUpdatePacket(exec, alce.Layer), this);
+                if (!TurnMode)
+                    return;
+                
+                bool foundOld = false;
+                
+                var layer = alce.Layer;
+                LinkedListNode<(SkillExecutorComponent executor, ActionLayer layer)>? chosenPrev = null;
+                var node = actionQueue.First;
+                while (node != null)
+                {
+                    var tuple = node.Value;
+                    if (!foundOld && tuple.layer.Name == layer.Name && tuple.executor == exec)
+                    {
+                        actionQueue.Remove(tuple);
+                        foundOld = true;
+                        continue;
+                    }
+
+                    if (chosenPrev == null && tuple.layer.StartTick > layer.StartTick)
+                        chosenPrev = node;
+                    
+                    if (foundOld && chosenPrev != null)
+                        break;
+                    
+                    node = node.Next;
+                }
+                if (chosenPrev == null)
+                    actionQueue.AddLast(new LinkedListNode<(SkillExecutorComponent executor, ActionLayer layer)>((exec, layer)));
+                else
+                    actionQueue.AddBefore(chosenPrev, new LinkedListNode<(SkillExecutorComponent executor, ActionLayer layer)>((exec, layer)));
+                
+                break;
+            }
+            case ActionLayerRemovedEvent alre:
+            {
+                Network.Manager.SendToBoard(new ActionLayerRemovePacket((SkillExecutorComponent)alre.Component, alre.LayerName), this);
+                break;
+            }
+
         }
     }
 

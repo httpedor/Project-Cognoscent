@@ -1,6 +1,6 @@
 ﻿using Rpg.Inventory;
 
-namespace Rpg;
+namespace Rpg.Features;
 
 public class ParryingFeature : ConditionFeature
 {

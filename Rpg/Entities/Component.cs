@@ -19,10 +19,10 @@ public class ComponentRef<T> where T : Component {
     public EntityRef EntityRef;
     public T? Component => (T?)(EntityRef.Entity?.GetComponent(ComponentTypeId));
 
-    public ComponentRef(Entity entity, uint componentTypeId)
+    public ComponentRef(Entity entity)
     {
         EntityRef = new EntityRef(entity);
-        ComponentTypeId = componentTypeId;
+        ComponentTypeId = Rpg.Entities.Component.GetComponentId(typeof(T));
     }
     public ComponentRef(T component)
     {

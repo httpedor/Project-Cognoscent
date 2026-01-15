@@ -1,3 +1,7 @@
+using Rpg.Entities;
+
+namespace Rpg.Features;
+
 public class ArbitraryFeature : Feature
 {
     protected readonly string id;
@@ -6,9 +10,8 @@ public class ArbitraryFeature : Feature
 
     public class Context
     {
-        public IFeatureContainer source;
         public IDamageable? injured;
-        public Creature? creature;
+        public Entity? entity;
         public DamageSource? damage;
         public Injury? injury;
         public double amount = 0;
@@ -16,7 +19,7 @@ public class ArbitraryFeature : Feature
         public Skill? skill;
         public List<SkillArgument>? arguments;
         public uint tick = 0;
-        public ISkillSource? skillSource;
+        public SkillExecutorComponent? skillExecutor;
     }
 
     private readonly Action<Context>? onTick;
@@ -75,92 +78,87 @@ public class ArbitraryFeature : Feature
 
     public override string GetId() => id;
     public override string GetDescription() => description;
-    public override bool IsToggleable(Entity entity) => toggleable;
+    public override bool IsToggleable(FeaturesComponent entity) => toggleable;
 
-    public override void OnTick(IFeatureContainer source)
+    public override void OnTick(FeaturesComponent source)
     {
-        onTick?.Invoke(new Context { source = source });
+        onTick?.Invoke(new Context { entity = source.Entity });
     }
 
-    public override void OnEnable(IFeatureContainer source)
+    public override void OnEnable(FeaturesComponent source)
     {
         base.OnEnable(source);
-        onEnable?.Invoke(new Context { source = source });
+        onEnable?.Invoke(new Context { entity = source.Entity });
     }
 
-    public override void OnDisable(IFeatureContainer source)
+    public override void OnDisable(FeaturesComponent source)
     {
         base.OnDisable(source);
-        onDisable?.Invoke(new Context { source = source });
+        onDisable?.Invoke(new Context { entity = source.Entity });
     }
 
-    public override (bool, string?) DoesGetAttacked(IDamageable attacked, DamageSource damage, bool hit)
+    public override (bool, string?) DoesGetAttacked(FeaturesComponent source, IDamageable attacked, DamageSource damage, bool hit)
     {
         if (doesGetAttacked != null)
         {
-            return doesGetAttacked(new Context { source = attacked as IFeatureContainer, damage = damage, hit = hit });
+            return doesGetAttacked(new Context { entity = source.Entity, damage = damage, hit = hit });
         }
-        return base.DoesGetAttacked(attacked, damage, hit);
+        return base.DoesGetAttacked(source, attacked, damage, hit);
     }
 
-    public override (bool, string?) DoesAttack(IFeatureContainer source, IDamageable attacked, DamageSource damage, bool hit)
+    public override (bool, string?) DoesAttack(SkillExecutorComponent source, IDamageable attacked, DamageSource damage, bool hit)
     {
         if (doesAttack != null)
         {
-            return doesAttack(new Context { source = source, injured = attacked, damage = damage, hit = hit });
+            return doesAttack(new Context { skillExecutor = source, entity = source.Entity, injured = attacked, damage = damage, hit = hit });
         }
         return base.DoesAttack(source, attacked, damage, hit);
     }
 
-    public override (bool, string?) DoesExecuteSkill(Creature executor, Skill skill, List<SkillArgument> arguments)
+    public override (bool, string?) DoesExecuteSkill(SkillExecutorComponent executor, Skill skill, List<SkillArgument> arguments)
     {
         if (doesExecuteSkill != null)
         {
-            return doesExecuteSkill(new Context { creature = executor, skill = skill, arguments = arguments });
+            return doesExecuteSkill(new Context { entity = executor.Entity, skillExecutor = executor, skill = skill, arguments = arguments });
         }
         return base.DoesExecuteSkill(executor, skill, arguments);
     }
 
-    public override void OnAttacked(IDamageable attacked, DamageSource damage, double amount, bool hit)
+    public override void OnAttacked(FeaturesComponent attacked, IDamageable target, DamageSource source, double damage, bool hit)
     {
-        onAttacked?.Invoke(new Context { source = attacked as IFeatureContainer, injured = ((BodyPartSkillArgument?)damage.Arguments?.Find(a => a is BodyPartSkillArgument))?.Part, damage = damage, amount = amount, hit = hit });
+        onAttacked?.Invoke(new Context { entity = attacked.Entity, injured = target, damage = source, amount = damage, hit = hit });
     }
 
-    public override void OnAttack(Creature attacker, IDamageable target, DamageSource damage, double amount, bool hit)
+    public override void OnAttack(SkillExecutorComponent attacker, IDamageable target, DamageSource source, double damage, bool hit)
     {
-        onAttack?.Invoke(new Context { creature = attacker, injured = target, damage = damage, amount = amount, hit = hit });
+        onAttack?.Invoke(new Context { entity = attacker.Entity, injured = target, damage = source, amount = damage, hit = hit });
     }
 
-    public override void OnExecuteSkill(Creature executor, Skill skill, List<SkillArgument> arguments, uint tick, ISkillSource source)
+    public override void OnExecuteSkill(SkillExecutorComponent executor, Skill skill, List<SkillArgument> arguments, uint tick)
     {
-        onExecuteSkill?.Invoke(new Context { creature = executor, skill = skill, arguments = arguments, tick = tick, skillSource = source });
+        onExecuteSkill?.Invoke(new Context { entity = executor.Entity, skill = skill, arguments = arguments, tick = tick, skillExecutor = executor});
     }
 
-    public override void OnInjured(IDamageable injured, Injury injury)
+    public override void OnInjured(FeaturesComponent source, IDamageable injured, Injury injury)
     {
-        Creature? creature;
-        if (injured is Creature c)
-            creature = c;
-        else
-            creature = (injured as BodyPart)?.Owner;
         
-        onInjured?.Invoke(new Context() {creature = creature, injured = injured, injury = injury});
+        onInjured?.Invoke(new Context() { entity = source.Entity, injured = injured, injury = injury});
     }
 
-    public override (double, string?) ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
+    public override (double, string?) ModifyReceivingDamage(FeaturesComponent attacked, IDamageable target, DamageSource source, double damage)
     {
         if (modifyReceivingDamage != null)
         {
-            return (modifyReceivingDamage(new Context { source = (attacked as IFeatureContainer)!, damage = source, amount = damage }), GetName());
+            return (modifyReceivingDamage(new Context { entity = attacked.Entity, injured = target, damage = source, amount = damage }), GetName());
         }
-        return base.ModifyReceivingDamage(attacked, source, damage);
+        return base.ModifyReceivingDamage(attacked, target, source, damage);
     }
 
-    public override (double, string?) ModifyAttackingDamage(Creature attacker, IDamageable target, DamageSource source, double damage)
+    public override (double, string?) ModifyAttackingDamage(SkillExecutorComponent attacker, IDamageable target, DamageSource source, double damage)
     {
         if (modifyAttackingDamage != null)
         {
-            return (modifyAttackingDamage(new Context { creature = attacker, injured = target, damage = source, amount = damage }), GetName());
+            return (modifyAttackingDamage(new Context { entity = attacker.Entity, injured = target, damage = source, amount = damage }), GetName());
         }
         return base.ModifyAttackingDamage(attacker, target, source, damage);
     }

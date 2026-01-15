@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Rpg.Features;
 
 namespace Rpg.Entities;
 
@@ -28,6 +29,9 @@ public partial class FeaturesComponent : Component, ITickableComponent
 
     [JsonIgnore]
     public IEnumerable<Feature> EnabledFeatures => features.Values.Where(t => t.enabled).Select(t => t.feature);
+    
+    [OptionalComponent(typeof(CustomDataComponent))]
+    public CustomDataComponent CustomData;
 
     public FeaturesComponent() : base()
     {
@@ -62,6 +66,10 @@ public partial class FeaturesComponent : Component, ITickableComponent
             return value.feature;
         }
         return null;
+    }
+    public Feature? RemoveFeature(Feature feature)
+    {
+        return RemoveFeature(feature.GetId());
     }
 
     public bool DisableFeature(string id)
@@ -101,6 +109,10 @@ public partial class FeaturesComponent : Component, ITickableComponent
     {
         return features.ContainsKey(id);
     }
+    public bool HasFeature(Feature feature)
+    {
+        return features.ContainsKey(feature.GetId());
+    }
 
     public bool IsFeatureEnabled(string id)
     {
@@ -109,6 +121,10 @@ public partial class FeaturesComponent : Component, ITickableComponent
             return value.enabled;
         }
         return false;
+    }
+    public bool IsFeatureEnabled(Feature feature)
+    {
+        return IsFeatureEnabled(feature.GetId());
     }
 
     public override void ToBytes(Stream stream)

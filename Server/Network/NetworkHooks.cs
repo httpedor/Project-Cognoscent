@@ -4,24 +4,8 @@ namespace Server.Network;
 
 public static class NetworkHooks
 {
-    private static HashSet<WeakReference<BodyPart>> hookedBodyParts = new();
-    
-    public static void ClearDestroyedObjects()
-    {
-        hookedBodyParts.RemoveWhere(wr => !wr.TryGetTarget(out _));
-    }
-
-    public static void HookEntity(Entity entity)
-    {
-    }
-
     public static void HookBodyPart(BodyPart part)
     {
-        if (hookedBodyParts.Any(wr => wr.TryGetTarget(out var bp) && bp == part))
-            return;
-
-        hookedBodyParts.Add(new WeakReference<BodyPart>(part));
-
         part.OnChildAdded += grandChild =>
         {
             Network.Manager.SendIfBoardValid(new EntityBodyPartPacket(grandChild), part.Creature?.Board.Name);

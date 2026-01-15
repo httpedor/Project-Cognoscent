@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.ConstrainedExecution;
 using System.Text.Json.Nodes;
+using Rpg.Entities;
 
 namespace Rpg;
 
@@ -123,57 +124,60 @@ public abstract partial class Skill : ISerializable, ITaggable
         return GetName().ToLower();
     }
 
-    public virtual string[] GetLayers(Creature executor, ISkillSource source)
+    public virtual string[] GetLayers(SkillExecutorComponent executor)
     {
         return ["default"];
     }
 
-    public virtual bool IsCombatSkill(Creature executor, List<SkillArgument> arguments, ISkillSource source)
+    public virtual bool IsCombatSkill(SkillExecutorComponent executor, List<SkillArgument> arguments)
     {
         return false;
     }
 
-    public virtual void Execute(Creature executor, List<SkillArgument> arguments, uint tick, ISkillSource source)
+    public virtual void Execute(SkillExecutorComponent executor, List<SkillArgument> arguments, uint tick)
     {
-        foreach (var feature in executor.EnabledFeatures)
+        var cFeatures = executor.Entity.Features;
+        if (cFeatures == null)
+            return;
+        foreach (var feature in cFeatures.EnabledFeatures)
         {
-            feature.OnExecuteSkill(executor, this, arguments, tick, source);
+            feature.OnExecuteSkill(executor, this, arguments, tick);
         }
     }
 
-    public virtual void Start(Creature executor, List<SkillArgument> arguments, ISkillSource source)
+    public virtual void Start(SkillExecutorComponent executor, List<SkillArgument> arguments)
     {
 
     }
 
-    public virtual void Cancel(Creature executor, List<SkillArgument> arguments, ISkillSource source, bool interrupted = false)
+    public virtual void Cancel(SkillExecutorComponent executor, List<SkillArgument> arguments, bool interrupted = false)
     {
 
     }
 
-    public virtual bool CanBeUsed(Creature executor, ISkillSource source)
+    public virtual bool CanBeUsed(SkillExecutorComponent executor)
     {
         return true;
     }
 
-    public virtual uint GetDelay(Creature executor, List<SkillArgument> arguments, ISkillSource source)
+    public virtual uint GetDelay(SkillExecutorComponent executor, List<SkillArgument> arguments)
     {
         return 0;
     }
-    public virtual uint GetCooldown(Creature executor, List<SkillArgument> arguments, ISkillSource source)
+    public virtual uint GetCooldown(SkillExecutorComponent executor, List<SkillArgument> arguments)
     {
         return 0;
     }
-    public virtual uint GetDuration(Creature executor, List<SkillArgument> arguments, ISkillSource source)
+    public virtual uint GetDuration(SkillExecutorComponent executor, List<SkillArgument> arguments)
     {
         return 1;
     }
-    public virtual bool CanCancel(Creature executor, List<SkillArgument> arguments, ISkillSource source)
+    public virtual bool CanCancel(SkillExecutorComponent executor, List<SkillArgument> arguments)
     {
         return true;
     }
 
-    public virtual bool CanCreatureSeeSkill(Creature executor, Creature seeing, List<SkillArgument> arguments, ISkillSource source)
+    public virtual bool CanTokenSeeSkill(SkillExecutorComponent executor, TokenComponent seeing, List<SkillArgument> arguments)
     {
         return true;
     }
@@ -204,7 +208,7 @@ public abstract partial class Skill : ISerializable, ITaggable
         return true;
     }
 
-    public virtual bool CanUseArgument(Creature executor, ISkillSource source, int index, SkillArgument arg)
+    public virtual bool CanUseArgument(SkillExecutorComponent executor, int index, SkillArgument arg)
     {
         return true;
     }
@@ -239,12 +243,11 @@ public class SkillData : ISerializable
     public Skill Skill;
     public List<SkillArgument> Arguments;
     public SkillSourceRef Source;
-    public SkillData(Skill skill, List<SkillArgument> args, ISkillSource source, string[] layers)
+    public SkillData(Skill skill, List<SkillArgument> args, string[] layers)
     {
         Id = new Random().Next();
         Skill = skill;
         Arguments = args;
-        Source = new SkillSourceRef(source);
         Layers = layers;
     }
     public SkillData(Stream stream)

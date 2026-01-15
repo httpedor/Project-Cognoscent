@@ -93,7 +93,7 @@ public partial class BodyInspector : Control
 					customLabel.Text = Settings.CustomText.Invoke(field);
 				foreach (var child in field.Children)
 				{
-					if ((child.IsInternal || child.OverlapsParent) && (Settings.Predicate == null || Settings.Predicate(child) || child.Children.Count > 0))
+					if ((child.IsInternal) && (Settings.Predicate == null || Settings.Predicate(child) || child.Children.Count > 0))
 					{
 						var btn = new Button
 						{

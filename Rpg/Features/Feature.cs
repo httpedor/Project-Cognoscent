@@ -2,6 +2,8 @@ using System.Text.Json.Nodes;
 using Rpg;
 using Rpg.Entities;
 
+namespace Rpg.Features;
+
 public abstract class Feature : ISerializable
 {
     public string? CustomName;
@@ -194,17 +196,17 @@ public abstract class Feature : ISerializable
         return GetName().ToLower();
     }
 
-    public virtual void OnAdded(Entity source)
+    public virtual void OnAdded(FeaturesComponent source)
     {
     }
 
-    public virtual void OnRemoved(Entity source)
+    public virtual void OnRemoved(FeaturesComponent source)
     {
     }
 
-    public virtual void OnEnable(Entity source)
+    public virtual void OnEnable(FeaturesComponent source)
     {
-        if (!source.TryGetComponent<StatsComponent>(out var stats))
+        if (!source.Entity.TryGetComponent<StatsComponent>(out var stats))
         {
             return;
         }
@@ -220,9 +222,9 @@ public abstract class Feature : ISerializable
             }
         }
     }
-    public virtual void OnDisable(Entity source)
+    public virtual void OnDisable(FeaturesComponent source)
     {
-        if (!source.TryGetComponent<StatsComponent>(out var stats))
+        if (!source.Entity.TryGetComponent<StatsComponent>(out var stats))
         {
             return;
         }
@@ -239,7 +241,7 @@ public abstract class Feature : ISerializable
         }
     }
 
-    public virtual void OnTick(Entity source)
+    public virtual void OnTick(FeaturesComponent source)
     {
         
     }
@@ -251,61 +253,61 @@ public abstract class Feature : ISerializable
     /// <param name="damage">The DamageSource</param>
     /// <param name="hit">The "default" state before this feature affects the hit.</param>
     /// <returns>A tuple with a boolean representing if it did hit, and if it didn't, a string with the reason(this can be null)</returns>
-    public virtual (bool, string?) DoesGetAttacked(IDamageable source, DamageSource damage, bool hit)
+    public virtual (bool, string?) DoesGetAttacked(FeaturesComponent source, IDamageable attacked, DamageSource damage, bool hit)
     {
         return (hit, null);
     }
 
-    public virtual (bool, string?) DoesAttack(Entity source, IDamageable attacked, DamageSource damage, bool hit)
+    public virtual (bool, string?) DoesAttack(SkillExecutorComponent source, IDamageable attacked, DamageSource damage, bool hit)
     {
         return (hit, null);
     }
-    public virtual (bool, string?) DoesExecuteSkill(Creature executor, Skill skill, List<SkillArgument> arguments)
+    public virtual (bool, string?) DoesExecuteSkill(SkillExecutorComponent executor, Skill skill, List<SkillArgument> arguments)
     {
         return (true, null);
     }
 
-    public virtual IEnumerable<StatModifier> ModifyReceivingDamageModifiers(IDamageable attacked, DamageSource source, double damage)
+    public virtual IEnumerable<StatModifier> ModifyReceivingDamageModifiers(FeaturesComponent attacked, DamageSource source, double damage)
     {
         return Array.Empty<StatModifier>();
     }
     
-    public virtual (double, string?) ModifyReceivingDamage(IDamageable attacked, DamageSource source, double damage)
+    public virtual (double, string?) ModifyReceivingDamage(FeaturesComponent attacked, IDamageable target, DamageSource source, double damage)
     {
         return (damage, null);
     }
     
-    public virtual (double, string?) ModifyAttackingDamage(Creature attacker, IDamageable target, DamageSource source, double damage)
+    public virtual (double, string?) ModifyAttackingDamage(SkillExecutorComponent attacker, IDamageable target, DamageSource source, double damage)
     {
         return (damage, null);
     }
 
-    public virtual void OnAttacked(IDamageable attacked, DamageSource source, double damage, bool hit)
+    public virtual void OnAttacked(FeaturesComponent attacked, IDamageable target, DamageSource source, double damage, bool hit)
     {
         
     }
 
-    public virtual void OnAttack(Creature attacker, IDamageable target, DamageSource source, double damage, bool hit)
+    public virtual void OnAttack(SkillExecutorComponent attacker, IDamageable target, DamageSource source, double damage, bool hit)
     {
         
     }
 
-    public virtual void OnExecuteSkill(Creature executor, Skill skill, List<SkillArgument> arguments, uint tick, ISkillSource source)
+    public virtual void OnExecuteSkill(SkillExecutorComponent executor, Skill skill, List<SkillArgument> arguments, uint tick)
     {
         
     }
 
-    public virtual void OnInjured(IDamageable injured, Injury injury)
+    public virtual void OnInjured(FeaturesComponent source, IDamageable injured, Injury injury)
     {
         
     }
     
-    public virtual bool CanBeSeenBy(Entity viewer)
+    public virtual bool CanBeSeenBy(TokenComponent viewer)
     {
         return true;
     }
     
-    public virtual bool IsToggleable(Entity entity)
+    public virtual bool IsToggleable(FeaturesComponent entity)
     {
         return false;
     }

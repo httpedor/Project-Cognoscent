@@ -1,4 +1,5 @@
 ﻿using Rpg;
+using Rpg.Entities;
 
 namespace Rpg;
 
@@ -8,7 +9,7 @@ public class DamageSource(DamageType type) : ISerializable
     /// <summary>
     /// The entity that initiated the attack.
     /// </summary>
-    public Entity? Attacker;
+    public SkillExecutorComponent? Attacker;
     /// <summary>
     /// The entity that has made contact with the target. This is not always the attacker, because arrows and magic.
     /// </summary>
@@ -22,10 +23,10 @@ public class DamageSource(DamageType type) : ISerializable
     /// </summary>
     public List<SkillArgument>? Arguments;
 
-    public DamageSource(DamageType type, Creature attacker, Skill skillUsed, params SkillArgument[] args) : this(type)
+    public DamageSource(DamageType type, SkillExecutorComponent attacker, Skill skillUsed, params SkillArgument[] args) : this(type)
     {
         Attacker = attacker;
-        ContactEntity = attacker;
+        ContactEntity = attacker.Entity;
         SkillUsed = skillUsed;
         Arguments = new List<SkillArgument>(args);
     }

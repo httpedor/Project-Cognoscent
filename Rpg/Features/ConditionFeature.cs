@@ -1,6 +1,7 @@
 ﻿using System.Dynamic;
+using Rpg.Entities;
 
-namespace Rpg;
+namespace Rpg.Features;
 
 public abstract class ConditionFeature : Feature
 {
@@ -21,40 +22,43 @@ public abstract class ConditionFeature : Feature
         stream.WriteUInt32(ticks);
     }
 
-    public uint GetStartTick(IFeatureContainer entity)
+    public uint GetStartTick(Entity entity)
     {
-        if (!entity.HasFeature(this))
+        var features = entity.Features;
+        if (features == null)
+            throw new InvalidOperationException($"Entity {entity.Id} does not have FeaturesComponent");
+        if (!features.HasFeature(this))
             return uint.MaxValue;
-        byte[]? startTickData = entity.GetCustomData(StartTickKey);
+        byte[]? startTickData = features.CustomData.Get(StartTickKey);
         if (startTickData == null)
             return uint.MaxValue;
         
         return BitConverter.ToUInt32(startTickData);
     }
-    public uint GetRemainingTicks(IFeatureContainer entity)
+    public uint GetRemainingTicks(Entity entity)
     {
         return ticks - GetTicksSinceStart(entity);
     }
-    public uint GetTicksSinceStart(IFeatureContainer entity)
+    public uint GetTicksSinceStart(Entity entity)
     {
         return entity.Board.CurrentTick - GetStartTick(entity);
     }
 
-    public override void OnTick(IFeatureContainer entity)
+    public override void OnTick(Entity entity)
     {
         base.OnTick(entity);
         if (GetTicksSinceStart(entity) >= ticks)
-            entity.Board.RunTaskLater(() => entity.RemoveFeature(this), 0);
+            entity.Board.RunTaskLater(() => entity.Features?.RemoveFeature(this), 0);
     }
 
-    public override void OnEnable(IFeatureContainer source)
+    public override void OnEnable(Entity source)
     {
         base.OnEnable(source);
-        source.SetCustomData(StartTickKey, source.Board.CurrentTick);
+        source.CustomData!.SetUInt(StartTickKey, source.Board.CurrentTick);
     }
-    public override void OnDisable(IFeatureContainer source)
+    public override void OnDisable(Entity source)
     {
         base.OnDisable(source);
-        source.RemoveCustomData(StartTickKey);
+        source.CustomData!.Remove(StartTickKey);
     }
 }

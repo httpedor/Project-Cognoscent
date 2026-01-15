@@ -30,7 +30,7 @@ public partial class BPSelect : ColorRect
 			}
 			var settings = BodyInspector.Instance.Settings;
 			BodyPart = @new?.GetBodyPart(BodyPartPath);
-			if (BodyPart == null || (settings.Predicate != null && !settings.Predicate(BodyPart) && (BodyPart.InternalOrgans.Count() + BodyPart.OverlappingParts.Count()) <= 0))
+			if (BodyPart == null || (settings.Predicate != null && !settings.Predicate(BodyPart) && (BodyPart.InternalOrgans.Count()) <= 0))
 				Visible = false;
 			else
 			{

@@ -32,10 +32,6 @@ public partial class CreatureNode : EntityNode
 
         ent.Body.OnInjuryAdded += (part, injury) =>
         {
-            if (injury.Type == InjuryType.Cut)
-            {
-                
-            }
         };
 
         if (GameManager.OwnsEntity(ent))
@@ -71,8 +67,6 @@ public partial class CreatureNode : EntityNode
                                 return;
                             InjuryType type = InjuryType.ByName(typeTranslation)!;
                             Modal.OpenStringDialog("Severidade da Ferida", sevStr => {
-                                if (float.TryParse(sevStr, out float severity))
-                                    NetworkManager.Instance.SendPacket(new EntityBodyPartInjuryPacket(bp, new Injury(type, severity)));
                             });
                         });
                     }
@@ -91,8 +85,6 @@ public partial class CreatureNode : EntityNode
                             return;
                         string[] splitted = selected.Split(" - ");
                         InjuryType it = InjuryType.ByName(splitted[0])!;
-                        if (float.TryParse(splitted[1], out float severity))
-                            NetworkManager.Instance.SendPacket(new EntityBodyPartInjuryPacket(bp, new Injury(it, severity), true));
                     });
                 }
             });

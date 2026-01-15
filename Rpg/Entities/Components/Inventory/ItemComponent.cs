@@ -7,7 +7,7 @@ using Rpg.Inventory;
 public partial class ItemComponent : Component, ISkillSource
 {
     public string Icon;
-    public IItemHolder? Holder;
+    public Entity? Holder;
     public string Name;
     public string Description;
 

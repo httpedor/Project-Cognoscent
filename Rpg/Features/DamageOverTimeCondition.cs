@@ -1,4 +1,6 @@
-﻿namespace Rpg;
+﻿using Rpg.Entities;
+
+namespace Rpg.Features;
 
 public class DamageOverTimeCondition : ConditionFeature
 {
@@ -49,7 +51,7 @@ public class DamageOverTimeCondition : ConditionFeature
         return new DamageOverTimeCondition(id, CustomName!, description, damageType, damage, interval, ticks);
     }
 
-    public override void OnTick(IFeatureContainer entity)
+    public override void OnTick(Entity entity)
     {
         base.OnTick(entity);
 

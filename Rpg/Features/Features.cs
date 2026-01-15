@@ -1,4 +1,4 @@
-﻿namespace Rpg;
+﻿namespace Rpg.Features;
 
 public static class Features
 {

@@ -59,8 +59,6 @@ public partial class BodyViewer : Tree
 			flags += "Hard, ";
 		if (part.IsSoft)
 			flags += "Soft, ";
-		if (part.HasFlag(BodyPart.Flag.Overlaps))
-			flags += "Overlaps, ";
 		if (flags.Length >= 2)
 			flags = flags.Substring(0, flags.Length - 2);
 		item.SetText(4, flags);
