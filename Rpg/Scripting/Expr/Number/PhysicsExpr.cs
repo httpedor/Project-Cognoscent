@@ -9,6 +9,10 @@ public sealed class TicksToSecondsExpr : NumberExpr
     {
         TicksExpr = ticksExpr;
     }
+    public TicksToSecondsExpr(Stream stream)
+    {
+        TicksExpr = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override float Eval(EvalContext ctx)
     {
@@ -23,6 +27,10 @@ public sealed class SecondsToTicksExpr : NumberExpr
     public SecondsToTicksExpr(NumberExpr secondsExpr)
     {
         SecondsExpr = secondsExpr;
+    }
+    public SecondsToTicksExpr(Stream stream)
+    {
+        SecondsExpr = (NumberExpr)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)

@@ -17,6 +17,14 @@ public sealed class DistanceSelectorExpr : SelectorExpr
         Nearest = nearest;
     }
 
+    public DistanceSelectorExpr(Stream stream)
+    {
+        From = BaseExpr.Deserialize<SelectorExpr>(stream);
+        if (stream.ReadBoolean())
+            RangeExpr = BaseExpr.Deserialize<NumberExpr>(stream);
+        Nearest = stream.ReadBoolean();
+    }
+
     public override Entity? Eval(EvalContext ctx)
     {
         if (ctx.Board == null)
@@ -62,5 +70,20 @@ public sealed class DistanceSelectorExpr : SelectorExpr
             }
         }
         return nearest;
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        From.ToBytes(stream);
+        if (RangeExpr != null) {
+            stream.WriteBoolean(true);
+            RangeExpr.ToBytes(stream);
+        }
+        else
+        {
+            stream.WriteBoolean(false);
+        }
+        stream.WriteBoolean(Nearest);
     }
 }

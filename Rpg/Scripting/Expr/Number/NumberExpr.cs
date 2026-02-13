@@ -7,7 +7,16 @@ public sealed class ConstExpr : NumberExpr
 {
     public readonly float Value;
     public ConstExpr(float value) => Value = value;
+    public ConstExpr(Stream stream)
+    {
+        Value = stream.ReadFloat();
+    }
     public override float Eval(EvalContext ctx) => Value;
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteFloat(Value);
+    }
 }
 
 public sealed class VarExpr : NumberExpr
@@ -18,6 +27,10 @@ public sealed class VarExpr : NumberExpr
     {
         SymbolId = symbolId;
     }
+    public VarExpr(Stream stream)
+    {
+        SymbolId = stream.ReadInt32();
+    }
 
     public override float Eval(EvalContext ctx)
     {
@@ -26,5 +39,10 @@ public sealed class VarExpr : NumberExpr
             throw new IndexOutOfRangeException($"Variable symbol ID {SymbolId} is out of range.");
         }
         return (float)ctx.Variables[SymbolId];
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteInt32(SymbolId);
     }
 }

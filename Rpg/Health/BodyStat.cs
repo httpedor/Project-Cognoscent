@@ -1,18 +1,11 @@
 namespace Rpg.Health;
 
-using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
 using Rpg.Entities;
 using Rpg.Entities.Components.Health;
 
 public class BodyStat : ISerializable
 {
     //TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
-    public class StatDepCodeGlobals
-    {
-        public float x;
-        public Entity entity;
-    }
     public class StatDependency : ISerializable
     {
         public string StatName;
@@ -25,24 +18,17 @@ public class BodyStat : ISerializable
             Code = code;
             if (SidedLogic.Instance.IsClient())
             {
-                Compiled = CompileDep(code);
+                //Compiled = CompileDep(code);
             }
         }
 
-        private static Func<float, Entity, (float, StatModifierType)> CompileDep(string code)
-        {
-            var script = CSharpScript.Create<(float, StatModifierType)>(code,
-                ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly, typeof(Math).Assembly)
-                    .WithImports("Rpg", "System.Math"), typeof(StatDepCodeGlobals)).CreateDelegate();
-            return (x, y) => script(new StatDepCodeGlobals{x = x, entity=y}).Result;
-        }
         public StatDependency(Stream stream)
         {
             StatName = stream.ReadString();
             Code = stream.ReadString();
             if (SidedLogic.Instance.IsClient())
             {
-                Compiled = CompileDep(Code);
+                //Compiled = CompileDep(Code);
             }
         }
         public void ToBytes(Stream stream)

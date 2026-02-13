@@ -12,6 +12,12 @@ public sealed class LerpExpr : NumberExpr
         Max = max;
         T = t;
     }
+    public LerpExpr(Stream stream)
+    {
+        Min = (NumberExpr)BaseExpr.Deserialize(stream);
+        Max = (NumberExpr)BaseExpr.Deserialize(stream);
+        T = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override float Eval(EvalContext ctx)
     {
@@ -19,6 +25,13 @@ public sealed class LerpExpr : NumberExpr
             Min.Eval(ctx),
             Max.Eval(ctx),
             T.Eval(ctx));
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Min.ToBytes(stream);
+        Max.ToBytes(stream);
+        T.ToBytes(stream);
     }
 }
 public sealed class RangeExpr : NumberExpr
@@ -30,6 +43,11 @@ public sealed class RangeExpr : NumberExpr
     {
         Min = min;
         Max = max;
+    }
+    public RangeExpr(Stream stream)
+    {
+        Min = (NumberExpr)BaseExpr.Deserialize(stream);
+        Max = (NumberExpr)BaseExpr.Deserialize(stream);
     }
     /// <summary>
     /// Parses a range expression from a string, like 1d20, 3-10, 5:15.
@@ -73,5 +91,12 @@ public sealed class RangeExpr : NumberExpr
         return RpgMath.RandomFloat(
             Min.Eval(ctx),
             Max.Eval(ctx));
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Min.ToBytes(stream);
+        Max.ToBytes(stream);
     }
 }

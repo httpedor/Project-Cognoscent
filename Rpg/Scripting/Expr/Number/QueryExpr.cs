@@ -14,6 +14,12 @@ public sealed class StatExpr : NumberExpr
         DefaultValue = defaultValue;
         Target = target;
     }
+    public StatExpr(Stream stream)
+    {
+        StatName = stream.ReadString();
+        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
+        DefaultValue = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override float Eval(EvalContext ctx)
     {
@@ -26,5 +32,12 @@ public sealed class StatExpr : NumberExpr
         if (stats == null)
             return defaultValue;
         return stats.GetStatValue(StatName, defaultValue);
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteString(StatName);
+        Target.ToBytes(stream);
+        DefaultValue.ToBytes(stream);
     }
 }

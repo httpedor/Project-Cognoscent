@@ -14,25 +14,19 @@ public sealed class StringLiteralExpr : StringExpr
     {
         this.value = value;
     }
+    public StringLiteralExpr(Stream stream)
+    {
+        value = stream.ReadString();
+    }
 
     public override string Eval(EvalContext ctx)
     {
         return value;
     }
-
-}
-public sealed class VarStringExpr : StringExpr
-{
-    public readonly int SymbolId;
-
-    public VarStringExpr(int SymbolId)
+    public override void ToBytes(Stream stream)
     {
-        this.SymbolId = SymbolId;
-    }
-
-    public override string Eval(EvalContext ctx)
-    {
-        return ctx.GetVariable<string>(SymbolId);
+        base.ToBytes(stream);
+        stream.WriteString(value);
     }
 }
 public sealed class ArgumentTypeNameExpr : StringExpr
@@ -43,6 +37,10 @@ public sealed class ArgumentTypeNameExpr : StringExpr
     {
         ArgumentIndex = argumentIndex;
     }
+    public ArgumentTypeNameExpr(Stream stream)
+    {
+        ArgumentIndex = stream.ReadInt32();
+    }
 
     public override string Eval(EvalContext ctx)
     {
@@ -50,5 +48,10 @@ public sealed class ArgumentTypeNameExpr : StringExpr
         if (arg is SkillArgument skillArg)
             return SkillArgument.ArgumentTypeToString(skillArg.GetType());
         return arg?.GetType().Name ?? "null";
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteInt32(ArgumentIndex);
     }
 }

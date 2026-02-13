@@ -16,6 +16,8 @@ public abstract class EffectExpr : BaseExpr
 }
 public sealed class NoEffectExpr : EffectExpr
 {
+    public NoEffectExpr() {}
+    public NoEffectExpr(Stream stream) {}
     public override void Eval(EvalContext ctx)
     {
     }
@@ -24,13 +26,26 @@ public sealed class CompositeEffectExpr : EffectExpr
 {
     public readonly EffectExpr[] Effects;
     public CompositeEffectExpr(EffectExpr[] effects) => Effects = effects;
-
+    public CompositeEffectExpr(Stream stream)
+    {
+        int length = stream.ReadInt32();
+        Effects = new EffectExpr[length];
+        for (int i = 0; i < length; i++)
+            Effects[i] = (EffectExpr)BaseExpr.Deserialize(stream);
+    }
     public override void Eval(EvalContext ctx)
     {
         foreach (var effect in Effects)
         {
             effect.Eval(ctx);
         }
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteInt32(Effects.Length);
+        foreach (var effect in Effects)
+            effect.ToBytes(stream);
     }
 }
 public sealed class ConditionalEffectExpr : EffectExpr
@@ -43,6 +58,11 @@ public sealed class ConditionalEffectExpr : EffectExpr
         Condition = condition;
         Effect = effect;
     }
+    public ConditionalEffectExpr(Stream stream)
+    {
+        Condition = (ConditionExpr)BaseExpr.Deserialize(stream);
+        Effect = (EffectExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override void Eval(EvalContext ctx)
     {
@@ -50,6 +70,12 @@ public sealed class ConditionalEffectExpr : EffectExpr
         {
             Effect.Eval(ctx);
         }
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Condition.ToBytes(stream);
+        Effect.ToBytes(stream);
     }
 }
 public sealed class ForEachEffectExpr : EffectExpr
@@ -61,6 +87,14 @@ public sealed class ForEachEffectExpr : EffectExpr
         this.selectors = selectors;
         Effect = effect;
     }
+    public ForEachEffectExpr(Stream stream)
+    {
+        int length = stream.ReadInt32();
+        selectors = new SelectorExpr[length];
+        for (int i = 0; i < length; i++)
+            selectors[i] = (SelectorExpr)BaseExpr.Deserialize(stream);
+        Effect = (EffectExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override void Eval(EvalContext ctx)
     {
@@ -71,5 +105,13 @@ public sealed class ForEachEffectExpr : EffectExpr
                 continue;
             Effect.Eval(ctx.WithTarget(entity));
         }
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteInt32(selectors.Length);
+        foreach (var selector in selectors)
+            selector.ToBytes(stream);
+        Effect.ToBytes(stream);
     }
 }

@@ -11,6 +11,11 @@ public class AddFeatureExpr : EffectExpr
         FeatureName = featureName;
         Target = target;
     }
+    public AddFeatureExpr(Stream stream)
+    {
+        FeatureName = stream.ReadString();
+        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
+    }
     public override void Eval(EvalContext ctx)
     {
         var feat = Compendium.GetEntry<Feature>(FeatureName);
@@ -24,6 +29,12 @@ public class AddFeatureExpr : EffectExpr
             return;
         feats.AddFeature(feat);
     }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteString(FeatureName);
+        Target.ToBytes(stream);
+    }
 }
 public class RemoveFeatureExpr : EffectExpr
 {
@@ -33,6 +44,11 @@ public class RemoveFeatureExpr : EffectExpr
     {
         FeatureName = featureName;
         Target = target;
+    }
+    public RemoveFeatureExpr(Stream stream)
+    {
+        FeatureName = stream.ReadString();
+        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {
@@ -47,6 +63,12 @@ public class RemoveFeatureExpr : EffectExpr
             return;
         feats.RemoveFeature(feat);
     }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteString(FeatureName);
+        Target.ToBytes(stream);
+    }
 }
 
 public class AddConditionFeatureExpr : EffectExpr
@@ -59,6 +81,12 @@ public class AddConditionFeatureExpr : EffectExpr
         ConditionName = conditionName;
         Target = target;
         Ticks = ticks;
+    }
+    public AddConditionFeatureExpr(Stream stream)
+    {
+        ConditionName = stream.ReadString();
+        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
+        Ticks = (NumberExpr)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {
@@ -75,5 +103,12 @@ public class AddConditionFeatureExpr : EffectExpr
         if (feats == null)
             return;
         feats.AddFeature(condition.WithDuration(ticks));
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteString(ConditionName);
+        Target.ToBytes(stream);
+        Ticks.ToBytes(stream);
     }
 }

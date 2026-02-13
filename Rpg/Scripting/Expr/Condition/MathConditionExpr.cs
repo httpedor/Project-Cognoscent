@@ -10,10 +10,21 @@ public sealed class GreaterThanConditionExpr : ConditionExpr
         Left = left;
         Right = right;
     }
+    public GreaterThanConditionExpr(Stream stream)
+    {
+        Left = (NumberExpr)BaseExpr.Deserialize(stream);
+        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override bool Eval(EvalContext ctx)
     {
         return Left.Eval(ctx) > Right.Eval(ctx);
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Left.ToBytes(stream);
+        Right.ToBytes(stream);
     }
 }
 public sealed class LessThanConditionExpr : ConditionExpr
@@ -26,10 +37,21 @@ public sealed class LessThanConditionExpr : ConditionExpr
         Left = left;
         Right = right;
     }
+    public LessThanConditionExpr(Stream stream)
+    {
+        Left = (NumberExpr)BaseExpr.Deserialize(stream);
+        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override bool Eval(EvalContext ctx)
     {
         return Left.Eval(ctx) < Right.Eval(ctx);
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Left.ToBytes(stream);
+        Right.ToBytes(stream);
     }
 }
 public sealed class EqualConditionExpr : ConditionExpr
@@ -42,10 +64,21 @@ public sealed class EqualConditionExpr : ConditionExpr
         Left = left;
         Right = right;
     }
+    public EqualConditionExpr(Stream stream)
+    {
+        Left = (NumberExpr)BaseExpr.Deserialize(stream);
+        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override bool Eval(EvalContext ctx)
     {
         return Left.Eval(ctx) == Right.Eval(ctx);
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Left.ToBytes(stream);
+        Right.ToBytes(stream);
     }
 }
 public sealed class NotEqualConditionExpr : ConditionExpr
@@ -58,9 +91,20 @@ public sealed class NotEqualConditionExpr : ConditionExpr
         Left = left;
         Right = right;
     }
+    public NotEqualConditionExpr(Stream stream)
+    {
+        Left = (NumberExpr)BaseExpr.Deserialize(stream);
+        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+    }
 
     public override bool Eval(EvalContext ctx)
     {
         return Left.Eval(ctx) != Right.Eval(ctx);
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Left.ToBytes(stream);
+        Right.ToBytes(stream);
     }
 }
