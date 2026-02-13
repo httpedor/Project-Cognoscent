@@ -30,9 +30,4 @@ public class ServerSidedLogic : SidedLogic
     {
         return Game.Game.GetBoard(name);
     }
-
-    public override string GetRpgAssemblyPath()
-    {
-        return typeof(Entity).Assembly.Location;
-    }
 }

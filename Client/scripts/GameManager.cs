@@ -41,7 +41,7 @@ public partial class GameManager : Node
                 if (IsGm) return;
                 
                 RenderingServer.SetDefaultClearColor(new Color(0, 0, 0));
-                var creatures = field.GetCreaturesByOwner(Username);
+                var creatures = field.GetEntitiesByOwner(Username);
                 foreach (Creature creature in creatures)
                     VisionManager.AddVisionPoint(new VisionPoint(creature));
                 if (creatures.Count == 0)

@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Rpg.Entities.Components;
+using Rpg.Entities.Interfaces;
 
 namespace Rpg.Entities;
 
@@ -36,8 +38,31 @@ public readonly struct EntityRef(string board, int id) : ISerializable
     }
 }
 
+public readonly struct EntityWith<T> where T : Component
+{
+    public readonly Entity Entity;
+    public readonly T Component;
+
+    public EntityWith(Entity entity, T component)
+    {
+        Entity = entity;
+        Component = component;
+        if (Component.Entity != entity)
+            throw new InvalidOperationException("The provided component does not belong to the provided entity.");
+    }
+    public EntityWith(Entity entity) : this(entity, entity.GetComponent<T>()!)
+    {
+        if (Component == null)
+            throw new InvalidOperationException("The provided entity does not have a component of the specified type.");
+    }
+}
+
 public partial class Entity : ISerializable
 {
+    // Aliases
+    public FeaturesContainer? Features => FeaturesContainer;
+    public StatsContainer? Stats => StatsContainer;
+
     private readonly Component?[] componentArray = new Component[Component.ComponentCount];
     private LinkedList<Component> nonNullComponents = new();
     private LinkedList<ComponentEvent> eventBus = new();
@@ -45,6 +70,7 @@ public partial class Entity : ISerializable
     public int Id { get; }
 
     public string Name;
+    public string? Owner;
     // ReSharper disable once InconsistentNaming
     [JsonIgnore]
     public string BBLink => "[url=gotoent " + Id + "]" + Name + "[/url]";
@@ -56,12 +82,13 @@ public partial class Entity : ISerializable
     public Logger Logger;
 
     public Board Board { get; set; }
+    public bool WasInitialized { get; private set; } = false;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-    protected Entity()
+    public Entity(string? name = null)
     {
         Id = new Random().Next();
-        Name = "Entity" + Id;
+        Name = name ?? "Entity" + Id;
         Logger = new Logger(Name);
     }
 
@@ -69,6 +96,9 @@ public partial class Entity : ISerializable
     {
         Id = stream.ReadInt32();
         Name = stream.ReadString();
+        Owner = stream.ReadString();
+        if (Owner == "")
+            Owner = null;
         CreationTick = stream.ReadUInt32();
         for (int i = 0; i < componentArray.Length; i++)
         {
@@ -108,37 +138,26 @@ public partial class Entity : ISerializable
                 tickable.PostTick();
             }
         }
-        var current = eventBus.First;
-        //Avoid foreach so that we can add events while iterating
-        while (current != null)
-        {
+        LinkedListNode<ComponentEvent>? current;
+        do {
+            current = eventBus.First;
+            if (current == null)
+                break;
             var ev = current.Value;
-            var ids = Component.GetEventListenerComponentIds(ev.GetType(), out var matchedEventType);
-            if (matchedEventType is not null && ids.Length != 0)
-            {
-                foreach (var id in ids)
-                {
-                    var comp = componentArray[id];
-                    if (comp != null)
-                    {
-                        Component.DispatchEventToListener(comp, ev, matchedEventType);
-                    }
-                }
-                Board.HandleEvent(ev);
-            }
-
-            current = current.Next;
-        }
+            DispatchEventImmediate(ev);
+            eventBus.RemoveFirst();
+            current = eventBus.First;
+        } while (current != null);
     }
 
     public void Initialize()
     {
-        
         foreach (var component in nonNullComponents)
         {
             Component.AssignDependencies(this, component);
             component.OnInit(this);
         }
+        WasInitialized = true;
     }
 
     public void AddComponent(Component component)
@@ -155,20 +174,8 @@ public partial class Entity : ISerializable
         nonNullComponents.AddLast(component);
         Component.AssignDependencies(this, component);
 
-        if (Board != null)
-        {
-            Board.OnEntityComponentAdded(this, typeId);
-        }
-
         component.OnAddedTo(this);
-
-        foreach (var otherComponent in nonNullComponents)
-        {
-            if (otherComponent != component)
-            {
-                otherComponent.OnComponentAdded(this, component);
-            }
-        }
+        DispatchEvent(new ComponentAddedEvent(component));
     }
     public void RemoveComponent(uint typeId)
     {
@@ -178,14 +185,7 @@ public partial class Entity : ISerializable
         component.OnRemovedFrom(this);
         componentArray[typeId] = null;
         nonNullComponents.Remove(component);
-        if (Board != null)
-        {
-            Board.OnEntityComponentRemoved(this, typeId);
-        }
-        foreach (var otherComponent in nonNullComponents)
-        {
-            otherComponent.OnComponentRemoved(this, component!);
-        }
+        DispatchEvent(new ComponentRemovedEvent(component));
     }
 
     [Obsolete("Use HasComponent(uint typeId) instead. It's are more efficient.")]
@@ -240,7 +240,30 @@ public partial class Entity : ISerializable
 
     public void DispatchEvent(ComponentEvent componentEvent)
     {
+        if (componentEvent is IImmediateEvent)
+        {
+            DispatchEventImmediate(componentEvent);
+            return;
+        }
         eventBus.AddLast(componentEvent);
+    }
+    private void DispatchEventImmediate(ComponentEvent componentEvent)
+    {
+        var ids = Component.GetEventListenerComponentIds(componentEvent.GetType(), out var matchedEventType);
+        if (matchedEventType is not null && ids.Length != 0)
+        {
+            foreach (var id in ids)
+            {
+                var comp = componentArray[id];
+                if (comp != null)
+                {
+                    Component.DispatchEventToListener(comp, componentEvent, matchedEventType);
+                    if (componentEvent is CancellableComponentEvent cancellableEvent && cancellableEvent.Canceled)
+                        return;
+                }
+            }
+            Board?.HandleEvent(componentEvent);
+        }
     }
 
     public void Destroy()
@@ -256,6 +279,7 @@ public partial class Entity : ISerializable
     {
         stream.WriteInt32(Id);
         stream.WriteString(Name);
+        stream.WriteString(Owner ?? "");
         stream.WriteUInt32(CreationTick);
         foreach (var component in componentArray)
         {
@@ -264,4 +288,12 @@ public partial class Entity : ISerializable
         }
         Logger.ToBytes(stream);
     }
+}
+
+public class ComponentAddedEvent(Component component) : ComponentEvent(component), IImmediateEvent
+{
+}
+
+public class ComponentRemovedEvent(Component component) : ComponentEvent(component), IImmediateEvent
+{
 }

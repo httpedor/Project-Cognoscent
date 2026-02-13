@@ -1,6 +1,7 @@
 using System.Numerics;
 using Rpg;
 using Rpg.Entities;
+using Rpg.Entities.Components;
 
 namespace Server.Game;
 
@@ -40,7 +41,7 @@ public class ServerFloor : Floor, ISerializable
 {
     public AreaTrigger[] Triggers = Array.Empty<AreaTrigger>();
     private List<Line>[,] collisionGrid = new List<Line>[0, 0];
-    private List<TokenComponent>[,] entityCollisionGrid = new List<TokenComponent>[0, 0];
+    private List<Token>[,] entityCollisionGrid = new List<Token>[0, 0];
     private List<AreaTrigger>[,] triggerGrid = new List<AreaTrigger>[0, 0];
     
     public void UpdateCollisionGrid()
@@ -101,7 +102,7 @@ public class ServerFloor : Floor, ISerializable
         }
     }
 
-    public void UpdateEntityCollisionGrid(TokenComponent entity)
+    public void UpdateEntityCollisionGrid(Token entity)
     {
         var obb = entity.Hitbox;
         var corners = obb.Corners;
@@ -130,7 +131,7 @@ public class ServerFloor : Floor, ISerializable
 
     public ServerFloor(Vector2 size, Vector2 tileSize, uint ambinetLight) : base(size, tileSize, ambinetLight)
     {
-        entityCollisionGrid = new List<Entity>[(int)Size.X, (int)Size.Y];
+        entityCollisionGrid = new List<Token>[(int)Size.X, (int)Size.Y];
         for (int x = 0; x < Size.X; x++)
         {
             for (int y = 0; y < Size.Y; y++)
@@ -141,7 +142,7 @@ public class ServerFloor : Floor, ISerializable
     }
 
     public ServerFloor(Stream stream){
-        entityCollisionGrid = new List<Entity>[(int)Size.X, (int)Size.Y];
+        entityCollisionGrid = new List<Token>[(int)Size.X, (int)Size.Y];
         for (int x = 0; x < Size.X; x++)
         {
             for (int y = 0; y < Size.Y; y++)
@@ -337,9 +338,9 @@ public class ServerFloor : Floor, ISerializable
         }*/
     }
 
-    public override IEnumerable<Entity> PossibleEntityIntersections(OBB obb)
+    public override IEnumerable<Token> PossibleEntityIntersections(OBB obb)
     {
-        HashSet<Entity> alreadyYielded = new ();
+        HashSet<Token> alreadyYielded = new ();
 
         var corners = obb.Corners;
         float minX = corners.Min(c => c.X);

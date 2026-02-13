@@ -1,7 +1,4 @@
 using System.Numerics;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
 using Rpg;
 
 namespace Rpg;
@@ -15,5 +12,4 @@ public abstract class SidedLogic
     public abstract Floor NewFloor(Vector2 size, Vector2 tileSize, UInt32 ambientLight);
     public abstract Board? GetBoard(string name);
     public abstract bool IsClient();
-    public abstract string GetRpgAssemblyPath();
 }

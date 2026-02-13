@@ -6,8 +6,12 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Rpg;
 using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Entities.Components.Health;
+using Rpg.Entities.Components.Inventory;
 using Rpg.Features;
-using Rpg.Inventory;
+using Rpg.Health;
+using Rpg.Skills;
 // ReSharper disable UnusedMember.Global
 
 namespace Rpg;
@@ -293,21 +297,21 @@ public class FloorImagePacket(string boardName, int floorIndex, Midia midia) : P
 
 public class DoorUpdatePacket : Packet
 {
-    public readonly DoorComponent Door;
-    public readonly ComponentRef<DoorComponent> @ref;
+    public readonly Door Door;
+    public readonly ComponentRef<Door> @ref;
 
     public override ProtocolId Id => ProtocolId.DOOR_UPDATE;
 
-    public DoorUpdatePacket(DoorComponent door)
+    public DoorUpdatePacket(Door door)
     {
         Door = door;
-        @ref = new ComponentRef<DoorComponent>(door);
+        @ref = new ComponentRef<Door>(door);
     }
     public DoorUpdatePacket(Stream stream)
     {
         stream.ReadByte();
-        @ref = new ComponentRef<DoorComponent>(stream);
-        Door = new DoorComponent(stream)
+        @ref = new ComponentRef<Door>(stream);
+        Door = new Door(stream)
         {
             Entity = @ref.Component?.Entity
         };
@@ -324,17 +328,17 @@ public class DoorUpdatePacket : Packet
 
 public class DoorInteractPacket : Packet
 {
-    public readonly ComponentRef<DoorComponent> Door;
+    public readonly ComponentRef<Door> Door;
 
     public override ProtocolId Id => ProtocolId.DOOR_INTERACT;
 
-    public DoorInteractPacket(DoorComponent door)
+    public DoorInteractPacket(Door door)
     {
-        Door = new ComponentRef<DoorComponent>(door);
+        Door = new ComponentRef<Door>(door);
     }
     public DoorInteractPacket(Stream stream)
     {
-        Door = new ComponentRef<DoorComponent>(stream);
+        Door = new ComponentRef<Door>(stream);
     }
 
     public override void ToBytes(Stream stream)
@@ -453,15 +457,15 @@ public class EntityRemovePacket : Packet
 public class TokenUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.TOKEN_UPDATE;
-    public readonly ComponentRef<TokenComponent> TokenRef;
+    public readonly ComponentRef<Token> TokenRef;
 
-    public TokenUpdatePacket(TokenComponent token) : base()
+    public TokenUpdatePacket(Token token) : base()
     {
-        TokenRef = new ComponentRef<TokenComponent>(token);
+        TokenRef = new ComponentRef<Token>(token);
     }
     public TokenUpdatePacket(Stream stream)
     {
-        TokenRef = new ComponentRef<TokenComponent>(stream);
+        TokenRef = new ComponentRef<Token>(stream);
     }
     public override void ToBytes(Stream stream)
     {
@@ -469,51 +473,6 @@ public class TokenUpdatePacket : Packet
         TokenRef.ToBytes(stream);
     }
 
-}
-
-public class EntityBodyPartPacket : Packet
-{
-    public CreatureRef CreatureRef;
-    public readonly string Path;
-    public readonly BodyPart? Part;
-
-    public override ProtocolId Id => ProtocolId.ENTITY_BODY_PART;
-
-    public EntityBodyPartPacket(BodyPart part)
-    {
-        if (part.Creature == null)
-            throw new ArgumentException("Part needs an owner for this packet. ", nameof(part));
-        CreatureRef = new CreatureRef(part.Creature);
-        Part = part;
-        Path = part.Path;
-    }
-
-    public EntityBodyPartPacket(Creature creature, string path)
-    {
-        CreatureRef = new CreatureRef(creature);
-        Path = path;
-        Part = null;
-    }
-
-    public EntityBodyPartPacket(Stream stream)
-    {
-        CreatureRef = new CreatureRef(stream);
-        Path = stream.ReadString();
-        Part = stream.ReadByte() == 1 ? new BodyPart(stream, CreatureRef.Creature?.Body) : null;
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        CreatureRef.ToBytes(stream);
-        stream.WriteString(Path);
-        if (Part == null)
-        {
-            stream.WriteByte(0);
-            return;
-        }
-        Part.ToBytes(stream);
-    }
 }
 
 public class EntityBodyPartInjuryPacket : Packet
@@ -524,8 +483,7 @@ public class EntityBodyPartInjuryPacket : Packet
         REMOVE,
         REPLACE
     }
-    public CreatureRef CreatureRef;
-    public readonly string Path;
+    public ComponentRef<BodyPart> BpRef;
     public readonly Injury? OldInjury;
     public readonly Injury Injury;
     public readonly InjuryPacketType Type;
@@ -534,19 +492,13 @@ public class EntityBodyPartInjuryPacket : Packet
 
     public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, InjuryPacketType type)
     {
-        if (part.Creature == null)
-            throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
-        CreatureRef = new CreatureRef(part.Creature);
-        Path = part.Path;
+        BpRef = new ComponentRef<BodyPart>(part);
         Injury = condition;
         Type = type;
     }
     public EntityBodyPartInjuryPacket(BodyPart part, Injury condition, Injury old)
     {
-        if (part.Creature == null)
-            throw new ArgumentException("Part needs a creature for this packet. ", nameof(part));
-        CreatureRef = new CreatureRef(part.Creature);
-        Path = part.Path;
+        BpRef = new ComponentRef<BodyPart>(part);
         Injury = condition;
         OldInjury = old;
         Type = InjuryPacketType.REPLACE;
@@ -554,8 +506,7 @@ public class EntityBodyPartInjuryPacket : Packet
 
     public EntityBodyPartInjuryPacket(Stream stream)
     {
-        CreatureRef = new CreatureRef(stream);
-        Path = stream.ReadString();
+        BpRef = new ComponentRef<BodyPart>(stream);
         Injury = new Injury(stream);
         Type = (InjuryPacketType)stream.ReadByte();
         if (Type == InjuryPacketType.REPLACE)
@@ -565,8 +516,7 @@ public class EntityBodyPartInjuryPacket : Packet
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        CreatureRef.ToBytes(stream);
-        stream.WriteString(Path);
+        BpRef.ToBytes(stream);
         Injury.ToBytes(stream);
         stream.WriteByte((byte)Type);
         if (Type == InjuryPacketType.REPLACE)
@@ -575,25 +525,25 @@ public class EntityBodyPartInjuryPacket : Packet
 }
 
 //Maybe consider sepparating this into many smaller packets, so it doesn't need to send the entire stat with all modifiers
-public class StatHolderUpdatePacket : Packet
+public class StatsUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.STAT_UPDATE;
 
-    public ComponentRef<StatsComponent> HolderRef;
+    public ComponentRef<StatsContainer> HolderRef;
     public List<Stat> Stats = new List<Stat>();
 
     // Create packet from a stat holder: sends all stats
-    public StatHolderUpdatePacket(StatsComponent stats)
+    public StatsUpdatePacket(StatsContainer stats)
     {
-        HolderRef = new ComponentRef<StatsComponent>(stats);
+        HolderRef = new ComponentRef<StatsContainer>(stats);
         foreach (var s in stats.Stats)
             Stats.Add(s.Clone());
     }
 
     // Deserialize
-    public StatHolderUpdatePacket(Stream stream)
+    public StatsUpdatePacket(Stream stream)
     {
-        HolderRef = new ComponentRef<StatsComponent>(stream);
+        HolderRef = new ComponentRef<StatsContainer>(stream);
         ushort statCount = stream.ReadUInt16();
         for (int i = 0; i < statCount; i++)
         {
@@ -624,17 +574,17 @@ public class FeatureUpdatePacket : Packet
 
     public override ProtocolId Id => ProtocolId.FEATURE_UPDATE;
     public FeatureUpdateType UpdateType;
-    public ComponentRef<FeaturesComponent> SourceRef;
+    public ComponentRef<FeaturesContainer> SourceRef;
     public string? FeatureId;
     public Feature? Feature;
-    private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesComponent> @ref, Feature feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesContainer> @ref, Feature feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
         Feature = feature;
         FeatureId = feature?.GetId();
     }
-    private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesComponent> @ref, string feature)
+    private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesContainer> @ref, string feature)
     {
         UpdateType = updateType;
         SourceRef = @ref;
@@ -643,7 +593,7 @@ public class FeatureUpdatePacket : Packet
     public FeatureUpdatePacket(Stream stream)
     {
         UpdateType = (FeatureUpdateType)stream.ReadByte();
-        SourceRef = new ComponentRef<FeaturesComponent>(stream);
+        SourceRef = new ComponentRef<FeaturesContainer>(stream);
         if (UpdateType == FeatureUpdateType.ADD)
             Feature = Feature.FromBytes(stream);
         else
@@ -661,51 +611,51 @@ public class FeatureUpdatePacket : Packet
             stream.WriteString(FeatureId);
     }
 
-    public static FeatureUpdatePacket Enable(FeaturesComponent component, string id)
+    public static FeatureUpdatePacket Enable(FeaturesContainer component, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ENABLE,
-            new ComponentRef<FeaturesComponent>(component),
+            new ComponentRef<FeaturesContainer>(component),
             id
         );
     }
-    public static FeatureUpdatePacket Enable(FeaturesComponent component, Feature feature)
+    public static FeatureUpdatePacket Enable(FeaturesContainer component, Feature feature)
     {
         return Enable(component, feature.GetId());
     }
-    public static FeatureUpdatePacket Disable(FeaturesComponent component, string id)
+    public static FeatureUpdatePacket Disable(FeaturesContainer component, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.DISABLE,
-            new ComponentRef<FeaturesComponent>(component),
+            new ComponentRef<FeaturesContainer>(component),
             id
         );
     }
-    public static FeatureUpdatePacket Disable(FeaturesComponent component, Feature feature)
+    public static FeatureUpdatePacket Disable(FeaturesContainer component, Feature feature)
     {
         return Disable(component, feature.GetId());
     }
-    public static FeatureUpdatePacket Add(FeaturesComponent component, Feature feature)
+    public static FeatureUpdatePacket Add(FeaturesContainer component, Feature feature)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.ADD,
-            new ComponentRef<FeaturesComponent>(component),
+            new ComponentRef<FeaturesContainer>(component),
             feature
         );
     }
-    public static FeatureUpdatePacket Remove(FeaturesComponent component, string id)
+    public static FeatureUpdatePacket Remove(FeaturesContainer component, string id)
     {
         return new FeatureUpdatePacket
         (
             FeatureUpdateType.REMOVE,
-            new ComponentRef<FeaturesComponent>(component),
+            new ComponentRef<FeaturesContainer>(component),
             id
         );
     }
-    public static FeatureUpdatePacket Remove(FeaturesComponent component, Feature feature)
+    public static FeatureUpdatePacket Remove(FeaturesContainer component, Feature feature)
     {
         return Remove(component, feature.GetId());
     }
@@ -714,20 +664,18 @@ public class FeatureUpdatePacket : Packet
 public class CreatureEquipItemPacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_EQUIP_ITEM;
-    public readonly BodyPartRef BPRef;
+    public readonly ComponentRef<BodyPart> BPRef;
     public readonly string? Slot;
-    public ItemRef ItemRef;
+    public ComponentRef<EquipmentProperty> ItemRef;
     public readonly bool Equipped;
 
     public CreatureEquipItemPacket(BodyPart bp, string slot, Item item)
     {
-        if (!item.HasProperty<EquipmentProperty>())
+        if (item.GetProperty<EquipmentProperty>() == null)
             throw new ArgumentException("Item isn't an equipment!");
-        if (bp.Creature == null)
-            throw new ArgumentException("Bodypart doesn't have an owner!");
         
-        BPRef = new BodyPartRef(bp);
-        ItemRef = new ItemRef(item);
+        BPRef = new ComponentRef<BodyPart>(bp);
+        ItemRef = new ComponentRef<EquipmentProperty>(item.GetProperty<EquipmentProperty>()!);
         Slot = slot;
         Equipped = true;
     }
@@ -739,17 +687,15 @@ public class CreatureEquipItemPacket : Packet
             throw new ArgumentException("Item isn't an equipment!");
         if (!(item.Holder is BodyPart bp))
             throw new ArgumentException("Item isn't equipped by a BodyPart");
-        if (bp.Creature == null)
-            throw new ArgumentException("Bodypart doesn't have an owner!");
-        BPRef = new BodyPartRef(bp);
-        ItemRef = new ItemRef(item);
+        BPRef = new ComponentRef<BodyPart>(bp);
+        ItemRef = new ComponentRef<EquipmentProperty>(item.GetProperty<EquipmentProperty>()!);
         Equipped = false;
     }
 
     public CreatureEquipItemPacket(Stream stream)
     {
-        ItemRef = new ItemRef(stream);
-        BPRef = new BodyPartRef(stream);
+        ItemRef = new ComponentRef<EquipmentProperty>(stream);
+        BPRef = new ComponentRef<BodyPart>(stream);
         Equipped = stream.ReadByte() != 0;
         if (Equipped)
             Slot = stream.ReadString();
@@ -771,18 +717,18 @@ public class CreatureEquipItemPacket : Packet
 public class SkillUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.SKILL_UPDATE;
-    public ComponentRef<SkillExecutorComponent> Ref;
+    public ComponentRef<SkillExecutor> Ref;
     public readonly SkillData Data;
 
-    public SkillUpdatePacket(SkillExecutorComponent executor, SkillData skill)
+    public SkillUpdatePacket(SkillExecutor executor, SkillData skill)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(executor);
+        Ref = new ComponentRef<SkillExecutor>(executor);
         Data = skill;
     }
 
     public SkillUpdatePacket(Stream stream)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(stream);
+        Ref = new ComponentRef<SkillExecutor>(stream);
         Data = new SkillData(stream);
     }
 
@@ -796,17 +742,17 @@ public class SkillUpdatePacket : Packet
 public class SkillRemovePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.SKILL_REMOVE;
-    public ComponentRef<SkillExecutorComponent> Ref;
+    public ComponentRef<SkillExecutor> Ref;
     public readonly int SkillId;
 
-    public SkillRemovePacket(SkillExecutorComponent executor, int id)
+    public SkillRemovePacket(SkillExecutor executor, int id)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(executor);
+        Ref = new ComponentRef<SkillExecutor>(executor);
         SkillId = id;
     }
     public SkillRemovePacket(Stream stream)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(stream);
+        Ref = new ComponentRef<SkillExecutor>(stream);
         SkillId = stream.ReadInt32();
     }
     public override void ToBytes(Stream stream)
@@ -820,18 +766,18 @@ public class SkillRemovePacket : Packet
 public class ActionLayerUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_ACTION_LAYER_UPDATE;
-    public ComponentRef<SkillExecutorComponent> Ref;
+    public ComponentRef<SkillExecutor> Ref;
     public readonly ActionLayer Layer;
 
-    public ActionLayerUpdatePacket(SkillExecutorComponent executor, ActionLayer layer)
+    public ActionLayerUpdatePacket(SkillExecutor executor, ActionLayer layer)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(executor);
+        Ref = new ComponentRef<SkillExecutor>(executor);
         Layer = layer;
     }
 
     public ActionLayerUpdatePacket(Stream stream)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(stream);
+        Ref = new ComponentRef<SkillExecutor>(stream);
         Layer = new ActionLayer(stream);
     }
 
@@ -845,17 +791,17 @@ public class ActionLayerUpdatePacket : Packet
 public class ActionLayerRemovePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.CREATURE_ACTION_LAYER_REMOVE;
-    public ComponentRef<SkillExecutorComponent> Ref;
+    public ComponentRef<SkillExecutor> Ref;
     public readonly string LayerId;
 
-    public ActionLayerRemovePacket(SkillExecutorComponent executor, string id)
+    public ActionLayerRemovePacket(SkillExecutor executor, string id)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(executor);
+        Ref = new ComponentRef<SkillExecutor>(executor);
         LayerId = id;
     }
     public ActionLayerRemovePacket(Stream stream)
     {
-        Ref = new ComponentRef<SkillExecutorComponent>(stream);
+        Ref = new ComponentRef<SkillExecutor>(stream);
         LayerId = stream.ReadString();
     }
     public override void ToBytes(Stream stream)
@@ -1016,23 +962,23 @@ public class ShowMidiaPacket : Packet
 public class PrivateMessagePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.PRIVATE_MESSAGE;
-    public readonly CreatureRef? Sender;
-    public readonly CreatureRef? Recipient;
+    public readonly EntityRef? Sender;
+    public readonly EntityRef? Recipient;
     public readonly string Message;
 
-    public PrivateMessagePacket(Creature? sender, Creature? recipient, string message)
+    public PrivateMessagePacket(Entity? sender, Entity? recipient, string message)
     {
-        Sender = sender != null ? new CreatureRef(sender) : null;
-        Recipient = recipient != null ? new CreatureRef(recipient) : null;
+        Sender = sender != null ? new EntityRef(sender) : null;
+        Recipient = recipient != null ? new EntityRef(recipient) : null;
         Message = message;
     }
 
     public PrivateMessagePacket(Stream stream)
     {
         if (stream.ReadBoolean())
-            Sender = new CreatureRef(stream);
+            Sender = new EntityRef(stream);
         if (stream.ReadBoolean())
-            Recipient = new CreatureRef(stream);
+            Recipient = new EntityRef(stream);
         Message = stream.ReadLongString();
     }
 

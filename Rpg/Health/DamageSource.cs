@@ -1,7 +1,9 @@
 ﻿using Rpg;
 using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Skills;
 
-namespace Rpg;
+namespace Rpg.Health;
 
 public class DamageSource(DamageType type) : ISerializable
 {
@@ -9,7 +11,7 @@ public class DamageSource(DamageType type) : ISerializable
     /// <summary>
     /// The entity that initiated the attack.
     /// </summary>
-    public SkillExecutorComponent? Attacker;
+    public SkillExecutor? Attacker;
     /// <summary>
     /// The entity that has made contact with the target. This is not always the attacker, because arrows and magic.
     /// </summary>
@@ -23,35 +25,35 @@ public class DamageSource(DamageType type) : ISerializable
     /// </summary>
     public List<SkillArgument>? Arguments;
 
-    public DamageSource(DamageType type, SkillExecutorComponent attacker, Skill skillUsed, params SkillArgument[] args) : this(type)
+    public DamageSource(DamageType type, SkillExecutor attacker, Skill skillUsed, params SkillArgument[] args) : this(type)
     {
         Attacker = attacker;
         ContactEntity = attacker.Entity;
         SkillUsed = skillUsed;
-        Arguments = new List<SkillArgument>(args);
+        Arguments = [.. args];
     }
 
-    public DamageSource(DamageType type, Entity attacker, Entity? directAttacker = null) : this(type)
+    public DamageSource(DamageType type, SkillExecutor attacker, Entity? directAttacker = null) : this(type)
     {
-        directAttacker ??= attacker;
-        
         Attacker = attacker;
         ContactEntity = directAttacker;
+        if (directAttacker == null)
+            ContactEntity = attacker.Entity;
     }
 
-    public DamageSource(DamageType type, Creature attacker, Skill skillUsed, List<SkillArgument> args,
+    public DamageSource(DamageType type, SkillExecutor attacker, Skill skillUsed, List<SkillArgument> args,
         Entity indirectAttacker) : this(type)
     {
         Attacker = attacker;
         ContactEntity = indirectAttacker;
         SkillUsed = skillUsed;
-        Arguments = args;
+        Arguments = [.. args];
     }
 
     public DamageSource(Stream stream) : this(DamageType.FromBytes(stream))
     {
         if (stream.ReadByte() != 0)
-            Attacker = new EntityRef(stream).Entity;
+            Attacker = new ComponentRef<SkillExecutor>(stream).Component;
         if (stream.ReadByte() != 0)
             ContactEntity = new EntityRef(stream).Entity;
         if (stream.ReadByte() == 0) return;
@@ -71,7 +73,7 @@ public class DamageSource(DamageType type) : ISerializable
         if (Attacker != null)
         {
             stream.WriteByte(1);
-            new EntityRef(Attacker).ToBytes(stream);
+            new ComponentRef<SkillExecutor>(Attacker).ToBytes(stream);
         }
         else
             stream.WriteByte(0);
@@ -98,5 +100,26 @@ public class DamageSource(DamageType type) : ISerializable
         else
             stream.WriteByte(0);
         
+    }
+}
+public class DamageInstance : ISerializable
+{
+    public DamageSource Source;
+    public float Amount;
+
+    public DamageInstance(DamageSource source, float amount)
+    {
+        Source = source;
+        Amount = amount;
+    }
+    public DamageInstance(Stream stream)
+    {
+        Source = new DamageSource(stream);
+        Amount = stream.ReadFloat();
+    }
+    public void ToBytes(Stream stream)
+    {
+        Source.ToBytes(stream);
+        stream.WriteFloat(Amount);
     }
 }

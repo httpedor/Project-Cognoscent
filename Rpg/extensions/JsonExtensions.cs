@@ -22,4 +22,12 @@ public static class JsonExtensions
         var doc = JsonDocument.Parse(node.ToJsonString());
         return doc.RootElement.Clone();
     }
+    public static JsonElement? GetPropertyOrNull(this JsonElement el, string propertyName)
+    {
+        if (el.TryGetProperty(propertyName, out JsonElement prop))
+        {
+            return prop;
+        }
+        return null;
+    }
 }

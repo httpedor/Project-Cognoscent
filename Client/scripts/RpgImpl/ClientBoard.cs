@@ -8,6 +8,7 @@ using TTRpgClient.scripts.ui;
 
 namespace TTRpgClient.scripts.RpgImpl;
 
+//TODO: Setup the correct Initialization workflow for the ClientBoard
 public class ClientBoard : Board
 {
 	private static Dictionary<EntityType, Func<Entity, ClientBoard, EntityNode>> nodeConstructors = new()
@@ -193,9 +194,9 @@ public class ClientBoard : Board
 		UpdateTurnModeToast();
 	}
 
-	public override List<Creature> GetCreaturesByOwner(string owner)
+	public override List<Creature> GetEntitiesByOwner(string owner)
 	{
-		if (!owner.Equals(GameManager.Username)) return base.GetCreaturesByOwner(owner);
+		if (!owner.Equals(GameManager.Username)) return base.GetEntitiesByOwner(owner);
 		
 		var ret = new List<Creature>();
 		foreach (int id in localEntityIds)

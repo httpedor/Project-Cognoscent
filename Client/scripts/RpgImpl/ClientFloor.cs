@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Godot;
 using Rpg;
+using Rpg.Entities.Components;
 
 namespace TTRpgClient.scripts.RpgImpl;
 
@@ -190,7 +191,7 @@ public class ClientFloor : Floor
     {
         throw new NotImplementedException();
     }
-    public override IEnumerable<Entity> PossibleEntityIntersections(OBB obb)
+    public override IEnumerable<Token> PossibleEntityIntersections(OBB obb)
     {
         throw new NotImplementedException();
     }

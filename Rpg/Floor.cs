@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using Rpg;
+using Rpg.Entities.Components;
 
 namespace Rpg;
 
@@ -180,7 +181,7 @@ public abstract class Floor
     }
     public abstract Vector2? GetIntersection(Vector2 start, Vector2 end, out Vector2? normal);
     public abstract IEnumerable<Line> PossibleOBBIntersections(OBB obb);
-    public abstract IEnumerable<Entity> PossibleEntityIntersections(OBB obb);
+    public abstract IEnumerable<Token> PossibleEntityIntersections(OBB obb);
     public IEnumerable<Line> BroadPhaseOBB(OBB obb){
         return PossibleOBBIntersections(obb);
     }

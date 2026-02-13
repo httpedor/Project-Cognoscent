@@ -1,16 +1,16 @@
-namespace Rpg.Entities;
+namespace Rpg.Entities.Interfaces;
 
 public interface ITickableComponent
 {
-    void PreTick()
+    virtual void PreTick()
     {
 
     }
-    void OnTick()
+    virtual void OnTick()
     {
 
     }
-    void PostTick()
+    virtual void PostTick()
     {
 
     }

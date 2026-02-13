@@ -100,15 +100,15 @@ public static class JsonHelpers
         switch (json.ValueKind)
         {
             case JsonValueKind.Number:
-                return json.GetSingle();
+                return json.GetSingle()!;
             case JsonValueKind.String:
-                var str = json.GetString();
+                var str = json.GetString()!;
                 if (float.TryParse(str, out float v))
                     return v;
                 
-                if (str.Contains("d"))
+                if (str.Contains('d'))
                     return RpgMath.RollDice(str);
-                if (str.Contains("-") || str.Contains(":") || str.Contains(","))
+                if (str.Contains('-') || str.Contains(':') || str.Contains(','))
                 {
                     var parts = str.Split(new char[] { '-', ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 2 && float.TryParse(parts[0], out float min) && float.TryParse(parts[1], out float max))

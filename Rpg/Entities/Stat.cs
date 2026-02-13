@@ -4,6 +4,7 @@ using System.Reflection.Metadata;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Rpg;
+using Rpg.Entities.Components.Health;
 
 public enum StatModifierType
 {
@@ -16,7 +17,7 @@ public enum StatModifierType
     OverrideBase,
     OverrideFinal
 }
-public struct StatModifier : ISerializable
+public class StatModifier : ISerializable
 {
     public readonly string Id;
     public float Value;
@@ -238,50 +239,22 @@ public class Stat : ISerializable
     public static float ApplyModifiers(IEnumerable<StatModifier> modifiers, float baseValue = 0, float min = float.MinValue, float max = float.MaxValue, bool overCap = true, bool underCap = true)
     {
         float newBase = baseValue;
-        var flatModifiers = new List<StatModifier>();
-        var flatPostMods = new List<StatModifier>();
-        var percentModifiers = new List<StatModifier>();
-        var multiplierModifiers = new List<StatModifier>();
-        var minModifiers = new List<StatModifier>();
-        var maxModifiers = new List<StatModifier>();
+        var modsPerType = new Dictionary<StatModifierType, List<StatModifier>>();
         foreach (StatModifier modifier in modifiers)
         {
-            switch (modifier.Type)
-            {
-                case StatModifierType.Flat:
-                    flatModifiers.Add(modifier);
-                    break;
-                case StatModifierType.FlatPostMods:
-                    flatPostMods.Add(modifier);
-                    break;
-                case StatModifierType.Percent:
-                    percentModifiers.Add(modifier);
-                    break;
-                case StatModifierType.Multiplier:
-                    multiplierModifiers.Add(modifier);
-                    break;
-                case StatModifierType.Capmax:
-                    maxModifiers.Add(modifier);
-                    break;
-                case StatModifierType.Capmin:
-                    minModifiers.Add(modifier);
-                    break;
-                case StatModifierType.OverrideFinal:
-                    return modifier.Value;
-                case StatModifierType.OverrideBase:
-                    newBase = modifier.Value;
-                    break;
-            }
+            if (!modsPerType.ContainsKey(modifier.Type))
+                modsPerType[modifier.Type] = new List<StatModifier>();
+            modsPerType[modifier.Type].Add(modifier);
         }
 
-        foreach (var mod in flatModifiers)
+        foreach (var mod in modsPerType.GetValueOrDefault(StatModifierType.Flat, []))
             newBase += mod.Value;
         float finalValue = newBase;
-        foreach (StatModifier modifier in percentModifiers)
+        foreach (StatModifier modifier in modsPerType.GetValueOrDefault(StatModifierType.Percent, []))
             finalValue += newBase * modifier.Value;
-        foreach (StatModifier modifier in multiplierModifiers)
+        foreach (StatModifier modifier in modsPerType.GetValueOrDefault(StatModifierType.Multiplier, []))
             finalValue *= 1 + modifier.Value;
-        foreach (var mod in flatPostMods)
+        foreach (var mod in modsPerType.GetValueOrDefault(StatModifierType.FlatPostMods, []))
             finalValue += mod.Value;
 
         if (overCap)
@@ -291,10 +264,12 @@ public class Stat : ISerializable
         
         float minValue = float.MinValue;
         float maxValue = float.MaxValue;
-        if (minModifiers.Count > 0)
-            minValue = minModifiers.Select(modifier => modifier.Value).Max();
-        if (maxModifiers.Count > 0)
-            maxValue = maxModifiers.Select(modifier => modifier.Value).Min();
+        var minMods = modsPerType.GetValueOrDefault(StatModifierType.Capmin, []);
+        var maxMods = modsPerType.GetValueOrDefault(StatModifierType.Capmax, []);
+        if (minMods.Count > 0)
+            minValue = minMods.Max(modifier => modifier.Value);
+        if (maxMods.Count > 0)
+            maxValue = maxMods.Min(modifier => modifier.Value);
 
         finalValue = Math.Clamp(finalValue, minValue, maxValue);
 
@@ -325,15 +300,6 @@ public static class CreatureStats
     public static string[] GetAllStats()
     {
         return typeof(CreatureStats).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static).Where(f => f.FieldType == typeof(string)).Select(f => (string)f.GetValue(null)!).ToArray()!;
-    }
-
-    public static string GetUniqueStat(string stat, string partName)
-    {
-        return partName + "/" + stat;
-    }
-    public static string GetUniqueStat(string stat, BodyPart part)
-    {
-        return GetUniqueStat(stat, part.Name);
     }
 
     public static float GetAttributeModifier(float stat)

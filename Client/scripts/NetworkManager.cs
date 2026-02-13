@@ -264,7 +264,7 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.STAT_UPDATE:
 			{
-				var sup = (Rpg.StatHolderUpdatePacket)packet;
+				var sup = (Rpg.StatsUpdatePacket)packet;
 				IStatHolder? holder = sup.HolderRef.Holder;
 				if (holder == null)
 					break;

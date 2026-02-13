@@ -28,7 +28,7 @@ public partial class BodyViewer : Tree
 		item.SetText(0, part.Name);
 		item.SetText(1, $"{part.Health}/{part.MaxHealth}");
 		var actions = "";
-		foreach (var action in part.Skills)
+		foreach (var action in part.ProvidedSkills)
 		{
 			actions += action.GetName();
 			actions += ", ";

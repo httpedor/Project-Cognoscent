@@ -1,7 +1,5 @@
 using System.Numerics;
-using Rpg;
 using Rpg.Entities;
-using Rpg.Inventory;
 
 namespace Rpg;
 
@@ -47,6 +45,7 @@ public abstract class Board
     protected uint pauseTick = uint.MaxValue;
     public bool TurnMode = false;
     public uint CurrentTick = 0;
+    public bool WasInitialized {get; protected set;} = false;
 
     protected Board()
     {
@@ -129,6 +128,8 @@ public abstract class Board
         entity.Board = this;
         if (entity.CreationTick == 0)
             entity.CreationTick = CurrentTick;
+        if (!entity.WasInitialized && WasInitialized)
+            entity.Initialize();
 
         IndexEntity(entity);
     }
@@ -162,13 +163,13 @@ public abstract class Board
     {
         return GetEntityById(id) as T;
     }
-    public virtual List<CreatureComponent> GetCreaturesByOwner(string owner)
+    public virtual List<Entity> GetEntitiesByOwner(string owner)
     {
-        var creatures = new List<CreatureComponent>();
-        foreach (var creature in GetComponents<CreatureComponent>())
+        var creatures = new List<Entity>();
+        foreach (var entity in entityCache.Values)
         {
-            if (creature.Owner == owner)
-                creatures.Add(creature);
+            if (entity.Owner == owner)
+                creatures.Add(entity);
         }
         return creatures;
     }
@@ -253,7 +254,15 @@ public abstract class Board
     }
     public virtual void HandleEvent(ComponentEvent e)
     {
-
+        switch (e)
+        {
+            case ComponentRemovedEvent removedEvent:
+                {
+                    var entity = removedEvent.Component.Entity;
+                    entityIdsByComponentTypeId[removedEvent.Component.GetId()].Remove(entity.Id);
+                    break;
+                }
+        }
     }
     public virtual void StartTurnMode()
     {

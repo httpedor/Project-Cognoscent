@@ -10,6 +10,16 @@ public abstract class ComponentEvent
         Component = component;
     }
 }
+public interface IImmediateEvent
+{
+}
+public abstract class CancellableComponentEvent : ComponentEvent, IImmediateEvent
+{
+    public bool Canceled = false;
+    public CancellableComponentEvent(Component component) : base(component)
+    {
+    }
+}
 public interface ComponentEventHandler<T> where T : ComponentEvent
 {
     void HandleEvent(T componentEvent);
@@ -41,7 +51,7 @@ public class ComponentRef<T> where T : Component {
         EntityRef.ToBytes(stream);
     }
 }
-public class GenericComponentRef {
+public class GenericComponentRef : ISerializable {
     public uint ComponentTypeId;
     public EntityRef EntityRef;
     public Component? Component => EntityRef.Entity?.GetComponent(ComponentTypeId);
@@ -51,10 +61,27 @@ public class GenericComponentRef {
         EntityRef = new EntityRef(entity);
         ComponentTypeId = componentTypeId;
     }
+    public GenericComponentRef(EntityRef entityRef, uint componentTypeId)
+    {
+        EntityRef = entityRef;
+        ComponentTypeId = componentTypeId;
+    }
     public GenericComponentRef(Component component)
     {
         ComponentTypeId = Entities.Component.GetComponentId(component.GetType());
         EntityRef = new EntityRef(component.Entity);
+    }
+
+    public GenericComponentRef(Stream stream)
+    {
+        ComponentTypeId = stream.ReadUInt32();
+        EntityRef = new EntityRef(stream);
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        stream.WriteUInt32(ComponentTypeId);
+        EntityRef.ToBytes(stream);
     }
 }
 public abstract partial class Component : ISerializable
@@ -69,6 +96,8 @@ public abstract partial class Component : ISerializable
 
     [JsonIgnore]
     public Board? Board => Entity.Board;
+    public bool WasInitialized {get; private set;} = false;
+    private readonly Dictionary<string, List<(int entityId, uint componentId)>> entitiesToFind = new();
 
     public Component()
     {
@@ -88,6 +117,27 @@ public abstract partial class Component : ISerializable
     }
     public virtual void OnInit(Entity entity)
     {
+        foreach (var (group, list) in entitiesToFind)
+        {
+            List<Component> foundComponents = new();
+            foreach (var (entityId, componentId) in list)
+            {
+                Entity? targetEntity = Board?.GetEntityById(entityId);
+                if (targetEntity != null)
+                {
+                    Component? component = targetEntity.GetComponent(componentId);
+                    if (component != null)
+                    {
+                        foundComponents.Add(component);
+                    }
+                }
+            }
+            OnFoundComponents(group, foundComponents);
+        }
+        WasInitialized = true;
+    }
+    public virtual void OnReady()
+    {
     }
     public virtual void OnAddedTo(Entity entity)
     {
@@ -95,17 +145,26 @@ public abstract partial class Component : ISerializable
     public virtual void OnRemovedFrom(Entity entity)
     {
     }
+    protected virtual void OnFoundComponents(string group, List<Component> components)
+    {
+    }
 
-    public virtual void OnComponentAdded(Entity entity, Component component)
-    {
-    }
-    public virtual void OnComponentRemoved(Entity entity, Component component)
-    {
-    }
+    public abstract uint GetId();
 
     public virtual void Destroy()
     {
         Entity.RemoveComponent(Component.GetComponentId(GetType()));
+    }
+
+    protected void LookForComponent<T>(string group, int entityId) where T : Component
+    {
+        if (!entitiesToFind.ContainsKey(group))
+            entitiesToFind[group] = new List<(int, uint)>();
+        entitiesToFind[group].Add((entityId, Component.GetComponentId<T>()));
+    }
+    protected void SaveComponentRef<T>(Stream stream, T component) where T : Component
+    {
+        stream.WriteInt32(component.Entity.Id);
     }
 
     public virtual void ToBytes(Stream stream)

@@ -1,161 +1,124 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Rpg.Entities.Components.Health;
+using Rpg.Scripting;
 
-namespace Rpg;
+namespace Rpg.Health;
 
-using ConversionEntry = (Func<Injury, BodyPart, Injury?> conversionFunc, float interval);
-using CreationEntry = (Func<Injury, BodyPart, Injury?> creationFunc, float interval);
+using CreationEntry = (ConditionExpr condition, Injury injury, float interval);
 
 //TODO: Injury treatments. For example, bandaged, cooled, disinfected, etc.
 // Each injury type can then interpret these treatments differently.
 // E.g: A burn might need to be cooled to heal faster, or bandaged to reduce infection chance. Or a cut might need to be bandaged to reduce bleeding.
 public class InjuryType : ISerializable
 {
-    private class CodeContext
-    {
-        Injury injury;
-        BodyPart part;
-        Dictionary<string, InjuryType> injuryTypes;
-        public CodeContext(Injury injury, BodyPart part)
-        {
-            this.injury = injury;
-            this.part = part;
-
-            injuryTypes = Compendium.GetEntries<InjuryType>().ToDictionary(it => it.Id, it => it);
-        }
-
-        public float rand(float min = 0f, float max = 1f)
-        {
-            Random rng = new();
-            return (float)(rng.NextDouble() * (max - min) + min);
-        }
-    }
+    public static readonly CompileContext DefaultCompilerContext = new();
     public readonly string Id;
     /// <summary>
     /// Pain value per severity
     /// </summary>
-    public readonly float Pain;
+    public readonly NumberExpr Pain;
     /// <summary>
     /// Bleed value per severity
     /// </summary>
-    public readonly float BleedingRate;
+    public readonly NumberExpr BleedingRate;
     /// <summary>
     /// Minimum overkill percentage to kill the part
     /// </summary>
-    public readonly float OverkillPercentMin;
+    public readonly NumberExpr OverkillPercentMin;
     /// <summary>
     /// Overkill percentage that makes sure the part will be destroyed
     /// </summary>
-    public readonly float OverkillPercentMax;
+    public readonly NumberExpr OverkillPercentMax;
     /// <summary>
     /// This means the part is not workign, E.g: Broken, Missing, Bloodless
     /// </summary>
-    public readonly bool Instakill;
+    public readonly ConditionExpr Instakill;
     /// <summary>
     /// The rate at which the severity of this injury lowers every second.
     /// </summary>
-    public readonly float NaturalHeal;
+    public readonly NumberExpr NaturalHeal;
     /// <summary>
-    /// Every <c>interval</c> seconds, the <c>creationFunc</c> is called to possibly create another injury.
+    /// Every <c>interval</c> seconds, the <c>injury</c> is added if <c>condition</c> is true.
     /// If the function returns null, no injury is created.
     /// </summary>
     public readonly ImmutableArray<CreationEntry> InjuryCreations = [];
     /// <summary>
-    /// Every <c>interval</c> seconds, the <c>conversionFunc</c> is called to possibly convert this injury into another.
+    /// Every <c>interval</c> seconds, the <c>injury</c> substitutes the current injury if <c>condition</c> is true.
     /// If the function returns null, no conversion occurs.
     /// </summary>
-    public readonly ImmutableArray<ConversionEntry> InjuryConversions = [];
+    public readonly ImmutableArray<CreationEntry> InjuryConversions = [];
     public readonly string Name;
     /// <summary>
     /// This is used in the last damage applied to the part befored it died is this
     /// </summary>
     public readonly string DestructionTranslation;
-    private InjuryType(string id, float pain, float bleed, float opmin, float opmax, string translation, string destructionTranslation, float heal = 0, bool instakill = false)
+
+    public InjuryType(string id, JsonElement json)
     {
         Id = id;
-        Pain = pain;
-        BleedingRate = bleed;
-        OverkillPercentMax = opmax;
-        OverkillPercentMin = opmin;
-        NaturalHeal = heal;
-        Instakill = instakill;
-        Name = translation;
-        DestructionTranslation = destructionTranslation;
-    }
+        Name = json.GetProperty("name").GetString()!;
+        DestructionTranslation = json.GetProperty("destruction").GetString()!;
 
-    public InjuryType(string id, JsonObject json) : this(
-        id,
-        json["pain"]!.GetValue<float>(),
-        json["bleed"]!.GetValue<float>(),
-        json["overkillMin"]!.GetValue<float>(),
-        json["overkillMax"]!.GetValue<float>(),
-        json["name"]!.GetValue<string>(),
-        json["destruction"]!.GetValue<string>(),
-        json.ContainsKey("heal") ? json["heal"]!.GetValue<float>() : 0,
-        json.ContainsKey("instakill") ? json["instakill"]!.GetValue<bool>() : false
-    )
-    {
-        if (json["creations"] is JsonArray addArr)
+        Pain = DefaultCompilerContext.CompileNumber(json.GetProperty("pain"));
+        BleedingRate = DefaultCompilerContext.CompileNumber(json.GetProperty("bleed"));
+        OverkillPercentMin = DefaultCompilerContext.CompileNumber(json.GetProperty("overkillMin"));
+        OverkillPercentMax = DefaultCompilerContext.CompileNumber(json.GetProperty("overkillMax"));
+        NaturalHeal = json.TryGetProperty("heal", out var healElement) ? DefaultCompilerContext.CompileNumber(healElement) : new ConstExpr(0);
+        Instakill = json.TryGetProperty("instakill", out var instakillElement) ? DefaultCompilerContext.CompileCondition(instakillElement) : new ConstConditionExpr(false);
+
+        if (json.TryGetProperty("creations", out var creationsEl) && creationsEl.ValueKind == JsonValueKind.Array)
         {
             List<CreationEntry> creations = new();
-            foreach (var node in addArr)
+            foreach (var node in creationsEl.EnumerateArray())
             {
-                if (node is not JsonObject o)
+                if (node.ValueKind != JsonValueKind.Object)
                 {
                     Logger.LogWarning("[InjuryType] Invalid injury creation entry in InjuryType " + Id);
                     continue;
                 }
-                float? interval = o["interval"]?.GetValue<float>();
-                string? code = o["code"]?.GetValue<string>();
-                if (interval == null || string.IsNullOrWhiteSpace(code))
-                {
-                    Logger.LogWarning("[InjuryType] Invalid injury creation entry in InjuryType " + Id);
-                    continue;
-                }
-                if (SidedLogic.Instance.IsClient())
-                    continue;
+
                 try
                 {
-                    var func = Scripting.Compile<CodeContext, Injury?>(code);
-                    creations.Add(((injury, part) => func(new CodeContext(injury, part)), interval.Value));
+                    float interval = node.GetProperty("interval").GetSingle();
+                    creations.Add((DefaultCompilerContext.CompileCondition(node.GetProperty("condition")),
+                        new Injury(node.GetProperty("injury")),
+                        interval));
                 }
                 catch (Exception e)
                 {
-                    Logger.LogError("[InjuryType] Could not compile injury creation script in InjuryType " + Id + ": " + e);
+                    Logger.LogError("[InjuryType] Could not compile injury creation entry in InjuryType " + Id + ": " + e);
                 }
             }
+            InjuryCreations = creations.ToImmutableArray();
         }
 
-        if (json["conversions"] is JsonArray convArr)
+        if (json.TryGetProperty("conversions", out var convEl) && convEl.ValueKind == JsonValueKind.Array)
         {
-            List<ConversionEntry> conversions = new();
+            List<CreationEntry> conversions = new();
 
-            foreach (var node in convArr)
+            foreach (var node in convEl.EnumerateArray())
             {
-                if (node is not JsonObject o)
+                if (node.ValueKind != JsonValueKind.Object)
                 {
                     Logger.LogWarning("[InjuryType] Invalid injury conversion entry in InjuryType " + Id);
                     continue;
                 }
-                float? interval = o["interval"]?.GetValue<float>();
-                string? code = o["code"]?.GetValue<string>();
-                if (interval == null || string.IsNullOrWhiteSpace(code))
-                {
-                    Logger.LogWarning("[InjuryType] Invalid injury conversion entry in InjuryType " + Id);
-                    continue;
-                }
-                if (SidedLogic.Instance.IsClient())
-                    continue;
+
                 try
                 {
-                    var func = Scripting.Compile<CodeContext, Injury?>(code);
-                    conversions.Add(((injury, part) => func(new CodeContext(injury, part)), interval.Value));
+                    float interval = node.GetProperty("interval").GetSingle();
+                    conversions.Add((DefaultCompilerContext.CompileCondition(node.GetProperty("condition")),
+                        new Injury(node.GetProperty("injury")),
+                        interval));
                 }
                 catch (Exception e)
                 {
-                    Logger.LogError("[InjuryType] Could not compile injury conversion script in InjuryType " + Id + ": " + e);
+                    Logger.LogError("[InjuryType] Could not compile injury conversion entry in InjuryType " + Id + ": " + e);
                 }
             }
+            InjuryConversions = conversions.ToImmutableArray();
         }
     }
 
@@ -192,6 +155,13 @@ public struct Injury : ISerializable
     {
         Type = type;
         Severity = severity;
+    }
+
+    public Injury(JsonElement json)
+    {
+        string typeId = json.GetProperty("type").GetString()!;
+        Type = Compendium.GetEntry<InjuryType>(typeId) ?? throw new Exception("InjuryType '" + typeId + "' not found in Injury deserialization.");
+        Severity = json.GetProperty("severity").GetDouble();
     }
 
     public Injury(Stream stream)
