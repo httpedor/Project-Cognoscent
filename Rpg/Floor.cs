@@ -30,38 +30,6 @@ public struct Polygon : ISerializable {
 }
 
 
-public struct Light : ISerializable {
-    public Vector2 Position;
-    public float Range;
-    public float Intensity;
-    public uint Color;
-    public bool Shadows;
-    public Light(Vector2 position, float range, float intensity, uint color, bool shadows){
-        Position = position;
-        Range = range;
-        Intensity = intensity;
-        Color = color;
-        Shadows = shadows;
-    }
-    public Light(Stream stream){
-        Position = stream.ReadVec2();
-        Range = stream.ReadFloat();
-        Intensity = stream.ReadFloat();
-        Color = stream.ReadUInt32();
-        Shadows = stream.ReadByte() == 1;
-    }
-
-    public void ToBytes(Stream stream)
-    {
-        stream.WriteVec2(Position);
-        stream.WriteFloat(Range);
-        stream.WriteFloat(Intensity);
-        stream.WriteUInt32(Color);
-        stream.WriteByte((byte)(Shadows ? 1 : 0));
-    }
-
-}
-
 public abstract class Floor
 {
     public event Action<Midia>? OnMidiaChanged;

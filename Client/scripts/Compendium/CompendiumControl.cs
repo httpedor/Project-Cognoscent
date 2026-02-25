@@ -2,17 +2,19 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
+using Rpg.Features;
 using FileAccess = Godot.FileAccess;
 
 namespace TTRpgClient.scripts.ui;
 
 public partial class CompendiumControl : ScrollContainer
 {
-    private static readonly Dictionary<string, Func<IEnumerable<(string name, JsonObject json)>>> addFunctions = new()
+    private static readonly Dictionary<string, Func<IEnumerable<(string name, JsonElement json)>>> addFunctions = new()
     {
         {"Midia", () => {
             string f = Modal.OpenFileDialogAsync().Result[0];
@@ -24,13 +26,13 @@ public partial class CompendiumControl : ScrollContainer
                 ["type"] = Midia.GetFilenameType(fName).ToString(),
                 ["data"] = Convert.ToBase64String(data)
             };
-            return [(fName[..fName.LastIndexOf('.')], json)];
+            return [(fName[..fName.LastIndexOf('.')], json.ToElement())];
         }},
         {"Notes", () =>
         {
             JsonObject json = new JsonObject();
             json["text"] = "";
-            return [("New Note", json)];
+            return [("New Note", json.ToElement())];
         }},
         {"Features", () =>
         {
@@ -45,7 +47,7 @@ public partial class CompendiumControl : ScrollContainer
                 ["description"] = "Descrição da feature",
                 ["type"] = "arbitrary"
             };
-            return [(id, json)];
+            return [(id, json.ToElement())];
         }}
     };
 

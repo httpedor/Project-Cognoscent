@@ -6,39 +6,38 @@ using Rpg.Scripting;
 
 namespace Rpg.Health;
 
-using CreationEntry = (ConditionExpr condition, Injury injury, float interval);
+using CreationEntry = (Expr<bool> condition, Injury injury, float interval);
 
 //TODO: Injury treatments. For example, bandaged, cooled, disinfected, etc.
 // Each injury type can then interpret these treatments differently.
 // E.g: A burn might need to be cooled to heal faster, or bandaged to reduce infection chance. Or a cut might need to be bandaged to reduce bleeding.
 public class InjuryType : ISerializable
 {
-    public static readonly CompileContext DefaultCompilerContext = new();
     public readonly string Id;
     /// <summary>
     /// Pain value per severity
     /// </summary>
-    public readonly NumberExpr Pain;
+    public readonly Expr<float> Pain;
     /// <summary>
     /// Bleed value per severity
     /// </summary>
-    public readonly NumberExpr BleedingRate;
+    public readonly Expr<float> BleedingRate;
     /// <summary>
     /// Minimum overkill percentage to kill the part
     /// </summary>
-    public readonly NumberExpr OverkillPercentMin;
+    public readonly Expr<float> OverkillPercentMin;
     /// <summary>
     /// Overkill percentage that makes sure the part will be destroyed
     /// </summary>
-    public readonly NumberExpr OverkillPercentMax;
+    public readonly Expr<float> OverkillPercentMax;
     /// <summary>
     /// This means the part is not workign, E.g: Broken, Missing, Bloodless
     /// </summary>
-    public readonly ConditionExpr Instakill;
+    public readonly Expr<bool> Instakill;
     /// <summary>
     /// The rate at which the severity of this injury lowers every second.
     /// </summary>
-    public readonly NumberExpr NaturalHeal;
+    public readonly Expr<float> NaturalHeal;
     /// <summary>
     /// Every <c>interval</c> seconds, the <c>injury</c> is added if <c>condition</c> is true.
     /// If the function returns null, no injury is created.
@@ -61,12 +60,12 @@ public class InjuryType : ISerializable
         Name = json.GetProperty("name").GetString()!;
         DestructionTranslation = json.GetProperty("destruction").GetString()!;
 
-        Pain = DefaultCompilerContext.CompileNumber(json.GetProperty("pain"));
-        BleedingRate = DefaultCompilerContext.CompileNumber(json.GetProperty("bleed"));
-        OverkillPercentMin = DefaultCompilerContext.CompileNumber(json.GetProperty("overkillMin"));
-        OverkillPercentMax = DefaultCompilerContext.CompileNumber(json.GetProperty("overkillMax"));
-        NaturalHeal = json.TryGetProperty("heal", out var healElement) ? DefaultCompilerContext.CompileNumber(healElement) : new ConstExpr(0);
-        Instakill = json.TryGetProperty("instakill", out var instakillElement) ? DefaultCompilerContext.CompileCondition(instakillElement) : new ConstConditionExpr(false);
+        Pain = ExpressionCompiler.CompileNumber(json.GetProperty("pain"));
+        BleedingRate = ExpressionCompiler.CompileNumber(json.GetProperty("bleed"));
+        OverkillPercentMin = ExpressionCompiler.CompileNumber(json.GetProperty("overkillMin"));
+        OverkillPercentMax = ExpressionCompiler.CompileNumber(json.GetProperty("overkillMax"));
+        NaturalHeal = json.TryGetProperty("heal", out var healElement) ? ExpressionCompiler.CompileNumber(healElement) : new ConstNumberExpr(0);
+        Instakill = json.TryGetProperty("instakill", out var instakillElement) ? ExpressionCompiler.CompileCondition(instakillElement) : new ConstConditionExpr(false);
 
         if (json.TryGetProperty("creations", out var creationsEl) && creationsEl.ValueKind == JsonValueKind.Array)
         {
@@ -82,7 +81,7 @@ public class InjuryType : ISerializable
                 try
                 {
                     float interval = node.GetProperty("interval").GetSingle();
-                    creations.Add((DefaultCompilerContext.CompileCondition(node.GetProperty("condition")),
+                    creations.Add((ExpressionCompiler.CompileCondition(node.GetProperty("condition")),
                         new Injury(node.GetProperty("injury")),
                         interval));
                 }
@@ -109,7 +108,7 @@ public class InjuryType : ISerializable
                 try
                 {
                     float interval = node.GetProperty("interval").GetSingle();
-                    conversions.Add((DefaultCompilerContext.CompileCondition(node.GetProperty("condition")),
+                    conversions.Add((ExpressionCompiler.CompileCondition(node.GetProperty("condition")),
                         new Injury(node.GetProperty("injury")),
                         interval));
                 }

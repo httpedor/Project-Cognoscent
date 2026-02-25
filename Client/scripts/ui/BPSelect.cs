@@ -1,12 +1,12 @@
 using Godot;
-using Rpg;
+using Rpg.Entities.Components.Health;
 using System;
 using System.Linq;
 
 public partial class BPSelect : ColorRect
 {
 	[Export]
-	public String BodyPartPath;
+	public string BodyPartPath;
 	public BodyPart? BodyPart
 	{
 		get;
@@ -29,7 +29,7 @@ public partial class BPSelect : ColorRect
 				child.QueueFree();
 			}
 			var settings = BodyInspector.Instance.Settings;
-			BodyPart = @new?.GetBodyPart(BodyPartPath);
+			BodyPart = @new?.GetPartByPath(BodyPartPath);
 			if (BodyPart == null || (settings.Predicate != null && !settings.Predicate(BodyPart) && (BodyPart.InternalOrgans.Count()) <= 0))
 				Visible = false;
 			else

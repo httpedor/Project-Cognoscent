@@ -1,15 +1,15 @@
 namespace Rpg.Scripting;
 
-public sealed class AndConditionExpr : ConditionExpr
+public sealed class AndConditionExpr : Expr<bool>
 {
-    public readonly ConditionExpr[] Args;
-    public AndConditionExpr(ConditionExpr[] args) => Args = args;
+    public readonly Expr<bool>[] Args;
+    public AndConditionExpr(Expr<bool>[] args) => Args = args;
     public AndConditionExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        Args = new ConditionExpr[length];
+        Args = new Expr<bool>[length];
         for (int i = 0; i < length; i++)
-            Args[i] = (ConditionExpr)BaseExpr.Deserialize(stream);
+            Args[i] = (Expr<bool>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
@@ -27,16 +27,16 @@ public sealed class AndConditionExpr : ConditionExpr
             e.ToBytes(stream);
     }
 }
-public sealed class OrConditionExpr : ConditionExpr
+public sealed class OrConditionExpr : Expr<bool>
 {
-    public readonly ConditionExpr[] Args;
-    public OrConditionExpr(ConditionExpr[] args) => Args = args;
+    public readonly Expr<bool>[] Args;
+    public OrConditionExpr(Expr<bool>[] args) => Args = args;
     public OrConditionExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        Args = new ConditionExpr[length];
+        Args = new Expr<bool>[length];
         for (int i = 0; i < length; i++)
-            Args[i] = (ConditionExpr)BaseExpr.Deserialize(stream);
+            Args[i] = (Expr<bool>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
@@ -54,13 +54,13 @@ public sealed class OrConditionExpr : ConditionExpr
             e.ToBytes(stream);
     }
 }
-public sealed class NotConditionExpr : ConditionExpr
+public sealed class NotConditionExpr : Expr<bool>
 {
-    public readonly ConditionExpr Arg;
-    public NotConditionExpr(ConditionExpr arg) => Arg = arg;
+    public readonly Expr<bool> Arg;
+    public NotConditionExpr(Expr<bool> arg) => Arg = arg;
     public NotConditionExpr(Stream stream)
     {
-        Arg = (ConditionExpr)BaseExpr.Deserialize(stream);
+        Arg = (Expr<bool>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)

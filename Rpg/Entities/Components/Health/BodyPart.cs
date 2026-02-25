@@ -37,7 +37,7 @@ public class BodyPartChildRemovedEvent(BodyPart bodyPart, BodyPart child) : Body
 public class BodyPartDiedEvent(BodyPart bodyPart) : BodyPartEvent(bodyPart)
 {
 }
-public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable, IItemHolder
+public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable, IItemHolder, ISkillProvider
 {
     public readonly struct BodyPartStat(float atFull, float atZero, StatModifierType op, bool sho, bool ato)
         : ISerializable
@@ -115,11 +115,11 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
     /// </summary>
     public IEnumerable<Feature> ProvidedFeatures => providedFeatures;
 
-    private readonly Skill[] provideSkills;
+    private readonly Skill[] providedSkills;
     /// <summary>
     /// Skills provided by this body part
     /// </summary>
-    public IEnumerable<Skill> ProvidedSkills => provideSkills;
+    public IEnumerable<Skill> ProvidedSkills => providedSkills;
     
     private readonly Dictionary<string, Item?> equipmentSlots;
     /// <summary>
@@ -261,7 +261,7 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
     {
         Group = group;
         this.children = new(children.Length);
-        provideSkills = skills;
+        providedSkills = skills;
         this.providedFeatures = providedFeatures;
         this.equipmentSlots = new Dictionary<string, Item?>();
         foreach (string slot in equipmentSlots)
@@ -300,10 +300,10 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             injuries.Add(new Injury(stream));
 
         byte skillCount = (byte)stream.ReadByte();
-        provideSkills = new Skill[skillCount];
+        providedSkills = new Skill[skillCount];
         for (int i = 0; i < skillCount; i++)
         {
-            provideSkills[i] = Skill.FromBytes(stream);
+            providedSkills[i] = Skill.FromBytes(stream);
         }
 
         int count = stream.ReadByte();
@@ -650,7 +650,7 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             condition.ToBytes(stream);
         }
 
-        stream.WriteByte((byte)provideSkills.Length);
+        stream.WriteByte((byte)providedSkills.Length);
         foreach (Skill action in ProvidedSkills)
         {
             action.ToBytes(stream);
@@ -710,4 +710,8 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
         return "BodyPart[" + Name + "]";
     }
 
+    public IEnumerable<Skill> GetSkillsFor(SkillExecutor executor)
+    {
+        return providedSkills;
+    }
 }

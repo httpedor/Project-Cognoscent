@@ -2,12 +2,16 @@ using Rpg.Entities.Components.Inventory;
 using Rpg.Entities.Interfaces;
 using Rpg.Features;
 using Rpg.Health;
+using Rpg.Scripting;
+using Rpg.Skills;
 
 namespace Rpg.Entities.Components.Health;
 
 //TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
 
-public partial class Body : Component, ISerializable, ITickableComponent,
+public partial class Body : Component, ISerializable,
+    ITickableComponent,
+    ISkillProvider,
     ComponentEventHandler<BodyPartInjuryAddedEvent>,
     ComponentEventHandler<BodyPartInjuryRemovedEvent>,
     ComponentEventHandler<BodyPartInjuryChangedEvent>,
@@ -17,6 +21,8 @@ public partial class Body : Component, ISerializable, ITickableComponent,
     ComponentEventHandler<ItemEquippedEvent>,
     ComponentEventHandler<ItemUnequippedEvent>
 {
+    public readonly EvalContext Context = new EvalContext();
+    public BodyModel? Model { get; init; }
     private readonly Dictionary<string, HashSet<BodyPart>> equipmentSlots = new();
     private readonly Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
@@ -29,6 +35,9 @@ public partial class Body : Component, ISerializable, ITickableComponent,
     public Feature[] Features {get; init;} = Array.Empty<Feature>();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
     public IEnumerable<Injury> Injuries => injuriesCache.Keys;
+    public bool IsAlive;
+    public bool IsConscious;
+    public bool IsDead => !IsAlive;
 
     public bool IsHumanoid
     {
@@ -65,11 +74,12 @@ public partial class Body : Component, ISerializable, ITickableComponent,
 
     public IEnumerable<BodyPart> Parts => partsCache;
 
-    public Body(string name, BodyPart root, bool isHumanoid = false) : base()
+    public Body(string name, BodyPart root, bool isHumanoid = false, BodyModel? model = null) : base()
     {
         IsHumanoid = isHumanoid;
         Name = name;
         Root = root;
+        Model = model;
     }
 
     public Body(Stream stream) : base(stream)
@@ -98,6 +108,9 @@ public partial class Body : Component, ISerializable, ITickableComponent,
     {
         base.OnInit(entity);
         statsCache = Stats.ToDictionary(stat => stat.Definition.Id, stat => stat);
+        Context.Target = entity;
+        Context.Caller = entity;
+        Context.Board = entity.Board;
     }
     public override void OnReady()
     {
@@ -120,7 +133,7 @@ public partial class Body : Component, ISerializable, ITickableComponent,
             var injury = oldInjury;
             if (Entity.ExistanceTicks % 50 == 0)
             {
-                injury = new Injury { Type = oldInjury.Type, Severity = oldInjury.Severity - oldInjury.Type.NaturalHeal };
+                injury = new Injury { Type = oldInjury.Type, Severity = oldInjury.Severity - oldInjury.Type.NaturalHeal.Eval(Context) };
                 if (injury.Severity <= 0)
                 {
                     part.RemoveInjury(injury);
@@ -133,26 +146,18 @@ public partial class Body : Component, ISerializable, ITickableComponent,
             }
             foreach (var creation in injury.Type.InjuryCreations)
             {
-                if (Entity.ExistanceTicks % creation.interval == 0)
+                if (Entity.ExistanceTicks % creation.interval == 0 && creation.condition.Eval(Context))
                 {
-                    var newInjury = creation.creationFunc(injury, part);
-                    if (newInjury.HasValue)
-                    {
-                        part.AddInjury(newInjury.Value);
-                    }
+                    part.AddInjury(creation.injury);
                 }
             }
 
             foreach (var conversion in injury.Type.InjuryConversions)
             {
-                if (Entity.ExistanceTicks % conversion.interval == 0)
+                if (Entity.ExistanceTicks % conversion.interval == 0 && conversion.condition.Eval(Context))
                 {
-                    var newInjury = conversion.conversionFunc(injury, part);
-                    if (newInjury.HasValue)
-                    {
-                        part.RemoveInjury(injury);
-                        part.AddInjury(newInjury.Value);
-                    }
+                    part.RemoveInjury(injury);
+                    part.AddInjury(conversion.injury);
                 }
             }
         }
@@ -304,7 +309,7 @@ public partial class Body : Component, ISerializable, ITickableComponent,
         return Array.Empty<BodyPart>();
     }
 
-    public float GetStatByGroup(string group, string stat, float? baseValue = null, bool onlySelfStats = false)
+    public float GetStatByGroup(string group, string stat, float? baseValue = null)
     {
         var baseVal = baseValue ?? Entity.Stats?.GetStat(stat)?.BaseValue ?? 0;
         List<StatModifier> statMods = new();
@@ -312,7 +317,7 @@ public partial class Body : Component, ISerializable, ITickableComponent,
         {
             if (!part.ProvidedStats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
                 continue;
-            statMods.AddRange(partStat.Where(mod => !onlySelfStats || !mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
+            statMods.AddRange(partStat.Where(mod => mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
         }
         if (statsCache.TryGetValue(stat, out BodyStat? statEntry) && statEntry.GroupEffectiveness.TryGetValue(group, out float effectiveness))
             statMods.Add(new StatModifier( "body_part_group_effectiveness", effectiveness - 1, StatModifierType.Multiplier));
@@ -331,6 +336,23 @@ public partial class Body : Component, ISerializable, ITickableComponent,
             return false;
         return GetPartsWithSlot(ep.Slot).Any(part => part.GetEquippedItem(ep.Slot) == item);
     }
+
+    public BodyPart? GetPartByPath(String path)
+    {
+        string[] split = path.Split('/');
+        BodyPart current = Root;
+        foreach (string partName in split)
+        {
+            if (partName == Root.Name)
+                continue;
+            BodyPart? next = current.Children.FirstOrDefault(part => part.Name.Equals(partName));
+            if (next == null)
+                return null;
+            current = next;
+        }
+        return current;
+    }
+
     public void HandleEvent(BodyPartInjuryAddedEvent ev)
     {
         injuriesCache[ev.Injury] = ev.Part;
@@ -408,5 +430,21 @@ public partial class Body : Component, ISerializable, ITickableComponent,
 
     public void HandleEvent(ItemUnequippedEvent componentEvent)
     {
+    }
+
+    public IEnumerable<Skill> GetSkillsFor(SkillExecutor executor)
+    {
+        foreach (var part in Parts)
+        {
+            foreach (uint id in Component.SkillProviderIDs)
+            {
+                if (part.Entity.GetComponent(id) is not ISkillProvider provider) continue;
+
+                foreach (Skill skill in provider.GetSkillsFor(executor))
+                {
+                    yield return skill;
+                }
+            }
+        }
     }
 }

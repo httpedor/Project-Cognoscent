@@ -30,11 +30,11 @@ public enum ProtocolId
     ENTITY_CREATE,
     ENTITY_REMOVE,
     TOKEN_UPDATE,
-    ENTITY_BODY_PART,
+    TOKEN_MOVE,
     ENTITY_BODY_PART_INJURY,
     STAT_UPDATE,
     FEATURE_UPDATE,
-    CREATURE_EQUIP_ITEM,
+    BODY_EQUIP_ITEM,
     SKILL_UPDATE,
     SKILL_REMOVE,
     CREATURE_ACTION_LAYER_UPDATE,
@@ -168,7 +168,7 @@ public class ChatPacket : Packet
 
 public class BoardAddPacket : Packet
 {
-    public Board Board {get; }
+    public Board Board;
 
     public override ProtocolId Id => ProtocolId.BOARD_ADD;
 
@@ -211,6 +211,15 @@ public class BoardAddPacket : Packet
             floor.DefaultEntitySight = stream.ReadFloat();
             Board.AddFloor(floor);
         }
+
+        ushort entityCount = stream.ReadUInt16();
+        for (int i = 0; i < entityCount; i++)
+        {
+            Entity entity = new Entity(stream);
+            Board.AddEntity(entity);
+        }
+
+        Board.InitializeEntities();
     }
 
     public override void ToBytes(Stream stream)
@@ -245,6 +254,13 @@ public class BoardAddPacket : Packet
             }
 
             stream.WriteFloat(floor.DefaultEntitySight);
+        }
+
+        var entities = Board.GetEntities().ToArray();
+        stream.WriteUInt16((ushort)entities.Length);
+        foreach (var entity in entities)
+        {
+            entity.ToBytes(stream);
         }
     }
 }
@@ -454,23 +470,63 @@ public class EntityRemovePacket : Packet
     }
 }
 
+public class TokenMovePacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.TOKEN_MOVE;
+
+    public readonly ComponentRef<Token> TokenRef;
+    public readonly Vector2 NewPos;
+    public readonly float NewRotation;
+
+    public TokenMovePacket(Token token)
+    {
+        TokenRef = new ComponentRef<Token>(token);
+        NewPos = new Vector2(token.Position.X, token.Position.Y);
+        NewRotation = token.Rotation;
+    }
+    public TokenMovePacket(Token token, Vector2 pos, float rot)
+    {
+        TokenRef = new ComponentRef<Token>(token);
+        NewPos = pos;
+        NewRotation = rot;
+    }
+    public TokenMovePacket(Stream stream)
+    {
+        TokenRef = new ComponentRef<Token>(stream);
+        NewPos = stream.ReadVec2();
+        NewRotation = stream.ReadFloat();
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        TokenRef.ToBytes(stream);
+        stream.WriteVec2(NewPos);
+        stream.WriteFloat(NewRotation);
+    }
+}
+
 public class TokenUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.TOKEN_UPDATE;
     public readonly ComponentRef<Token> TokenRef;
+    public readonly Token NewToken;
 
     public TokenUpdatePacket(Token token) : base()
     {
         TokenRef = new ComponentRef<Token>(token);
+        NewToken = token;
     }
     public TokenUpdatePacket(Stream stream)
     {
         TokenRef = new ComponentRef<Token>(stream);
+        NewToken = Component.FromBytes(stream) as Token;
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
         TokenRef.ToBytes(stream);
+        NewToken.ToBytes(stream);
     }
 
 }
@@ -529,13 +585,13 @@ public class StatsUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.STAT_UPDATE;
 
-    public ComponentRef<StatsContainer> HolderRef;
+    public ComponentRef<StatsContainer> StatsRef;
     public List<Stat> Stats = new List<Stat>();
 
     // Create packet from a stat holder: sends all stats
     public StatsUpdatePacket(StatsContainer stats)
     {
-        HolderRef = new ComponentRef<StatsContainer>(stats);
+        StatsRef = new ComponentRef<StatsContainer>(stats);
         foreach (var s in stats.Stats)
             Stats.Add(s.Clone());
     }
@@ -543,7 +599,7 @@ public class StatsUpdatePacket : Packet
     // Deserialize
     public StatsUpdatePacket(Stream stream)
     {
-        HolderRef = new ComponentRef<StatsContainer>(stream);
+        StatsRef = new ComponentRef<StatsContainer>(stream);
         ushort statCount = stream.ReadUInt16();
         for (int i = 0; i < statCount; i++)
         {
@@ -555,7 +611,7 @@ public class StatsUpdatePacket : Packet
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        HolderRef.ToBytes(stream);
+        StatsRef.ToBytes(stream);
         stream.WriteUInt16((ushort)Stats.Count);
         foreach (var stat in Stats)
             stat.ToBytes(stream);
@@ -574,26 +630,26 @@ public class FeatureUpdatePacket : Packet
 
     public override ProtocolId Id => ProtocolId.FEATURE_UPDATE;
     public FeatureUpdateType UpdateType;
-    public ComponentRef<FeaturesContainer> SourceRef;
+    public ComponentRef<FeaturesContainer> ContainerRef;
     public string? FeatureId;
     public Feature? Feature;
     private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesContainer> @ref, Feature feature)
     {
         UpdateType = updateType;
-        SourceRef = @ref;
+        ContainerRef = @ref;
         Feature = feature;
         FeatureId = feature?.GetId();
     }
     private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesContainer> @ref, string feature)
     {
         UpdateType = updateType;
-        SourceRef = @ref;
+        ContainerRef = @ref;
         FeatureId = feature;
     }
     public FeatureUpdatePacket(Stream stream)
     {
         UpdateType = (FeatureUpdateType)stream.ReadByte();
-        SourceRef = new ComponentRef<FeaturesContainer>(stream);
+        ContainerRef = new ComponentRef<FeaturesContainer>(stream);
         if (UpdateType == FeatureUpdateType.ADD)
             Feature = Feature.FromBytes(stream);
         else
@@ -603,7 +659,7 @@ public class FeatureUpdatePacket : Packet
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        SourceRef.ToBytes(stream);
+        ContainerRef.ToBytes(stream);
         stream.WriteByte((byte)UpdateType);
         if (UpdateType == FeatureUpdateType.ADD)
             Feature!.ToBytes(stream);
@@ -661,15 +717,15 @@ public class FeatureUpdatePacket : Packet
     }
 }
 
-public class CreatureEquipItemPacket : Packet
+public class BodyEquipItemPacket : Packet
 {
-    public override ProtocolId Id => ProtocolId.CREATURE_EQUIP_ITEM;
+    public override ProtocolId Id => ProtocolId.BODY_EQUIP_ITEM;
     public readonly ComponentRef<BodyPart> BPRef;
     public readonly string? Slot;
     public ComponentRef<EquipmentProperty> ItemRef;
     public readonly bool Equipped;
 
-    public CreatureEquipItemPacket(BodyPart bp, string slot, Item item)
+    public BodyEquipItemPacket(BodyPart bp, string slot, Item item)
     {
         if (item.GetProperty<EquipmentProperty>() == null)
             throw new ArgumentException("Item isn't an equipment!");
@@ -680,7 +736,7 @@ public class CreatureEquipItemPacket : Packet
         Equipped = true;
     }
 
-    public CreatureEquipItemPacket(Item item)
+    public BodyEquipItemPacket(Item item)
     {
         var ep = item.GetProperty<EquipmentProperty>();
         if (ep == null)
@@ -692,7 +748,7 @@ public class CreatureEquipItemPacket : Packet
         Equipped = false;
     }
 
-    public CreatureEquipItemPacket(Stream stream)
+    public BodyEquipItemPacket(Stream stream)
     {
         ItemRef = new ComponentRef<EquipmentProperty>(stream);
         BPRef = new ComponentRef<BodyPart>(stream);
@@ -873,24 +929,24 @@ public class CompendiumUpdatePacket : Packet
     public readonly bool Remove;
     public readonly string RegistryName;
     public readonly string DataName;
-    public readonly JsonObject? Json;
+    public readonly JsonElement? Json;
 
     public static CompendiumUpdatePacket RemoveEntry(string regName, string entryName)
     {
         return new CompendiumUpdatePacket(true, regName, entryName, null);
     }
 
-    public static CompendiumUpdatePacket AddEntry(string regName, string entryName, JsonObject json)
+    public static CompendiumUpdatePacket AddEntry(string regName, string entryName, JsonElement json)
     {
         return new CompendiumUpdatePacket(false, regName, entryName, json);
     }
 
-    public static CompendiumUpdatePacket UpdateEntry(string regName, string entryName, JsonObject json)
+    public static CompendiumUpdatePacket UpdateEntry(string regName, string entryName, JsonElement json)
     {
         return AddEntry(regName, entryName, json);
     }
 
-    protected CompendiumUpdatePacket(bool remove, string registryName, string dataName, JsonObject? json)
+    protected CompendiumUpdatePacket(bool remove, string registryName, string dataName, JsonElement? json)
     {
         Remove = remove;
         RegistryName = registryName;
@@ -911,10 +967,10 @@ public class CompendiumUpdatePacket : Packet
         }
         byte[] data = stream.ReadExactly((uint)count);
         string str = new (data.Select(b => (char)b).ToArray());
-        var parsed = JsonNode.Parse(str)?.AsObject();
+        var parsed = JsonDocument.Parse(str);
         if (parsed == null)
             throw new Exception("Failed to parse compendium json data!");
-        Json = parsed;
+        Json = parsed.RootElement;
     }
 
     public override void ToBytes(Stream stream)
@@ -926,7 +982,7 @@ public class CompendiumUpdatePacket : Packet
 
         if (Remove)
         {
-            string str = Json!.ToJsonString();
+            string str = Json!.Value.ToString();
             stream.WriteUInt64((ulong)str.Length);
             stream.Write(str.ToBytes());
         }

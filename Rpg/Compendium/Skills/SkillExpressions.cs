@@ -12,19 +12,19 @@ public class SkillExpressions
     public readonly EffectExpr? onExecute;
     public readonly EffectExpr? onStart;
     public readonly EffectExpr? onCancel;
-    public readonly ConditionExpr? canCancel;
-    public readonly NumberExpr? delay;
-    public readonly NumberExpr? cooldown;
-    public readonly NumberExpr? duration;
-    public readonly ConditionExpr? canExecute;
-    public readonly StringExpr[]? layers;
+    public readonly Expr<bool>? canCancel;
+    public readonly Expr<float>? delay;
+    public readonly Expr<float>? cooldown;
+    public readonly Expr<float>? duration;
+    public readonly Expr<bool>? canExecute;
+    public readonly Expr<string>[]? layers;
     
-    public readonly (NumberExpr, CompendiumEntryExpr<DamageType>)? damage;
-    public readonly (ConditionExpr, StringExpr)? doesHit;
+    public readonly (Expr<float>, CompendiumEntryExpr<DamageType>)? damage;
+    public readonly (Expr<bool>, Expr<string>)? doesHit;
     public readonly EffectExpr? onHit;
     public readonly EffectExpr? onAttack;
-    public readonly ConditionExpr? condition;
-    public readonly ConditionExpr? canTarget;
+    public readonly Expr<bool>? condition;
+    public readonly Expr<bool>? canTarget;
     public readonly Type[][] argumentTypes;
     
     public SkillExpressions(JsonElement obj)
@@ -35,27 +35,27 @@ public class SkillExpressions
             {
                 if (typeof(T) == typeof(EffectExpr))
                 {
-                    var expr = Skill.DefaultCompilerContext.CompileEffect(prop);
+                    var expr = ExpressionCompiler.CompileEffect(prop);
                     return (T)(BaseExpr)expr;
                 }
-                else if (typeof(T) == typeof(ConditionExpr))
+                else if (typeof(T) == typeof(Expr<bool>))
                 {
-                    var expr = Skill.DefaultCompilerContext.CompileCondition(prop);
+                    var expr = ExpressionCompiler.CompileCondition(prop);
                     return (T)(BaseExpr)expr;
                 }
-                else if (typeof(T) == typeof(NumberExpr))
+                else if (typeof(T) == typeof(Expr<float>))
                 {
-                    var expr = Skill.DefaultCompilerContext.CompileNumber(prop);
+                    var expr = ExpressionCompiler.CompileNumber(prop);
                     return (T)(BaseExpr)expr;
                 }
-                else if (typeof(T) == typeof(StringExpr))
+                else if (typeof(T) == typeof(Expr<string>))
                 {
-                    var expr = Skill.DefaultCompilerContext.CompileString(prop);
+                    var expr = ExpressionCompiler.CompileString(prop);
                     return (T)(BaseExpr)expr;
                 }
                 else if (typeof(T) == typeof(CompendiumEntryExpr<DamageType>))
                 {
-                    var expr = Skill.DefaultCompilerContext.CompileCompendiumEntry<DamageType>(prop);
+                    var expr = ExpressionCompiler.CompileCompendiumEntry<DamageType>(prop);
                     return (T)(BaseExpr)expr;
                 }
             }
@@ -65,39 +65,39 @@ public class SkillExpressions
         onExecute = TryCompile<EffectExpr>("execute");
         onStart = TryCompile<EffectExpr>("start");
         onCancel = TryCompile<EffectExpr>("cancel");
-        canCancel = TryCompile<ConditionExpr>("canCancel");
-        delay = TryCompile<NumberExpr>("delay");
-        cooldown = TryCompile<NumberExpr>("cooldown");
-        duration = TryCompile<NumberExpr>("duration");
+        canCancel = TryCompile<Expr<bool>>("canCancel");
+        delay = TryCompile<Expr<float>>("delay");
+        cooldown = TryCompile<Expr<float>>("cooldown");
+        duration = TryCompile<Expr<float>>("duration");
         if (obj.GetPropertyOrNull("layers") is JsonElement layersElem && layersElem.ValueKind == JsonValueKind.Array)
         {
-            var list = new List<StringExpr>();
+            var list = new List<Expr<string>>();
             foreach (var item in layersElem.EnumerateArray())
             {
-                var expr = Skill.DefaultCompilerContext.CompileString(item);
+                var expr = ExpressionCompiler.CompileString(item);
                 list.Add(expr);
             }
             layers = list.ToArray();
         }
-        canExecute = TryCompile<ConditionExpr>("canExecute");
+        canExecute = TryCompile<Expr<bool>>("canExecute");
         
         // Attack skill properties
         onHit = TryCompile<EffectExpr>("onHit");
         onAttack = TryCompile<EffectExpr>("onAttack");
         if (obj.GetPropertyOrNull("damage") is JsonElement damageElem && damageElem.ValueKind == JsonValueKind.Object)
         {
-            var numberExpr = Skill.DefaultCompilerContext.CompileNumber(damageElem.GetProperty("amount"));
-            var damageTypeExpr = Skill.DefaultCompilerContext.CompileCompendiumEntry<DamageType>(damageElem.GetProperty("type"));
+            var numberExpr = ExpressionCompiler.CompileNumber(damageElem.GetProperty("amount"));
+            var damageTypeExpr = ExpressionCompiler.CompileCompendiumEntry<DamageType>(damageElem.GetProperty("type"));
             damage = (numberExpr, damageTypeExpr);
         }
         if (obj.GetPropertyOrNull("doesHit") is JsonElement doesHitElem && doesHitElem.ValueKind == JsonValueKind.Object)
         {
-            var conditionExpr = Skill.DefaultCompilerContext.CompileCondition(doesHitElem.GetProperty("condition"));
-            var stringExpr = Skill.DefaultCompilerContext.CompileString(doesHitElem.GetProperty("description"));
+            var conditionExpr = ExpressionCompiler.CompileCondition(doesHitElem.GetProperty("condition"));
+            var stringExpr = ExpressionCompiler.CompileString(doesHitElem.GetProperty("description"));
             doesHit = (conditionExpr, stringExpr);
         }
-        condition = TryCompile<ConditionExpr>("condition");
-        canTarget = TryCompile<ConditionExpr>("canTarget");
+        condition = TryCompile<Expr<bool>>("condition");
+        canTarget = TryCompile<Expr<bool>>("canTarget");
         if (obj.GetPropertyOrNull("arguments") is JsonElement argumentsElem && argumentsElem.ValueKind == JsonValueKind.Array)
         {
             var list = new List<Type[]>();
@@ -127,59 +127,34 @@ public class SkillExpressions
         }
     }
 
-    public EvalContext CreateEvalContext(SkillExecutor exec, List<SkillArgument> args, Dictionary<string, object>? otherArgs = null)
+    public EvalContext CreateEvalContext(SkillExecutor exec, List<SkillArgument> args, params object[] otherArgs)
     {
         var context = new EvalContext
         {
-
             Caller = exec.Entity,
-            Variables = new object[args.Count + (otherArgs?.Count ?? 0)]
+            Variables = new object[args.Count + otherArgs.Length]
         };
+        for (int i = 0; i < otherArgs.Length; i++)
+        {
+            context.Variables[i] = otherArgs[i];
+        }
         for (int i = 0; i < args.Count; i++)
         {
-            context.Variables[Skill.DefaultCompilerContext.GetSymbol("arg" + i)] = args[i];
-        }
-        if (otherArgs != null)
-        {
-            foreach (var entry in otherArgs)
-                context.Variables[Skill.DefaultCompilerContext.GetSymbol(entry.Key)] = entry.Value;
+            context.Variables[otherArgs.Length + i] = args[i];
         }
 
         return context;
     }
-    public EvalContext CreateEvalContext(SkillExecutor exec, IDamageable target, List<SkillArgument> args, Dictionary<string, object>? otherArgs = null)
+    public EvalContext CreateEvalContext(SkillExecutor exec, IDamageable target, List<SkillArgument> args, params object[] otherArgs)
     {
-        var context = new EvalContext
-        {
-
-            Caller = exec.Entity,
-            Target = (target is BodyPart bp) ? bp.OwnerEntity : (target as Entity),
-            TargetPart = (target is BodyPart bp2) ? bp2.Entity : null,
-            Variables = new object[args.Count + (otherArgs?.Count ?? 0)]
-        };
-        for (int i = 0; i < args.Count; i++)
-        {
-            context.Variables[Skill.DefaultCompilerContext.GetSymbol("arg" + i)] = args[i];
-        }
-        if (otherArgs != null)
-        {
-            foreach (var entry in otherArgs)
-                context.Variables[Skill.DefaultCompilerContext.GetSymbol(entry.Key)] = entry.Value;
-        }
-
+        var context = CreateEvalContext(exec, args, otherArgs);
+        context.Target = (target is BodyPart bp) ? bp.OwnerEntity : (target as Entity);
+        context.TargetPart = (target is BodyPart bp2) ? bp2.Entity : null;
         return context;
     }
     public EvalContext CreateEvalContext(SkillExecutor exec, IDamageable target)
     {
-        var context = new EvalContext
-        {
-
-            Caller = exec.Entity,
-            Target = (target is BodyPart bp) ? bp.OwnerEntity : (target as Entity),
-            TargetPart = (target is BodyPart bp2) ? bp2.Entity : null,
-            Variables = Array.Empty<object>()
-        };
-
-         return context;
+        var context = CreateEvalContext(exec, target, new List<SkillArgument>());
+        return context;
     }
 }

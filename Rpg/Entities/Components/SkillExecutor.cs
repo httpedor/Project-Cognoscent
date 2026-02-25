@@ -79,6 +79,21 @@ public partial class SkillExecutor : Component, ITickableComponent
     private readonly Dictionary<string, ActionLayer> actionLayers = new();
     public IEnumerable<string> ActiveActionLayers => actionLayers.Keys;
     public readonly Dictionary<int, SkillData> ActiveSkills = new();
+    public IEnumerable<Skill> Skills {
+        get
+        {
+            foreach (var id in Component.SkillProviderIDs)
+            {
+                var provider = Entity.GetComponent(id) as ISkillProvider;
+                if (provider == null) continue;
+
+                foreach (Skill skill in provider.GetSkillsFor(this))
+                {
+                    yield return skill;
+                }
+            }
+        }
+    }
 
     public ActionLayer? GetActionLayer(string layer)
     {

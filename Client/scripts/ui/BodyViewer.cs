@@ -1,5 +1,7 @@
 using Godot;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components.Health;
 using System;
 using System.Linq;
 using System.Net.WebSockets;
@@ -10,7 +12,7 @@ using TTRpgClient.scripts;
 public partial class BodyViewer : Tree
 {
 	public static BodyViewer Instance { get; private set; }
-	Creature? selectedCreature = null;
+	Body? selectedBody = null;
 
 	public BodyViewer()
 	{
@@ -99,16 +101,16 @@ public partial class BodyViewer : Tree
 		var selected = GameManager.Instance.CurrentBoard.SelectedEntity;
 		if (selected == null)
 		{
-			selectedCreature = null;
+			selectedBody = null;
 			SetBody(null);
 			return;
 		}
-		if (selected is Creature creature)
+		if (selected.TryGetComponent<Body>(out var creatureBody))
 		{
-			if (selectedCreature != creature)
+			if (selectedBody != creatureBody)
 			{
-				selectedCreature = creature;
-				SetBody(creature.BodyRoot);
+				selectedBody = creatureBody;
+				SetBody(creatureBody.Root);
 			}
 		}
 	}

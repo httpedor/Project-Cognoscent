@@ -1,10 +1,6 @@
 namespace Rpg.Scripting;
 
-public abstract class ConditionExpr : Expr<bool>
-{
-    
-}
-public sealed class ConstConditionExpr : ConditionExpr
+public sealed class ConstConditionExpr : Expr<bool>
 {
     public readonly bool Value;
     public ConstConditionExpr(bool value) => Value = value;
@@ -19,7 +15,7 @@ public sealed class ConstConditionExpr : ConditionExpr
         stream.WriteBoolean(Value);
     }
 }
-public sealed class VarConditionExpr : ConditionExpr
+public sealed class VarConditionExpr : Expr<bool>
 {
     public readonly int SymbolId;
 
@@ -46,7 +42,7 @@ public sealed class VarConditionExpr : ConditionExpr
         stream.WriteInt32(SymbolId);
     }
 }
-public sealed class RandomConditionExpr : ConditionExpr
+public sealed class RandomConditionExpr : Expr<bool>
 {
     public readonly float Probability; // 0.0 to 1.0
 
@@ -67,5 +63,40 @@ public sealed class RandomConditionExpr : ConditionExpr
     public override bool Eval(EvalContext ctx)
     {
         return new Random().NextDouble() < Probability;
+    }
+}
+public sealed class ConditionalExpr<T> : Expr<T>
+{
+    public readonly Expr<bool> Condition;
+    public readonly Expr<T> TrueExpr;
+    public readonly Expr<T> FalseExpr;
+
+    public ConditionalExpr(Expr<bool> condition, Expr<T> trueExpr, Expr<T> falseExpr)
+    {
+        Condition = condition;
+        TrueExpr = trueExpr;
+        FalseExpr = falseExpr;
+    }
+    public ConditionalExpr(Stream stream)
+    {
+        Condition = BaseExpr.Deserialize<Expr<bool>>(stream);
+        TrueExpr = BaseExpr.Deserialize<Expr<T>>(stream);
+        FalseExpr = BaseExpr.Deserialize<Expr<T>>(stream);
+    }
+
+    public override T Eval(EvalContext ctx)
+    {
+        if (Condition.Eval(ctx))
+            return TrueExpr.Eval(ctx);
+        else
+            return FalseExpr.Eval(ctx);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Condition.ToBytes(stream);
+        TrueExpr.ToBytes(stream);
+        FalseExpr.ToBytes(stream);
     }
 }

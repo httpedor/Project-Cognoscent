@@ -1,7 +1,6 @@
 using Godot;
-using Rpg;
+using Rpg.Entities.Components.Health;
 using System;
-using System.Threading.Tasks;
 using TTRpgClient.scripts.ui;
 
 public partial class BodyInspector : Control

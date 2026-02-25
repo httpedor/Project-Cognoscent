@@ -1,4 +1,5 @@
 using Rpg;
+using Rpg.Entities.Components.Health;
 
 namespace Server.Network;
 
@@ -6,7 +7,7 @@ public static class NetworkHooks
 {
     public static void HookBodyPart(BodyPart part)
     {
-        part.OnChildAdded += grandChild =>
+        /*part.OnChildAdded += grandChild =>
         {
             Network.Manager.SendIfBoardValid(new EntityBodyPartPacket(grandChild), part.Creature?.Board.Name);
             HookBodyPart(grandChild);
@@ -36,6 +37,6 @@ public static class NetworkHooks
         part.OnFeatureAdded += feature =>
         {
         
-        };
+        };*/
     }
 }

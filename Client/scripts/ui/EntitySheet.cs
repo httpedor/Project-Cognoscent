@@ -5,6 +5,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Entities.Components.Health;
 using TTRpgClient.scripts.RpgImpl;
 
 namespace TTRpgClient.scripts.ui;
@@ -29,7 +32,7 @@ public partial class EntitySheetWindow : Window
     private readonly FlowContainer featuresFlow;
 
     private ClientBoard? currentBoard;
-    private EntityNode? currentEntityNode;
+    private EntityRenderer? currentEntityNode;
     private Entity? currentEntity;
 
     public EntitySheetWindow()
@@ -92,9 +95,9 @@ public partial class EntitySheetWindow : Window
         inspectBodyBtn = new Button { Text = "Inspect Body", Disabled = true };
         inspectBodyBtn.Pressed += () =>
         {
-            if (currentEntity is Creature c)
+            if (currentEntity?.TryGetComponent<Body>(out var body) ?? false)
             {
-                BodyInspector.Instance.Show(c.Body, BodyInspector.BodyInspectorSettings.HEALTH);
+                BodyInspector.Instance.Show(body, BodyInspector.BodyInspectorSettings.HEALTH);
             }
         };
         btnRow.AddChild(inspectBodyBtn);
@@ -154,7 +157,7 @@ public partial class EntitySheetWindow : Window
     {
         currentBoard = board;
         currentEntity = entity;
-        currentEntityNode = board.GetEntityNode(entity);
+        currentEntityNode = board.GetEntityRenderer(entity);
     }
 
     private double lastUpdate;
@@ -184,18 +187,39 @@ public partial class EntitySheetWindow : Window
         else
             nameLbl.Text = currentEntity.Name;
 
-        string typeFriendly = HumanFriendlyType(currentEntity.GetEntityType());
-        string grounded = currentEntity.IsGrounded ? "No Chão" : "Queda Livre";
-        string sizeClass = FriendlySize(currentEntity.Size);
-        subtitleLbl.Text = $"{typeFriendly} • {grounded} • {sizeClass}";
+        string typeFriendly;
+        if (currentEntity.TryGetComponent<Body>(out var body))
+        {
+            if (body.IsDead)
+                typeFriendly = "Cadáver";
+            else if (!body.IsConscious)
+                typeFriendly = body.Name + " Inconsciente";
+            else
+                typeFriendly = body.Name;
+        }
+        else
+        {
+            if (currentEntity.HasComponent(Light.ID))
+                typeFriendly = "Fonte de Luz";
+            else if (currentEntity.HasComponent(BodyPart.ID))
+                typeFriendly = "Parte do Corpo";
+            else
+                typeFriendly = "Entidade";
+        }
+        if (currentEntity.TryGetComponent<Token>(out var token))
+        {
+            string grounded = token.IsGrounded ? "No Chão" : "Queda Livre";
+            string sizeClass = FriendlySize(token.Size);
+            subtitleLbl.Text = $"{typeFriendly} • {grounded} • {sizeClass}";
+        }
 
         try
         {
-            var node = currentBoard?.GetEntityNode(currentEntity);
+            var node = currentBoard?.GetEntityRenderer(currentEntity);
             if (node != null)
-                displayTex.Texture = node.Display.Texture;
+                displayTex.Texture = node.Display?.Texture;
             else
-                displayTex.Texture = GetTextureOrNull(currentEntity.Display);
+                displayTex.Texture = GetTextureOrNull(currentEntity.GetComponent<Token>()?.Midia);
         }
         catch
         {
@@ -203,109 +227,81 @@ public partial class EntitySheetWindow : Window
         }
 
         ClearChildren(statsVBox);
-        if (currentEntity is Creature c)
+
+        var stats = currentEntity.Stats;
+        if (stats == null || stats.Count() == 0)
         {
-            var healthBar = new HBoxContainer();
-            healthBar.AddThemeConstantOverride("separation", 8);
-
-            var healthLabel = new Label { Text = "Health", HorizontalAlignment = HorizontalAlignment.Left, CustomMinimumSize = new Vector2(80, 0) };
-            healthLabel.AddThemeColorOverride("font_color", Colors.OrangeRed);
-            healthBar.AddChild(healthLabel);
-
-            var pb = new ProgressBar
-            {
-                MinValue = 0,
-                MaxValue = c.MaxHealth > 0 ? (float)c.MaxHealth : 1,
-                Value = (float)Math.Max(0, c.Health),
-                CustomMinimumSize = new Vector2(0, 18)
-            };
-            pb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            healthBar.AddChild(pb);
-
-            var percentLbl = new Label { Text = FriendlyPercent(c.Health, c.MaxHealth), HorizontalAlignment = HorizontalAlignment.Right, CustomMinimumSize = new Vector2(60, 0) };
-            percentLbl.AddThemeColorOverride("font_color", Colors.White);
-            healthBar.AddChild(percentLbl);
-
-            statsVBox.AddChild(healthBar);
-        }
-
-        foreach (var stat in currentEntity.Stats.OrderBy(s => s.Id))
-        {
-            if (!CharacterKnowledgeManager.KnowsStat(currentEntity, stat))
-                continue;
-            var h = new HBoxContainer();
-            h.AddThemeConstantOverride("separation", 8);
-
-            var lbl = new Label { Text = HumanizeStatId(stat.Id), CustomMinimumSize = new Vector2(100, 0), HorizontalAlignment = HorizontalAlignment.Left };
-            lbl.AddThemeColorOverride("font_color", Colors.White);
-            h.AddChild(lbl);
-
-            float ratio = StatRatio(stat);
-            var pb = new ProgressBar
-            {
-                MinValue = 0,
-                MaxValue = 1,
-                Value = ratio,
-                CustomMinimumSize = new Vector2(0, 14)
-            };
-            pb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            h.AddChild(pb);
-
-            var desc = new Label { Text = StatDescriptor(ratio), CustomMinimumSize = new Vector2(80, 0), HorizontalAlignment = HorizontalAlignment.Right };
-            desc.AddThemeColorOverride("font_color", Colors.Silver);
-            h.AddChild(desc);
-
-            statsVBox.AddChild(h);
-        }
-
-        if (statsVBox.GetChildCount() == 0)
             statsVBox.AddChild(new Label { Text = "Sem atributos" });
+        }
+        else
+        {
+            foreach (var stat in stats.OrderBy(s => s.Id))
+            {
+                if (!CharacterKnowledgeManager.KnowsStat(currentEntity, stat))
+                    continue;
+                var h = new HBoxContainer();
+                h.AddThemeConstantOverride("separation", 8);
+
+                var lbl = new Label { Text = HumanizeStatId(stat.Id), CustomMinimumSize = new Vector2(100, 0), HorizontalAlignment = HorizontalAlignment.Left };
+                lbl.AddThemeColorOverride("font_color", Colors.White);
+                h.AddChild(lbl);
+
+                float ratio = StatRatio(stat);
+                var pb = new ProgressBar
+                {
+                    MinValue = 0,
+                    MaxValue = 1,
+                    Value = ratio,
+                    CustomMinimumSize = new Vector2(0, 14)
+                };
+                pb.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                h.AddChild(pb);
+
+                var desc = new Label { Text = StatDescriptor(ratio), CustomMinimumSize = new Vector2(80, 0), HorizontalAlignment = HorizontalAlignment.Right };
+                desc.AddThemeColorOverride("font_color", Colors.Silver);
+                h.AddChild(desc);
+
+                statsVBox.AddChild(h);
+            }
+        }
 
         ClearChildren(featuresFlow);
         bool found = false;
-        foreach (var f in currentEntity.Features)
+        if (currentEntity.HasComponent(FeaturesContainer.ID))
         {
-            bool onlyGm = false;
-            if (!CharacterKnowledgeManager.KnowsFeature(currentEntity, f))
+            var features = currentEntity.Features!;
+            foreach (var f in features.Features)
             {
-                if (GameManager.IsGm)
-                    onlyGm = true;
-                else
-                    continue;
+                bool onlyGm = false;
+                if (!CharacterKnowledgeManager.KnowsFeature(currentEntity, f))
+                {
+                    if (GameManager.IsGm)
+                        onlyGm = true;
+                    else
+                        continue;
+                }
+                found = true;
+                bool enabled = features.IsFeatureEnabled(f);
+                var tag = new Button
+                {
+                    Text = f.GetName(),
+                    ToggleMode = false,
+                    Disabled = true,
+                    FocusMode = Control.FocusModeEnum.None
+                };
+                tag.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+                tag.AddThemeColorOverride("font_color", enabled ? Colors.White : Colors.Gray);
+                tag.AddThemeColorOverride("font_color_pressed", enabled ? Colors.White : Colors.Gray);
+                if (onlyGm)
+                    tag.Text += " (GM only)";
+                featuresFlow.AddChild(tag);
             }
-            found = true;
-            bool enabled = currentEntity.IsFeatureEnabled(f);
-            var tag = new Button
-            {
-                Text = f.GetName(),
-                ToggleMode = false,
-                Disabled = true,
-                FocusMode = Control.FocusModeEnum.None
-            };
-            tag.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-            tag.AddThemeColorOverride("font_color", enabled ? Colors.White : Colors.Gray);
-            tag.AddThemeColorOverride("font_color_pressed", enabled ? Colors.White : Colors.Gray);
-            if (onlyGm)
-                tag.Text += " (GM only)";
-            featuresFlow.AddChild(tag);
         }
         if (!found)
             featuresFlow.AddChild(new Label { Text = "Nenhuma feature" });
 
-        inspectBodyBtn.Disabled = !(currentEntity is Creature);
+        inspectBodyBtn.Disabled = !currentEntity.HasComponent(Body.ID);
     }
-
-    private static string HumanFriendlyType(EntityType t) => t switch
-    {
-        EntityType.Creature => "Criatura",
-        EntityType.Item => "Item",
-        EntityType.Projectile => "Projétil",
-        EntityType.Door => "Porta",
-        EntityType.Container => "Container",
-        EntityType.Light => "Fonte de Luz",
-        EntityType.Prop => "Prop",
-        _ => "Desconhecido"
-    };
 
     private static string FriendlySize(System.Numerics.Vector3 size)
     {

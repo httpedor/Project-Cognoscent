@@ -35,16 +35,7 @@ public class ServerBoard : Board, ISerializable
             Entity entity = new Entity(stream);
             AddEntity(entity);
         }
-        foreach (var entity in entityCache.Values)
-        {
-            entity.Initialize();
-        }
-        WasInitialized = true;
-        foreach (var entity in entityCache.Values)
-        {
-            foreach (var component in entity.Components)
-                component.OnReady();
-        }
+        InitializeEntities();
     }
 
     public override void PauseAt(uint tick)

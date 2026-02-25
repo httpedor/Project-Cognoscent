@@ -2,11 +2,7 @@ using Rpg.Entities;
 
 namespace Rpg.Scripting;
 
-public abstract class SelectorExpr : Expr<Entity?>
-{
-
-}
-public sealed class CallerSelectorExpr : SelectorExpr
+public sealed class CallerSelectorExpr : Expr<Entity?>
 {
     public CallerSelectorExpr(){}
     public CallerSelectorExpr(Stream stream){}
@@ -15,7 +11,7 @@ public sealed class CallerSelectorExpr : SelectorExpr
         return ctx.Caller;
     }
 }
-public sealed class TargetSelectorExpr : SelectorExpr
+public sealed class TargetSelectorExpr : Expr<Entity?>
 {
     public TargetSelectorExpr(){}
     public TargetSelectorExpr(Stream stream){}
@@ -24,7 +20,7 @@ public sealed class TargetSelectorExpr : SelectorExpr
         return ctx.Target;
     }
 }
-public sealed class TargetPartSelectorExpr : SelectorExpr
+public sealed class TargetPartSelectorExpr : Expr<Entity?>
 {
     public TargetPartSelectorExpr(){}
     public TargetPartSelectorExpr(Stream stream){}
@@ -33,7 +29,7 @@ public sealed class TargetPartSelectorExpr : SelectorExpr
             return ctx.TargetPart;
     }
 }
-public sealed class VarEntitySelectorExpr : SelectorExpr
+public sealed class VarEntitySelectorExpr : Expr<Entity?>
 {
     public readonly int SymbolId;
 
@@ -60,7 +56,7 @@ public sealed class VarEntitySelectorExpr : SelectorExpr
         stream.WriteInt32(SymbolId);
     }
 }
-public sealed class NoEntitySelectorExpr : SelectorExpr
+public sealed class NoEntitySelectorExpr : Expr<Entity?>
 {
     public NoEntitySelectorExpr(){}
     public NoEntitySelectorExpr(Stream stream){}

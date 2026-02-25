@@ -95,7 +95,7 @@ public abstract partial class Component : ISerializable
     public required Entity Entity;
 
     [JsonIgnore]
-    public Board? Board => Entity.Board;
+    public Board Board => Entity.Board;
     public bool WasInitialized {get; private set;} = false;
     private readonly Dictionary<string, List<(int entityId, uint componentId)>> entitiesToFind = new();
 
@@ -107,6 +107,9 @@ public abstract partial class Component : ISerializable
     {
 
     }
+
+    public static implicit operator ComponentRef<Component>(Component component) => new(component);
+    public static implicit operator Entity(Component component) => component.Entity;
 
     public virtual ComponentDependency[] RequiredComponentDependencies => Array.Empty<ComponentDependency>();
     public virtual ComponentDependency[] OptionalComponentDependencies => Array.Empty<ComponentDependency>();

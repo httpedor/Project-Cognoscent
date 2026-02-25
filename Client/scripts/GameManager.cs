@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components;
 using TTRpgClient.scripts;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
@@ -41,15 +43,20 @@ public partial class GameManager : Node
                 if (IsGm) return;
                 
                 RenderingServer.SetDefaultClearColor(new Color(0, 0, 0));
-                var creatures = field.GetEntitiesByOwner(Username);
-                foreach (Creature creature in creatures)
-                    VisionManager.AddVisionPoint(new VisionPoint(creature));
-                if (creatures.Count == 0)
+                var entities = field.GetEntitiesByOwner(Username);
+                foreach (Entity entity in entities)
+                {
+                    if (entity.TryGetComponent<Token>(out var token))
+                    {
+                        VisionManager.AddVisionPoint(new VisionPoint(token));
+                    }
+                }
+                if (entities.Count == 0)
                 {
                     foreach (var entity in field.GetEntities())
                     {
-                        if (entity is Creature creature && creature.HasOwner())
-                            VisionManager.AddVisionPoint(new VisionPoint(creature));
+                        if (entity.HasOwner && entity.TryGetComponent<Token>(out var token))
+                            VisionManager.AddVisionPoint(new VisionPoint(token));
                     }
                 }
 
@@ -74,7 +81,7 @@ public partial class GameManager : Node
     }
     public static bool OwnsEntity(Entity ent)
     {
-        return IsGm || (ent is Creature c && c.Owner.Equals(Username));
+        return IsGm || (ent.Owner?.Equals(Username) ?? false);
     }
     public InputManager InputManager
     {
@@ -267,7 +274,7 @@ public partial class GameManager : Node
                     return;
                 }
                 string message = string.Join(" ", args);
-                var packet = new PrivateMessagePacket(CurrentBoard?.OwnedSelectedEntity as Creature, null, message);
+                var packet = new PrivateMessagePacket(CurrentBoard?.OwnedSelectedEntity, null, message);
                 NetworkManager.Instance.SendPacket(packet);
                 break;
             }
@@ -282,28 +289,8 @@ public partial class GameManager : Node
             case "clear":
                 ChatControl.Instance.SetMessageHistory(new List<string>());
                 break;
-            case "body":
-                if (CurrentBoard == null)
-                {
-                    ChatControl.Instance.AddMessage("No board selected");
-                    return;
-                }
-                switch (CurrentBoard.SelectedEntity)
-                {
-                    case null:
-                        ChatControl.Instance.AddMessage("No entity selected");
-                        return;
-                    case Creature creature:
-                        ChatControl.Instance.AddMessage(creature.BodyRoot.PrintPretty());
-                        break;
-                    default:
-                        ChatControl.Instance.AddMessage("Selected entity is not a creature");
-                        break;
-                }
-
-                break;
             case "lighticons":
-                LightNode.ShowLightIcons = !LightNode.ShowLightIcons;
+                LightRenderer.ShowLightIcons = !LightRenderer.ShowLightIcons;
                 break;
             case "gotoent":
             {
@@ -314,9 +301,9 @@ public partial class GameManager : Node
                 }
                 int id = int.Parse(args[0]);
                 Entity? entity = CurrentBoard.GetEntityById(id);
-                if (entity == null)
+                if (entity == null || !entity.TryGetComponent<Token>(out var token))
                     break;
-                CurrentBoard.CenterOn(entity);
+                CurrentBoard.CenterOn(token);
                 break;
             }
         }

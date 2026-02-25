@@ -1,6 +1,7 @@
 using Rpg.Entities.Components.Health;
 using Rpg.Features;
 using Rpg.Health;
+using Rpg.Skills;
 
 namespace Rpg.Entities.Components.Inventory;
 public partial class EquipmentProperty : ItemProperty

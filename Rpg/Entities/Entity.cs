@@ -55,6 +55,23 @@ public readonly struct EntityWith<T> where T : Component
         if (Component == null)
             throw new InvalidOperationException("The provided entity does not have a component of the specified type.");
     }
+
+    public static implicit operator Entity(EntityWith<T> entityWith)
+    {
+        return entityWith.Entity;
+    }
+    public static implicit operator T(EntityWith<T> entityWith)
+    {
+        return entityWith.Component;
+    }
+    public static implicit operator EntityWith<T>(Entity entity)
+    {
+        return new EntityWith<T>(entity);
+    }
+    public static implicit operator EntityWith<T>(T component)
+    {
+        return new EntityWith<T>(component.Entity, component);
+    }
 }
 
 public partial class Entity : ISerializable
@@ -71,6 +88,7 @@ public partial class Entity : ISerializable
 
     public string Name;
     public string? Owner;
+    public bool HasOwner => Owner != null;
     // ReSharper disable once InconsistentNaming
     [JsonIgnore]
     public string BBLink => "[url=gotoent " + Id + "]" + Name + "[/url]";
@@ -162,7 +180,7 @@ public partial class Entity : ISerializable
 
     public void AddComponent(Component component)
     {
-        uint typeId = Component.GetComponentId(component.GetType());
+        uint typeId = component.GetId();
         foreach (var dep in component.RequiredComponentDependencies)
         {
             if (componentArray[dep.ComponentTypeId] is null)
@@ -258,6 +276,7 @@ public partial class Entity : ISerializable
                 if (comp != null)
                 {
                     Component.DispatchEventToListener(comp, componentEvent, matchedEventType);
+                    Board?.ComponentHandledEvent(comp, componentEvent);
                     if (componentEvent is CancellableComponentEvent cancellableEvent && cancellableEvent.Canceled)
                         return;
                 }

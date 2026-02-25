@@ -22,21 +22,12 @@ public class ClientSidedLogic : SidedLogic
         return new ClientFloor(size.ToGodot(), tileSize.ToGodot(), ambientLight);
     }
 
-    public override System.Boolean IsClient()
+    public override bool IsClient()
     {
         return true;
     }
 
-    public override string GetRpgAssemblyPath()
-    {
-        #if DEBUG
-        return ProjectSettings.GlobalizePath("res://") + "\\.godot\\mono\\temp\\bin\\Debug\\Rpg.dll";
-        #else
-        return OS.GetExecutablePath() + "\\data_TTRpgClient_windows_x86_64\\Rpg.dll"
-        #endif
-    }
-
-    public override Board? GetBoard(System.String name)
+    public override Board? GetBoard(string name)
     {
         return GameManager.Instance.GetBoard(name);
     }

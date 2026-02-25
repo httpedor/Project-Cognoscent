@@ -198,6 +198,12 @@ public class Stat : ISerializable
         SetModifier(modifier);
     }
 
+    public void ClearModifiers()
+    {
+        modifiers.Clear();
+        CalculateFinalValue();
+    }
+
     private void CalculateFinalValue()
     {
         float old = finalValue;

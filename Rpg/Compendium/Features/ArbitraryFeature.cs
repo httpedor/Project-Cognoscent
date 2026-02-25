@@ -11,21 +11,22 @@ public class ArbitraryFeature : Feature
 {
     protected readonly string id;
     protected readonly string description;
-    protected readonly ConditionExpr toggleable;
+    protected readonly Expr<bool> toggleable;
 
 
     private readonly EffectExpr? onTick;
     private readonly EffectExpr? onEnable;
     private readonly EffectExpr? onDisable;
-    private readonly (ConditionExpr, StringExpr)? doesGetAttacked;
-    private readonly (ConditionExpr, StringExpr)? doesAttack;
-    private readonly (ConditionExpr, StringExpr)? doesExecuteSkill;
+    private readonly (Expr<bool>, Expr<string>)? doesGetAttacked;
+    private readonly (Expr<bool>, Expr<string>)? doesAttack;
+    private readonly (Expr<bool>, Expr<string>)? doesExecuteSkill;
     private readonly EffectExpr? onAttacked;
     private readonly EffectExpr? onAttack;
     private readonly EffectExpr? onExecuteSkill;
     private readonly EffectExpr? onInjured;
-    private readonly (NumberExpr, StringExpr)? modifyReceivingDamage;
-    private readonly (NumberExpr, StringExpr)? modifyAttackingDamage;
+    private readonly (Expr<float>, Expr<string>)? modifyReceivingDamage;
+    private readonly (Expr<float>, Expr<string>)? modifyAttackingDamage;
+    private readonly CompendiumEntryExpr<Skill>[] skills;
 
     public ArbitraryFeature(
         string id,
@@ -34,16 +35,17 @@ public class ArbitraryFeature : Feature
         EffectExpr? onTick = null,
         EffectExpr? onEnable = null,
         EffectExpr? onDisable = null,
-        (ConditionExpr, StringExpr)? doesGetAttacked = null,
-        (ConditionExpr, StringExpr)? doesAttack = null,
-        (ConditionExpr, StringExpr)? doesExecuteSkill = null,
+        (Expr<bool>, Expr<string>)? doesGetAttacked = null,
+        (Expr<bool>, Expr<string>)? doesAttack = null,
+        (Expr<bool>, Expr<string>)? doesExecuteSkill = null,
         EffectExpr? onAttacked = null,
         EffectExpr? onAttack = null,
         EffectExpr? onExecuteSkill = null,
         EffectExpr? onInjured = null,
-        (NumberExpr, StringExpr)? modifyReceivingDamage = null,
-        (NumberExpr, StringExpr)? modifyAttackingDamage = null,
-        ConditionExpr? toggleable = null
+        (Expr<float>, Expr<string>)? modifyReceivingDamage = null,
+        (Expr<float>, Expr<string>)? modifyAttackingDamage = null,
+        CompendiumEntryExpr<Skill>[]? skills = null,
+        Expr<bool>? toggleable = null
     )
     {
         this.id = id;
@@ -66,11 +68,22 @@ public class ArbitraryFeature : Feature
         this.onInjured = onInjured;
         this.modifyReceivingDamage = modifyReceivingDamage;
         this.modifyAttackingDamage = modifyAttackingDamage;
+        this.skills = skills ?? Array.Empty<CompendiumEntryExpr<Skill>>();
     }
 
     public override string GetId() => id;
     public override string GetDescription() => description;
     public override bool IsToggleable(FeaturesContainer container) => toggleable.Eval(container.Entity);
+
+    public override IEnumerable<Skill> GetSkills(FeaturesContainer source, SkillExecutor executor)
+    {
+        foreach (var skillRef in skills)
+        {
+            var skill = skillRef.Eval(source.Entity);
+            if (skill != null)
+                yield return skill;
+        }
+    }
 
     public override void OnTick(FeaturesContainer source)
     {
@@ -94,12 +107,9 @@ public class ArbitraryFeature : Feature
         if (doesGetAttacked != null && attacked is Component component)
         {
             var ctx = new EvalContext(
-                new Dictionary<string, object>()
-                {
-                    { "hit", hit },
-                    { "damage_type", damage.Type }
-                },
-                DefaultCompilerContext
+                hit,
+                damage.Type,
+                null!
             ) {
                 Target = damage.Attacker?.Entity,
                 Caller = source.Entity,
@@ -107,7 +117,7 @@ public class ArbitraryFeature : Feature
                 Board = source.Entity.Board,
             };
             var ret = doesGetAttacked.Value.Item1.Eval(ctx);
-            ctx.Variables[DefaultCompilerContext.GetSymbol("result")] = ret;
+            ctx.Variables[2] = ret;
             return (ret, doesGetAttacked.Value.Item2.Eval(ctx));
         }
         return base.DoesGetAttacked(source, attacked, damage, hit);
@@ -118,12 +128,9 @@ public class ArbitraryFeature : Feature
         if (doesAttack != null && attacked is Component component)
         {
             var ctx = new EvalContext(
-                new Dictionary<string, object>()
-                {
-                    { "hit", hit },
-                    { "damage_type", damage.Type }
-                },
-                DefaultCompilerContext
+                hit,
+                damage.Type,
+                null!
             ) {
                 Target = damage.Attacker?.Entity,
                 Caller = source.Entity,
@@ -131,7 +138,7 @@ public class ArbitraryFeature : Feature
                 Board = source.Entity.Board,
             };
             var ret = doesAttack.Value.Item1.Eval(ctx);
-            ctx.Variables[DefaultCompilerContext.GetSymbol("result")] = ret;
+            ctx.Variables[2] = ret;
             return (ret, doesAttack.Value.Item2.Eval(ctx));
         }
         return base.DoesAttack(source, attacked, damage, hit);
@@ -141,14 +148,19 @@ public class ArbitraryFeature : Feature
     {
         if (doesExecuteSkill != null)
         {
-            var ctx = new EvalContext()
+            var arr = new object[arguments.Count + 1];
+            for (int i = 0; i < arguments.Count; i++)
+            {
+                arr[i] = arguments[i];
+            }
+            var ctx = new EvalContext(arr)
             {
                 Caller = executor.Entity,
                 Target = executor.Entity,
                 Board = executor.Entity.Board,
             };
             var ret = doesExecuteSkill.Value.Item1.Eval(ctx);
-            ctx.Variables[DefaultCompilerContext.GetSymbol("result")] = ret;
+            ctx.Variables[arguments.Count] = ret;
             return (ret, doesExecuteSkill.Value.Item2.Eval(ctx));
         }
         return base.DoesExecuteSkill(executor, skill, arguments);
@@ -159,13 +171,9 @@ public class ArbitraryFeature : Feature
         if (onAttacked == null)
             return;
         var ctx = new EvalContext(
-            new Dictionary<string, object>()
-            {
-                { "hit", hit },
-                { "damage_type", damage.Source.Type },
-                { "amount", damage.Amount }
-            },
-            DefaultCompilerContext
+            hit,
+            damage.Source.Type,
+            damage.Amount
         ) {
             Target = damage.Source.Attacker?.Entity,
             Caller = attacked.Entity,
@@ -180,13 +188,9 @@ public class ArbitraryFeature : Feature
         if (onAttack == null)
             return;
         var ctx = new EvalContext(
-            new Dictionary<string, object>()
-            {
-                { "hit", hit },
-                { "damage_type", damage.Source.Type },
-                { "amount", damage.Amount }
-            },
-            DefaultCompilerContext
+            hit,
+            damage.Source.Type,
+            damage.Amount
         ) {
             Target = damage.Source.Attacker?.Entity,
             Caller = attacker.Entity,
@@ -206,12 +210,8 @@ public class ArbitraryFeature : Feature
         if (onInjured == null)
             return;
         var ctx = new EvalContext(
-            new Dictionary<string, object>()
-            {
-                { "injury_type", injury.Type.Id },
-                { "severity", injury.Severity }
-            },
-            DefaultCompilerContext
+            injury.Type.Id,
+            injury.Severity
         ) {
             TargetPart = injured is BodyPart bp ? bp.Entity : null,
             Target = injured is BodyPart comp ? comp.OwnerEntity : (injured is Component c ? c.Entity : null),
@@ -226,12 +226,9 @@ public class ArbitraryFeature : Feature
         if (modifyReceivingDamage != null)
         {
             var ctx = new EvalContext(
-                new Dictionary<string, object>()
-                {
-                    { "damage_type", damage.Source.Type },
-                    { "amount", damage.Amount }
-                },
-                DefaultCompilerContext
+                damage.Source.Type,
+                damage.Amount,
+                null!
             ) {
                 Target = damage.Source.Attacker?.Entity,
                 Caller = attacked.Entity,
@@ -239,7 +236,7 @@ public class ArbitraryFeature : Feature
                 Board = attacked.Entity.Board,
             };
             var ret = modifyReceivingDamage.Value.Item1.Eval(ctx);
-            ctx.Variables[DefaultCompilerContext.GetSymbol("result")] = ret;
+            ctx.Variables[2] = ret;
             return (ret, modifyReceivingDamage.Value.Item2.Eval(ctx));
         }
         return base.ModifyReceivingDamage(attacked, target, damage);
@@ -250,12 +247,9 @@ public class ArbitraryFeature : Feature
         if (modifyAttackingDamage != null)
         {
             var ctx = new EvalContext(
-                new Dictionary<string, object>()
-                {
-                    { "damage_type", damage.Source.Type },
-                    { "amount", damage.Amount }
-                },
-                DefaultCompilerContext
+                damage.Source.Type,
+                damage.Amount,
+                null!
             ) {
                 Target = damage.Source.Attacker?.Entity,
                 Caller = attacker.Entity,
@@ -263,7 +257,7 @@ public class ArbitraryFeature : Feature
                 Board = attacker.Entity.Board,
             };
             var ret = modifyAttackingDamage.Value.Item1.Eval(ctx);
-            ctx.Variables[DefaultCompilerContext.GetSymbol("result")] = ret;
+            ctx.Variables[2] = ret;
             return (ret, modifyAttackingDamage.Value.Item2.Eval(ctx));
         }
         return base.ModifyAttackingDamage(attacker, target, damage);

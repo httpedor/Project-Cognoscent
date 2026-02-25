@@ -9,6 +9,9 @@ using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Health;
 using TTRpgClient.scripts;
 
 public static class Modal
@@ -182,12 +185,33 @@ public static class Modal
                 {
                     foreach (var entity in board.GetEntities())
                     {
-                        ob.AddIconItem(board.GetEntityNode(entity).Display.Texture, $"{(entity is Creature c ? c.Name + " " : "")}{entity.Id} - {entity.GetEntityType()} at {entity.Position}, board {board.Name}, {entity.Id}");
+                        ob.AddIconItem(board.GetEntityRenderer(entity)?.Display?.Texture, $"{entity.Name} {entity.Id}, board {board.Name}");
                         ids.Add(entity);
                     }
                 }
                 ob.ItemSelected += id => {
                     callback(ids[(int)id]);
+                };
+                return ob;
+            }
+            case Token tok:
+            {
+                var ob = new OptionButton
+                {
+                    AllowReselect = true,
+                };
+                var tokens = new List<Token>();
+                foreach (var board in GameManager.Instance.GetBoards())
+                {
+                    foreach (var entity in board.GetEntitiesWithComponent(Token.ID))
+                    {
+                        var token = (Token)entity.GetComponent(Token.ID)!;
+                        ob.AddIconItem(board.GetTokenRenderer(token)?.Display?.Texture, $"{token.Entity.Name} {token.Entity.Id} at {token.Position}, board {board.Name}");
+                        tokens.Add(token);
+                    }
+                }
+                ob.ItemSelected += id => {
+                    callback(tokens[(int)id]);
                 };
                 return ob;
             }
@@ -316,7 +340,7 @@ public static class Modal
                 {
                     AllowReselect = true
                 };
-                ob.ItemSelected += id => callback(Compendium.GetEntries<DamageType>().First());
+                ob.ItemSelected += id => callback(Compendium.GetEntries<DamageType>().ElementAt((int)id));
                 
                 var values = Compendium.GetEntries<DamageType>();
                 int j = 0;

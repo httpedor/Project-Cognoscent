@@ -5,6 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Skills;
 
 namespace TTRpgClient.scripts.ui;
 
@@ -79,17 +82,17 @@ public static class ActionBar
         container.Show();
     }
 
-    public static void PopulateWithSkills(Creature creature)
+    public static void PopulateWithSkills(SkillExecutor executor)
     {
-        foreach (var (source, skill) in creature.AvailableSkills)
+        foreach (var skill in executor.Skills)
         {
-            AddButton(source.Name+";"+skill.GetName(), skill.GetTooltip() + "\n\nFonte: " + source.Name, Icons.GetIcon(skill.GetIconName()), async () =>
+            AddButton(skill.GetName(), skill.GetTooltip(), Icons.GetIcon(skill.GetIconName()), async () =>
             {
-                var args = await InputManager.Instance.RequestSkillArguments(creature, source, skill);
+                var args = await InputManager.Instance.RequestSkillArguments(executor, skill);
                 if (args == null)
                     return;
-                NetworkManager.Instance.SendPacket(new CreatureSkillUpdatePacket(creature, new SkillData(skill, args, source, skill.GetLayers(creature, source))));
-            }, creature.CanExecuteSkill(skill, source));
+                NetworkManager.Instance.SendPacket(new SkillUpdatePacket(executor, new SkillData(skill, args, skill.GetLayers(executor))));
+            }, executor.CanExecuteSkill(skill));
         }
     }
 }

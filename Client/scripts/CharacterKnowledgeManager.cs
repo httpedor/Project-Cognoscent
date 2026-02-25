@@ -1,4 +1,6 @@
 ﻿using Rpg;
+using Rpg.Entities;
+using Rpg.Features;
 
 namespace TTRpgClient.scripts;
 
@@ -8,8 +10,6 @@ public static class CharacterKnowledgeManager
     {
         if (GameManager.IsGm)
             return true;
-        if (target is not Creature creature)
-            return false;
         return GameManager.OwnsEntity(target);
     }
 
@@ -17,8 +17,6 @@ public static class CharacterKnowledgeManager
     {
         if (GameManager.IsGm)
             return true;
-        if (target is not Creature creature)
-            return false;
         if (GameManager.OwnsEntity(target))
             return feature.CanBeSeenBy(target);
         return false;

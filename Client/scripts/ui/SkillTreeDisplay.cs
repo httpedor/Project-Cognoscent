@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Rpg;
+using Rpg.Entities.Components;
 
 namespace TTRpgClient.scripts.ui;
 

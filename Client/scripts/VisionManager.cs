@@ -3,18 +3,18 @@
 using System.Collections.Generic;
 using Godot;
 using Rpg;
-using TTRpgClient.scripts.RpgImpl;
+using Rpg.Entities.Components;
 public struct VisionPoint{
     public VisionPoint(Vector2 position, float radius){
         Position = position;
         Radius = radius;
     }
-    public VisionPoint(Creature entity){
-        Position = entity;
-        Radius = entity.GetStatValue(CreatureStats.SIGHT);
+    public VisionPoint(Token token){
+        Position = token;
+        Radius = token.Entity.Stats?.GetStatValue(CreatureStats.SIGHT) ?? 1f;
     }
 
-    public Either<Vector2, Creature> Position;
+    public Either<Vector2, Token> Position;
     public float Radius;
 }
 public partial class VisionManager : SubViewport
@@ -23,6 +23,7 @@ public partial class VisionManager : SubViewport
     private Dictionary<string, Light2D> lights = new();
     private Sprite2D renderer;
     public int VisionPointCount => visionPoints.Count;
+    public IEnumerable<VisionPoint> VisionPoints => visionPoints.Values;
     public static VisionManager Instance
     {
         get
@@ -100,16 +101,20 @@ public partial class VisionManager : SubViewport
                 lights[entry.Key].Position = point.Position.Left;
             else
             {
-                var creature = point.Position.Right!;
-                point.Radius = Mathf.Max(creature.GetStatValue(CreatureStats.SIGHT) * creature.Floor.DefaultEntitySight, 0.75f);
-                lights[entry.Key].Position = board.GetEntityNode(creature).Position;
-                if (creature.FloorIndex != board.FloorIndex)
+                var token = point.Position.Right!;
+                if (token.Floor == null)
+                    return;
+                point.Radius = Mathf.Max((token.Entity.Stats?.GetStatValue(CreatureStats.SIGHT) ?? 1f) * token.Floor.DefaultEntitySight, 0.75f);
+                lights[entry.Key].Position = board.GetTokenRenderer(token).Position;
+                if (token.FloorIndex != board.FloorIndex)
                 {
-                    for (int i = board.FloorIndex; i > creature.FloorIndex; i--)
+                    for (int i = board.FloorIndex; i > token.FloorIndex; i--)
                     {
                         var floor = board.GetFloor(i);
-                        var pos = new Vector2(creature.Position.X * floor.TileSize.X, creature.Position.Y * floor.TileSize.Y);
-                        if (!board.GetFloor(i).IsTransparent(pos))
+                        if (floor == null)
+                            continue;
+                        var pos = new Vector2(token.Position.X * floor.TileSize.X, token.Position.Y * floor.TileSize.Y);
+                        if (!floor.IsTransparent(pos))
                         {
                             lights[entry.Key].Visible = false;
                         }
@@ -133,7 +138,7 @@ public partial class VisionManager : SubViewport
         var light = new PointLight2D
         {
             Texture = TEX,
-            Position = point.Position.IsLeft ? point.Position.Left : board.GetEntityNode(point.Position.Right!).Position,
+            Position = point.Position.IsLeft ? point.Position.Left : board.GetTokenRenderer(point.Position.Right).Position,
             Color = new Color(1, 1, 1, 1),
             ShadowEnabled = true,
             Scale = new Vector2(TileSize.X / TEX.GetWidth() * point.Radius * 2, TileSize.Y / TEX.GetHeight() * point.Radius * 2),
@@ -148,7 +153,7 @@ public partial class VisionManager : SubViewport
     public void AddVisionPoint(VisionPoint point)
     {
         if (point.Position.IsRight)
-            AddVisionPoint(point.Position.Right!.Id.ToString(), point);
+            AddVisionPoint(point.Position.Right.Entity.Id.ToString(), point);
         else
             AddVisionPoint(point.Position.Left.ToString(), point);
     }
@@ -163,9 +168,9 @@ public partial class VisionManager : SubViewport
         lights[id].QueueFree();
         lights.Remove(id);
     }
-    public void RemoveVisionPoint(Entity id)
+    public void RemoveVisionPoint(Token id)
     {
-        RemoveVisionPoint(id.Id.ToString());
+        RemoveVisionPoint(id.Entity.Id.ToString());
     }
     public void ClearVisionPoints()
     {

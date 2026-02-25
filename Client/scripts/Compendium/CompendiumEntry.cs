@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using Godot;
 using Rpg;
 
@@ -6,7 +7,7 @@ namespace TTRpgClient.scripts.ui;
 
 public partial class CompendiumEntry : Control, IContextMenuProvider
 {
-    public static CompendiumEntry GetEntryFor(string folder, string entryId, JsonObject entry)
+    public static CompendiumEntry GetEntryFor(string folder, string entryId, JsonElement entry)
     {
         return folder switch
         {
@@ -24,9 +25,9 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
     
     protected string entryId;
     protected string folder;
-    protected JsonObject json;
+    protected JsonElement json;
 
-    protected CompendiumEntry(string folder, string entryId, JsonObject json)
+    protected CompendiumEntry(string folder, string entryId, JsonElement json)
     {
         this.entryId = entryId;
         this.json = json;
@@ -95,7 +96,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
 
     public virtual Texture2D GetIcon()
     {
-        return Icons.GetIcon(json["icon"]?.GetValue<string>());
+        return Icons.GetIcon(json.GetProperty("icon").GetString());
     }
 
     protected virtual void OnDrag(Vector2 target)

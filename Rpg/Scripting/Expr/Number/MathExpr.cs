@@ -1,15 +1,15 @@
 namespace Rpg.Scripting;
 
-public sealed class AddExpr : NumberExpr
+public sealed class AddExpr : Expr<float>
 {
-    public readonly NumberExpr[] Args;
-    public AddExpr(NumberExpr[] args) => Args = args;
+    public readonly Expr<float>[] Args;
+    public AddExpr(Expr<float>[] args) => Args = args;
     public AddExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        Args = new NumberExpr[length];
+        Args = new Expr<float>[length];
         for (int i = 0; i < length; i++)
-            Args[i] = (NumberExpr)BaseExpr.Deserialize(stream);
+            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)
@@ -27,16 +27,16 @@ public sealed class AddExpr : NumberExpr
             e.ToBytes(stream);
     }
 }
-public sealed class SubExpr : NumberExpr
+public sealed class SubExpr : Expr<float>
 {
-    public readonly NumberExpr[] Args;
-    public SubExpr(NumberExpr[] args) => Args = args;
+    public readonly Expr<float>[] Args;
+    public SubExpr(Expr<float>[] args) => Args = args;
     public SubExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        Args = new NumberExpr[length];
+        Args = new Expr<float>[length];
         for (int i = 0; i < length; i++)
-            Args[i] = (NumberExpr)BaseExpr.Deserialize(stream);
+            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)
@@ -54,16 +54,16 @@ public sealed class SubExpr : NumberExpr
             e.ToBytes(stream);
     }
 }
-public sealed class MulExpr : NumberExpr
+public sealed class MulExpr : Expr<float>
 {
-    public readonly NumberExpr[] Args;
-    public MulExpr(NumberExpr[] args) => Args = args;
+    public readonly Expr<float>[] Args;
+    public MulExpr(Expr<float>[] args) => Args = args;
     public MulExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        Args = new NumberExpr[length];
+        Args = new Expr<float>[length];
         for (int i = 0; i < length; i++)
-            Args[i] = (NumberExpr)BaseExpr.Deserialize(stream);
+            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
     }
     public override float Eval(EvalContext ctx)
     {
@@ -80,16 +80,16 @@ public sealed class MulExpr : NumberExpr
             e.ToBytes(stream);
     }
 }
-public sealed class DivExpr : NumberExpr
+public sealed class DivExpr : Expr<float>
 {
-    public readonly NumberExpr[] Args;
-    public DivExpr(NumberExpr[] args) => Args = args;
+    public readonly Expr<float>[] Args;
+    public DivExpr(Expr<float>[] args) => Args = args;
     public DivExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        Args = new NumberExpr[length];
+        Args = new Expr<float>[length];
         for (int i = 0; i < length; i++)
-            Args[i] = (NumberExpr)BaseExpr.Deserialize(stream);
+            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
     }
     public override float Eval(EvalContext ctx)
     {

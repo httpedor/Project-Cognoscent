@@ -1,12 +1,13 @@
+using Rpg.Entities;
 using Rpg.Features;
 
 namespace Rpg.Scripting;
 
 public class AddFeatureExpr : EffectExpr
 {
-    public readonly SelectorExpr Target;
+    public readonly Expr<Entity?> Target;
     public readonly string FeatureName;
-    public AddFeatureExpr(string featureName, SelectorExpr target)
+    public AddFeatureExpr(string featureName, Expr<Entity?> target)
     {
         FeatureName = featureName;
         Target = target;
@@ -14,7 +15,7 @@ public class AddFeatureExpr : EffectExpr
     public AddFeatureExpr(Stream stream)
     {
         FeatureName = stream.ReadString();
-        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
+        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {
@@ -38,9 +39,9 @@ public class AddFeatureExpr : EffectExpr
 }
 public class RemoveFeatureExpr : EffectExpr
 {
-    public readonly SelectorExpr Target;
+    public readonly Expr<Entity?> Target;
     public readonly string FeatureName;
-    public RemoveFeatureExpr(string featureName, SelectorExpr target)
+    public RemoveFeatureExpr(string featureName, Expr<Entity?> target)
     {
         FeatureName = featureName;
         Target = target;
@@ -48,7 +49,7 @@ public class RemoveFeatureExpr : EffectExpr
     public RemoveFeatureExpr(Stream stream)
     {
         FeatureName = stream.ReadString();
-        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
+        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {
@@ -73,10 +74,10 @@ public class RemoveFeatureExpr : EffectExpr
 
 public class AddConditionFeatureExpr : EffectExpr
 {
-    public readonly SelectorExpr Target;
-    public readonly NumberExpr Ticks;
+    public readonly Expr<Entity?> Target;
+    public readonly Expr<float> Ticks;
     public readonly string ConditionName;
-    public AddConditionFeatureExpr(string conditionName, SelectorExpr target, NumberExpr ticks)
+    public AddConditionFeatureExpr(string conditionName, Expr<Entity?> target, Expr<float> ticks)
     {
         ConditionName = conditionName;
         Target = target;
@@ -85,8 +86,8 @@ public class AddConditionFeatureExpr : EffectExpr
     public AddConditionFeatureExpr(Stream stream)
     {
         ConditionName = stream.ReadString();
-        Target = (SelectorExpr)BaseExpr.Deserialize(stream);
-        Ticks = (NumberExpr)BaseExpr.Deserialize(stream);
+        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
+        Ticks = (Expr<float>)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {

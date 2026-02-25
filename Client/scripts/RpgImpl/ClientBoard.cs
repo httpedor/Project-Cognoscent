@@ -1,26 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using Godot;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components;
 using TTRpgClient.scripts.ui;
 
 namespace TTRpgClient.scripts.RpgImpl;
 
-//TODO: Setup the correct Initialization workflow for the ClientBoard
 public class ClientBoard : Board
 {
-	private static Dictionary<EntityType, Func<Entity, ClientBoard, EntityNode>> nodeConstructors = new()
-	{
-		{EntityType.Door, (ent, board) => new DoorNode((DoorEntity)ent, board)},
-		{EntityType.Light, (ent, board) => new LightNode((LightEntity)ent, board)},
-		{EntityType.Prop, (ent, board) => new PropNode((PropEntity)ent, board)},
-		{EntityType.Creature, (ent, board) => new CreatureNode((Creature)ent, board)},
-		{EntityType.Item, (ent, board) => new ItemNode((ItemEntity)ent, board)}
-	};
-	private readonly Dictionary<int, EntityNode> entityNodesCache = new();
-	private readonly List<int> localEntityIds = new();
+	private readonly Dictionary<int, EntityRenderer> entityRenderers = new();
+	private readonly HashSet<int> localEntityIds = new();
     public Node2D Node {get; }
 
     public Entity? SelectedEntity
@@ -29,7 +20,8 @@ public class ClientBoard : Board
 	    set
 	    {
 		    if (field != null){
-			    GetEntityNode(field).Outline = new Color(1, 0, 0, 0);
+				if (field.HasComponent(Token.ID))
+					GetTokenRenderer(field.Token!)?.Outline = new Color(1, 0, 0, 0);
 			    if (GameManager.IsGm)
 			    {
 				    GameManager.Instance.VisionManager.RemoveVisionPoint(field.Id.ToString());
@@ -38,20 +30,23 @@ public class ClientBoard : Board
 		    }
 		    field = value;
 		    if (field != null){
-			    if (field.FloorIndex < 0 || field.FloorIndex >= GetFloorCount())
+				var token = field.Token;
+				if (token == null)
+					return;
+
+			    if (token.FloorIndex < 0 || token.FloorIndex >= GetFloorCount())
 				    return;
-			    GetEntityNode(field).Outline = new Color(1, 0, 0, 1f);
-			    if (field is Creature selectedCreature)
-			    {
-				    if (GameManager.IsGm)
-					    GameManager.Instance.VisionManager.AddVisionPoint(new VisionPoint(selectedCreature));
-				    if (GameManager.IsGm || selectedCreature.Owner == GameManager.Username)
-				    {
-					    ActionBar.Clear();
-					    ActionBar.PopulateWithSkills(selectedCreature);
-				    }
-			    }
+			    GetTokenRenderer(token).Outline = new Color(1, 0, 0, 1f);
+				if (GameManager.IsGm)
+					GameManager.Instance.VisionManager.AddVisionPoint(new VisionPoint(token));
+				if (GameManager.IsGm || field.Owner == GameManager.Username)
+				{
+					ActionBar.Clear();
+					if (field.HasComponent(SkillExecutor.ID))
+						ActionBar.PopulateWithSkills(field.SkillExecutor!);
+				}
 		    }
+
 		    if (GameManager.Instance.VisionManager.VisionPointCount > 0)
 		    {
 			    CurrentFloor.UpdateAmbientModulate();
@@ -64,12 +59,12 @@ public class ClientBoard : Board
 	    }
     }
 
-    public Creature? OwnedSelectedEntity
+    public Entity? OwnedSelectedEntity
 	{
 		get
 		{
-			if (SelectedEntity is Creature c && (c.Owner.Equals(GameManager.Username) || GameManager.IsGm))
-				return c;
+			if ((SelectedEntity?.Owner?.Equals(GameManager.Username) ?? false) || GameManager.IsGm)
+				return SelectedEntity;
 			return null;
 		}
 	}
@@ -194,14 +189,14 @@ public class ClientBoard : Board
 		UpdateTurnModeToast();
 	}
 
-	public override List<Creature> GetEntitiesByOwner(string owner)
+	public override List<Entity> GetEntitiesByOwner(string owner)
 	{
 		if (!owner.Equals(GameManager.Username)) return base.GetEntitiesByOwner(owner);
 		
-		var ret = new List<Creature>();
+		var ret = new List<Entity>();
 		foreach (int id in localEntityIds)
 		{
-			Creature? entity = (Creature?)GetEntityById(id);
+			Entity? entity = GetEntityById(id);
 			if (entity != null)
 				ret.Add(entity);
 		}
@@ -241,44 +236,31 @@ public class ClientBoard : Board
     public override void AddEntity(Entity entity)
     {
         base.AddEntity(entity);
-		EntityNode node;
-		if (nodeConstructors.ContainsKey(entity.GetEntityType()))
-			node = nodeConstructors[entity.GetEntityType()](entity, this);
-		else
-			node = new EntityNode(entity, this);
+		EntityRenderer node;
+		node = new EntityRenderer(entity, this);
 
-		entityNodesCache[entity.Id] = node;
-		GetFloor(entity.FloorIndex)?.EntitiesNode.AddChild(node);
-		if (entity is Creature creature)
+		entityRenderers[entity.Id] = node;
+		if (entity.HasComponent(SkillExecutor.ID) && TurnMode)
+			InitiativeBar.PopulateWithBoard(this);
+		if (!GameManager.IsGm)
 		{
-			creature.ActionLayerChanged += (layer) =>
+			if (entity.Owner?.Equals(GameManager.Username) ?? false)
 			{
-				if (TurnMode)
-					InitiativeBar.PopulateWithBoard(this);
-			};
-			creature.ActionLayerRemoved += (layer) =>
-			{
-				if (TurnMode)
-					InitiativeBar.PopulateWithBoard(this);
-			};
-			if (TurnMode)
-				InitiativeBar.PopulateWithBoard(this);
-			if (!GameManager.IsGm)
-			{
-				if (creature.Owner.Equals(GameManager.Username))
+				localEntityIds.Add(entity.Id);
+				if (entity.HasComponent(Token.ID))
 				{
-					foreach (var e in entities)
+					VisionManager.Instance.ClearVisionPoints();
+					foreach (var entId in localEntityIds)
 					{
-						if (e is Creature c && c.Owner.Equals(GameManager.Username))
-							GameManager.Instance.VisionManager.RemoveVisionPoint(creature);
+						Entity? ent = GetEntityById(entId);
+						if (ent != null && ent.HasComponent(Token.ID))
+							VisionManager.Instance.AddVisionPoint(new VisionPoint(ent.Token!));
 					}
-					VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));
-					localEntityIds.Add(entity.Id);
 				}
-
-				if (localEntityIds.Count == 0 && creature.HasOwner())
-					VisionManager.Instance.AddVisionPoint(new VisionPoint(creature));
 			}
+
+			if (localEntityIds.Count == 0 && entity.HasOwner && entity.HasComponent(Token.ID))
+				VisionManager.Instance.AddVisionPoint(new VisionPoint(entity.Token!));
 		}
     }
 
@@ -287,19 +269,52 @@ public class ClientBoard : Board
 		if (entity == null)
 			return;
 		base.RemoveEntity(entity);
-		GetEntityNode(entity).QueueFree();
-
 		if (localEntityIds.Contains(entity.Id))
 			localEntityIds.Remove(entity.Id);
-
-		GameManager.Instance.VisionManager.RemoveVisionPoint(entity);
-
 		if (SelectedEntity == entity)
 			SelectedEntity = null;
+
+		var token = entity.Token;
+		if (token == null)
+			return;
+		GetTokenRenderer(token).QueueFree();
+
+		GameManager.Instance.VisionManager.RemoveVisionPoint(token);
+
 	}
 
-	public EntityNode GetEntityNode(Entity entity){
-		return entityNodesCache[entity.Id];
+	public EntityRenderer? GetEntityRenderer(Entity entity){
+		return entityRenderers.TryGetValue(entity.Id, out var node) ? node : null;
+	}
+	public ComponentRendererBase? GetComponentRenderer(Entity entity, uint componentId)
+	{
+		var entityRenderer = GetEntityRenderer(entity);
+		return entityRenderer?.GetComponentRenderer(componentId);
+	}
+	public ComponentRendererBase? GetComponentRenderer(Component component)
+	{
+		var entityRenderer = GetEntityRenderer(component.Entity);
+		return entityRenderer?.GetComponentRenderer(component.GetId());
+	}
+	public ComponentRenderer<T>? GetComponentRenderer<T>(Entity entity) where T : Component
+	{
+		var entityRenderer = GetEntityRenderer(entity);
+		var compRenderer = entityRenderer?.GetComponentRenderer(Component.GetComponentId<T>());
+		if (compRenderer == null)
+			return null;
+		return (ComponentRenderer<T>?)compRenderer;
+	}
+	public ComponentRenderer<T>? GetComponentRenderer<T>(T component) where T : Component
+	{
+		var entityRenderer = GetEntityRenderer(component.Entity);
+		var compRenderer = entityRenderer?.GetComponentRenderer(component.GetId());
+		if (compRenderer == null)
+			return null;
+		return (ComponentRenderer<T>?)compRenderer;
+	}
+	public TokenRenderer GetTokenRenderer(Token token)
+	{
+		return GetEntityRenderer(token.Entity).GetComponentRenderer<TokenRenderer>(Token.ID);
 	}
 
     public override void BroadcastMessage(string message)
@@ -307,18 +322,31 @@ public class ClientBoard : Board
 		NetworkManager.Instance.SendPacket(new ChatPacket(this, message));
     }
 
-	public void CenterOn(Entity entity)
+	public void CenterOn(Token token)
 	{
 		Tween tween = Node.GetTree().CreateTween();
 		tween.SetParallel(true);
 		tween.SetEase(Tween.EaseType.Out);
 		tween.SetTrans(Tween.TransitionType.Cubic);
 		tween.TweenProperty(Camera, "zoom", new Vector2(2, 2), 0.5f);
-		tween.TweenProperty(Camera, "position", WorldToPixel(entity.Position.ToV2()).ToGodot(), 0.5f);
+		tween.TweenProperty(Camera, "position", WorldToPixel(token.Position.ToV2()).ToGodot(), 0.5f);
 
 		tween.Finished += () => {
 			tween.Kill();
-			SelectedEntity = entity;
+			SelectedEntity = token.Entity;
 		};
 	}
+
+    public override void ComponentHandledEvent(Component comp, ComponentEvent e)
+    {
+        base.ComponentHandledEvent(comp, e);
+		GetComponentRenderer(comp)?.EventHandled(e);
+    }
+
+    public override void HandleEvent(ComponentEvent e)
+    {
+        base.HandleEvent(e);
+		GetComponentRenderer(e.Component)?.EventFired(e);
+    }
+
 }

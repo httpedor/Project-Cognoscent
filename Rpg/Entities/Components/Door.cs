@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Rpg.Entities.Components;
 
-public partial class Door : Component
+public partial class Door : Component, ICopyable<Door>
 {
     [RequiredComponent(typeof(Token))]
     private Token? token;
@@ -58,5 +58,14 @@ public partial class Door : Component
         stream.WriteByte((byte)(BlocksVision ? 1 : 0));
         stream.WriteByte((byte)(Locked ? 1 : 0));
         stream.WriteByte((byte)(Slide ? 1 : 0));
+    }
+
+    public void CopyFrom(Door other)
+    {
+        Bounds = other.Bounds;
+        Closed = other.Closed;
+        BlocksVision = other.BlocksVision;
+        Locked = other.Locked;
+        Slide = other.Slide;
     }
 }

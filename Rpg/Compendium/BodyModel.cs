@@ -5,6 +5,7 @@ using Rpg.Entities.Components;
 using Rpg.Entities.Components.Health;
 using Rpg.Features;
 using Rpg.Health;
+using Rpg.Scripting;
 using Rpg.Skills;
 
 namespace Rpg;
@@ -57,7 +58,7 @@ public class StatJson
     [JsonPropertyName("dependsOn")] public Dictionary<string, JsonElement>? DependsOn { get; set; }
     [JsonPropertyName("groupEffectiveness")] public Dictionary<string, float>? GroupEffectiveness { get; set; }
     [JsonPropertyName("name")] public string? Name { get; set; }
-    [JsonPropertyName("onChange")] public string? OnChange { get; set; }
+    [JsonPropertyName("onChange")] public JsonElement? OnChange { get; set; }
 }
 
 public class BodyJson
@@ -369,17 +370,13 @@ public class BodyModel
         public string? MaxDependencyName;
         public string? MinDependencyName;
         public JsonElement? RegenJson;
-        public List<DependencyConfig>? DependsOn;
+        public List<BodyStat.StatDependency>? DependsOn;
         public Dictionary<string, float> GroupEffectiveness = new();
         public string? Name;
-        public string? OnChange;
+        public JsonElement? OnChange;
     }
+    private JsonElement originalJson;
 
-    public sealed class DependencyConfig
-    {
-        public string DepName = string.Empty;
-        public JsonElement ValJson;
-    }
 
     public string Name = null!;
     public bool IsHumanoid;
@@ -426,17 +423,43 @@ public class BodyModel
                 if (minJson.HasValue && minJson.Value.ValueKind == JsonValueKind.String)
                     minDep = minJson.Value.GetString();
 
-                List<DependencyConfig>? dependsOn = null;
+                List<BodyStat.StatDependency>? dependsOn = null;
                 if (statJson.DependsOn != null)
                 {
-                    dependsOn = new List<DependencyConfig>();
+                    dependsOn = new List<BodyStat.StatDependency>();
                     foreach (var (depName, valElement) in statJson.DependsOn)
                     {
-                        dependsOn.Add(new DependencyConfig
+                        
+                        if (valElement.ValueKind == JsonValueKind.Number)
                         {
-                            DepName = depName,
-                            ValJson = valElement
-                        });
+                            dependsOn.Add(new BodyStat.StatDependency(
+                                depName,
+                                ExpressionCompiler.CompileNumber(valElement),
+                                new EnumExpr<StatModifierType>(new StringLiteralExpr("Percent"))
+                            ));
+                        }
+                        else if (valElement.ValueKind == JsonValueKind.Object)
+                        {
+                            var numberEl = valElement.GetPropertyOrNull("value");
+                            if (!numberEl.HasValue)
+                            {
+                                Logger.LogWarning($"Invalid dependsOn entry for stat {statName}: missing 'value' property");
+                                continue;
+                            }
+                            var typeEl = valElement.GetPropertyOrNull("type");
+                            if (!typeEl.HasValue)
+                            {
+                                Logger.LogWarning($"Invalid dependsOn entry for stat {statName}: 'type' property must be a string");
+                                continue;
+                            }
+                            dependsOn.Add(new BodyStat.StatDependency(
+                                depName,
+                                ExpressionCompiler.CompileNumber(numberEl.Value),
+                                ExpressionCompiler.CompileEnum<StatModifierType>(typeEl.Value)
+                            ));
+                        }
+                        else
+                            Logger.LogWarning($"Invalid dependsOn value for stat {statName} and dependency {depName}: must be a number or an object");
                     }
                 }
 
@@ -466,6 +489,11 @@ public class BodyModel
                 };
             }
         }
+    }
+
+    public JsonElement GetOriginalJson()
+    {
+        return originalJson;
     }
 
     public EntityWith<Body> Build()
@@ -501,38 +529,19 @@ public class BodyModel
 
             if (cfg.RegenJson != null)
             {
-                if (cfg.RegenJson.Value.ValueKind == JsonValueKind.String)
-                    entry.Regen = cfg.RegenJson.Value.GetString()!;
-                else if (cfg.RegenJson.Value.ValueKind == JsonValueKind.Number)
-                    entry.Regen = JsonHelpers.GetFloat(cfg.RegenJson.Value);
-                else
-                    Logger.LogWarning("Invalid regen value for stat " + statName);
+                entry.Regen = ExpressionCompiler.CompileNumber(cfg.RegenJson.Value);
             }
 
-            if (cfg.DependsOn != null)
-            {
-                var deps = new List<BodyStat.StatDependency>();
-                foreach (var dep in cfg.DependsOn)
-                {
-                    // If the value is a number, we assume it's a percent modifier expressed as (-(1 - x)*value)
-                    if (dep.ValJson.ValueKind == JsonValueKind.Number)
-                        deps.Add(new BodyStat.StatDependency(dep.DepName, $"(-((1 - x)*{JsonHelpers.GetFloat(dep.ValJson)}), StatModifierType.Percent)"));
-                    else if (dep.ValJson.ValueKind == JsonValueKind.String)
-                        deps.Add(new BodyStat.StatDependency(dep.DepName, dep.ValJson.GetString()!));
-                }
-                if (deps.Count > 0)
-                    entry.Dependencies = deps.ToArray();
-            }
-            if (cfg.OnChange != null && !SidedLogic.Instance.IsClient())
-            {
-                entry.OnChange = BodyStat.CompileOnChange(cfg.OnChange);
-            }
+            if (cfg.DependsOn != null && cfg.DependsOn.Count > 0)
+                entry.Dependencies = cfg.DependsOn.ToArray();
+            if (cfg.OnChange.HasValue)
+                entry.OnChange = ExpressionCompiler.CompileEffect(cfg.OnChange.Value);
 
             entry.GroupEffectiveness = cfg.GroupEffectiveness;
             statsList.Add(entry);
         }
 
-        var body = new Body(Name, rootPart, IsHumanoid)
+        var body = new Body(Name, rootPart, IsHumanoid, this)
         {
             Entity = entity,
             Features = Features.ToArray(),

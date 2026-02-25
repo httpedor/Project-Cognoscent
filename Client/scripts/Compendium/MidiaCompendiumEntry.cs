@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Godot;
 using Rpg;
@@ -7,16 +8,16 @@ using FileAccess = Godot.FileAccess;
 
 namespace TTRpgClient.scripts.ui;
 
-public partial class MidiaCompendiumEntry(string entryId, JsonObject json)
+public partial class MidiaCompendiumEntry(string entryId, JsonElement json)
     : CompendiumEntry(Compendium.GetFolderName<Midia>(), entryId, json)
 {
     public override Texture2D GetIcon()
     {
             MidiaType type;
-            string fName = json["fileName"]!.GetValue<string>();
-            byte[] data = Convert.FromBase64String(json["data"]!.GetValue<string>());
-            if (json.ContainsKey("type"))
-                Enum.TryParse(json["type"]!.GetValue<string>(), out type);
+            string fName = json.GetProperty("fileName").GetString()!;
+            byte[] data = Convert.FromBase64String(json.GetProperty("data")!.GetString()!);
+            if (json.TryGetProperty("type", out var prop))
+                Enum.TryParse(prop.GetString(), out type);
             else
                 type = Midia.GetFilenameType(fName);
             switch (type)

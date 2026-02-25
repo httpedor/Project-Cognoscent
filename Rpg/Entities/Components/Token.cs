@@ -18,7 +18,7 @@ public class TokenUpdateEvent : ComponentEvent
         OldMidia = oldMidia;
     }
 }
-public partial class Token : Component, ITickableComponent
+public partial class Token : Component, ITickableComponent, ICopyable<Token>
 {
     private Vector3 oldPosition;
     private float oldRotation;
@@ -70,5 +70,13 @@ public partial class Token : Component, ITickableComponent
             return false;
         OBB LOS = new((Position.XY() + target) / 2, new Vector2((target - Position.XY()).Length() / 2, 0.1f), MathF.Atan2(targetDir.Y, targetDir.X));
         return Floor.OBBWallIntersection(LOS);
+    }
+
+    public void CopyFrom(Token other)
+    {
+        Position = other.Position;
+        Rotation = other.Rotation;
+        Size = other.Size;
+        Midia = other.Midia;
     }
 }

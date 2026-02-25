@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Godot;
 using Rpg;
@@ -15,12 +16,12 @@ public partial class CodeCompendiumEntry : CompendiumEntry
         public Dictionary<string, Type> Globals = new();
     }
     protected TabInfo[] tabs;
-    public CodeCompendiumEntry(string folder, string entryId, JsonObject json, TabInfo[] tabs) : base(folder, entryId, json)
+    public CodeCompendiumEntry(string folder, string entryId, JsonElement json, TabInfo[] tabs) : base(folder, entryId, json)
     {
         this.tabs = tabs;
     }
 
-    public CodeCompendiumEntry(string folder, string entryId, JsonObject json) : base(folder, entryId, json)
+    public CodeCompendiumEntry(string folder, string entryId, JsonElement json) : base(folder, entryId, json)
     {
         tabs = [];
     }
@@ -35,8 +36,8 @@ public partial class CodeCompendiumEntry : CompendiumEntry
         {
             var tabInfo = tabs[i];
             var code = new CSharpCodeEdit();
-            if (json.ContainsKey(tabInfo.JsonKey))
-                code.Text = json[tabInfo.JsonKey]!.ToString().Replace("\\n", "\n");
+            if (json.TryGetProperty(tabInfo.JsonKey, out var prop))
+                code.Text = prop.GetString()!.Replace("\\n", "\n");
             foreach (var global in tabInfo.Globals)
             {
                 //TODO: This
@@ -47,17 +48,18 @@ public partial class CodeCompendiumEntry : CompendiumEntry
         }
         Modal.OpenTabs(entryId, tabsContent, () =>
         {
+            var mutJson = json.ToNode()!.AsObject();
             foreach (var tabContent in tabsContent)
             {
                 var code = (tabContent.Item2 as CodeEdit)!;
                 string jsonKey = displayToId[tabContent.Item1];
                 
                 if (code.Text == "")
-                    json.Remove(jsonKey);
+                    mutJson.Remove(jsonKey);
                 else
-                    json[jsonKey] = code.Text;
+                    mutJson[jsonKey] = code.Text;
             }
-            NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, json));
+            NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, mutJson.ToElement()));
         });
     }
 }

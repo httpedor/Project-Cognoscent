@@ -1,19 +1,19 @@
 namespace Rpg.Scripting;
 
-public sealed class GreaterThanConditionExpr : ConditionExpr
+public sealed class GreaterThanConditionExpr : Expr<bool>
 {
-    public readonly NumberExpr Left;
-    public readonly NumberExpr Right;
+    public readonly Expr<float> Left;
+    public readonly Expr<float> Right;
 
-    public GreaterThanConditionExpr(NumberExpr left, NumberExpr right)
+    public GreaterThanConditionExpr(Expr<float> left, Expr<float> right)
     {
         Left = left;
         Right = right;
     }
     public GreaterThanConditionExpr(Stream stream)
     {
-        Left = (NumberExpr)BaseExpr.Deserialize(stream);
-        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+        Left = (Expr<float>)BaseExpr.Deserialize(stream);
+        Right = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
@@ -27,20 +27,20 @@ public sealed class GreaterThanConditionExpr : ConditionExpr
         Right.ToBytes(stream);
     }
 }
-public sealed class LessThanConditionExpr : ConditionExpr
+public sealed class LessThanConditionExpr : Expr<bool>
 {
-    public readonly NumberExpr Left;
-    public readonly NumberExpr Right;
+    public readonly Expr<float> Left;
+    public readonly Expr<float> Right;
 
-    public LessThanConditionExpr(NumberExpr left, NumberExpr right)
+    public LessThanConditionExpr(Expr<float> left, Expr<float> right)
     {
         Left = left;
         Right = right;
     }
     public LessThanConditionExpr(Stream stream)
     {
-        Left = (NumberExpr)BaseExpr.Deserialize(stream);
-        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+        Left = (Expr<float>)BaseExpr.Deserialize(stream);
+        Right = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
@@ -54,20 +54,20 @@ public sealed class LessThanConditionExpr : ConditionExpr
         Right.ToBytes(stream);
     }
 }
-public sealed class EqualConditionExpr : ConditionExpr
+public sealed class EqualConditionExpr : Expr<bool>
 {
-    public readonly NumberExpr Left;
-    public readonly NumberExpr Right;
+    public readonly Expr<float> Left;
+    public readonly Expr<float> Right;
 
-    public EqualConditionExpr(NumberExpr left, NumberExpr right)
+    public EqualConditionExpr(Expr<float> left, Expr<float> right)
     {
         Left = left;
         Right = right;
     }
     public EqualConditionExpr(Stream stream)
     {
-        Left = (NumberExpr)BaseExpr.Deserialize(stream);
-        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+        Left = (Expr<float>)BaseExpr.Deserialize(stream);
+        Right = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
@@ -81,20 +81,20 @@ public sealed class EqualConditionExpr : ConditionExpr
         Right.ToBytes(stream);
     }
 }
-public sealed class NotEqualConditionExpr : ConditionExpr
+public sealed class NotEqualConditionExpr : Expr<bool>
 {
-    public readonly NumberExpr Left;
-    public readonly NumberExpr Right;
+    public readonly Expr<float> Left;
+    public readonly Expr<float> Right;
 
-    public NotEqualConditionExpr(NumberExpr left, NumberExpr right)
+    public NotEqualConditionExpr(Expr<float> left, Expr<float> right)
     {
         Left = left;
         Right = right;
     }
     public NotEqualConditionExpr(Stream stream)
     {
-        Left = (NumberExpr)BaseExpr.Deserialize(stream);
-        Right = (NumberExpr)BaseExpr.Deserialize(stream);
+        Left = (Expr<float>)BaseExpr.Deserialize(stream);
+        Right = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)

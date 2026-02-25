@@ -2,6 +2,7 @@ using System.Numerics;
 using Rpg;
 using Rpg.Entities;
 using Rpg.Entities.Components;
+using Rpg.Skills;
 
 namespace Server.Game;
 
@@ -19,21 +20,20 @@ public struct FloorCollisionInfo
 public class AreaTrigger : ISerializable
 {
     public Polygon Area;
-    public Skill Action;
+    //public Skill Action;
 
-    public AreaTrigger(Polygon area, Skill action){
+    public AreaTrigger(Polygon area){
         Area = area;
-        Action = action;
     }
 
     public AreaTrigger(Stream stream){
         Area = new Polygon(stream);
-        Action = Rpg.Skill.FromBytes(stream);
+        //Action = Rpg.Skill.FromBytes(stream);
     }
 
     public void ToBytes(Stream stream){
         Area.ToBytes(stream);
-        Action.ToBytes(stream);
+        //Action.ToBytes(stream);
     }
 }
 

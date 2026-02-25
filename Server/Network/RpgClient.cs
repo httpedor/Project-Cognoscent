@@ -1,12 +1,12 @@
-using System.Diagnostics;
-using System.Drawing;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Numerics;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Rpg;
-using Rpg.Inventory;
+using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Entities.Components.Health;
+using Rpg.Entities.Components.Inventory;
 using Server.Game;
 
 namespace Server.Network;
@@ -90,6 +90,11 @@ public class RpgClient
         }
     }
 
+    public bool OwnsEntity(Entity? entity)
+    {
+        return IsGm || (entity?.Owner?.Equals(Username) ?? false);
+    }
+
     public void HandlePacket(Packet packet)
     {
         switch (packet.Id){
@@ -111,9 +116,9 @@ public class RpgClient
                     foreach (var entry in Compendium.GetEntryNames(folder))
                     {
                         var json = Compendium.GetEntryJsonOrNull(folder, entry);
-                        if (json == null)
+                        if (!json.HasValue)
                             continue;
-                        Send(CompendiumUpdatePacket.AddEntry(folder, entry, json));
+                        Send(CompendiumUpdatePacket.AddEntry(folder, entry, json.Value));
                     }
                 }
                 if (Game.Game.GetBoards().Count == 0)
@@ -154,13 +159,13 @@ public class RpgClient
             case ProtocolId.DOOR_INTERACT:
             {
                 var dip = (DoorInteractPacket)packet;
-                DoorEntity? door = dip.Door.Door;
+                var door = dip.Door.Component;
                 if (door == null)
                     return;
                 if (!door.Locked)
                 {
                     door.Closed = !door.Closed;
-                    Manager.SendToBoard(new DoorUpdatePacket(door), door.Board.Name);
+                    Manager.SendToBoard(new DoorUpdatePacket(door), door.Board!.Name);
                 }
                 break;
             }
@@ -169,9 +174,11 @@ public class RpgClient
                 var dup = (DoorUpdatePacket)packet;
                 if (!IsGm)
                     return;
-                dup.@ref.Door?.CopyFrom(dup.Door);
-                if (dup.@ref.Door != null)
-                    Manager.SendToOthersInBoard(dup, dup.@ref.Board, Username);
+                var door = dup.@ref.Component;
+                if (door == null)
+                    return;
+                door.CopyFrom(dup.Door);
+                Manager.SendToOthersInBoard(dup, door.Board.Name, Username);
                 break;
             }
             case ProtocolId.ENTITY_REMOVE:
@@ -189,61 +196,67 @@ public class RpgClient
                 board!.RemoveEntity(entity);
                 break;
             }
-			case ProtocolId.ENTITY_MOVE:
+			case ProtocolId.TOKEN_MOVE:
 			{
-				var emp = (EntityMovePacket)packet;
-				Entity? entity = emp.EntityRef.Entity;
-				if (entity == null)
+				var emp = (TokenMovePacket)packet;
+				var token = emp.TokenRef.Component;
+				if (token == null)
 					break;
-                if (entity is Creature c && entity.Board.TurnMode)
-                    c.TargetPos = emp.Position;
-                else
+                if (!OwnsEntity(token))
+                    break;
+                if (token.Board?.TurnMode ?? false)
                 {
-                    var targetOBB = new OBB(emp.Position, (entity.Size.XY() / 2f) * 0.8f, entity.Rotation);
-                    var doorLines = entity.Board.GetEntities<DoorEntity>().Select((door) => new Line(door.Bounds[0], door.Closed ? door.Bounds[1] : door.OpenBound2));
-                    IEnumerable<Line> stairLines = new List<Line>();
-                    foreach (Line wall in entity.Board.GetFloor(entity.FloorIndex).BroadPhaseOBB(targetOBB).Union(doorLines).Union(stairLines))
-                    {
-                        if (Geometry.OBBLineIntersection(targetOBB, wall, out Vector2 _))
-                        {
-                            return;
-                        }
-                    }
-                    entity.Position = new Vector3(emp.Position.X, emp.Position.Y, entity.Position.Z);
+                    //token.TargetPos = emp.Position;
+                    break;
                 }
+                token.Rotation = emp.NewRotation;
+                var targetOBB = new OBB(emp.NewPos, (token.Size.XY() / 2f) * 0.8f, token.Rotation);
+                var doorLines = token.Board!.GetComponents<Door>().Select((door) => new Line(door.Bounds[0], door.Closed ? door.Bounds[1] : door.OpenBound2));
+                IEnumerable<Line> stairLines = new List<Line>();
+                foreach (Line wall in token.Board.GetFloor(token.FloorIndex).BroadPhaseOBB(targetOBB).Union(doorLines).Union(stairLines))
+                {
+                    if (Geometry.OBBLineIntersection(targetOBB, wall, out Vector2 _))
+                    {
+                        return;
+                    }
+                }
+                token.Position = new Vector3(emp.NewPos.X, emp.NewPos.Y, token.Position.Z);
 				break;
 			}
-            case ProtocolId.ENTITY_POSITION:
+            case ProtocolId.TOKEN_UPDATE:
             {
-                var epp = (EntityPositionPacket) packet;
-                Entity? entity = epp.EntityRef.Entity;
-                if (entity == null || !IsGm)
+                var emp = (TokenUpdatePacket)packet;
+                if (!IsGm)
                     break;
 
-                entity.Position = new Vector3(epp.Position.X, epp.Position.Y, entity.Position.Z);
-                break;
-            }
-            case ProtocolId.ENTITY_ROTATION:
-            {
-                var erp = (EntityRotationPacket) packet;
-                Entity? entity = erp.EntityRef.Entity;
-                if (entity == null)
+                var token = emp.TokenRef.Component;
+                if (token == null)
                     break;
-                if (IsGm || (entity is Creature creature && creature.Owner.Equals(Username)))
-                    entity.Rotation = erp.Rotation;
+                token.CopyFrom(emp.NewToken);
+                Manager.SendToOthersInBoard(emp, token.Board!.Name, Username);
                 break;
             }
             case ProtocolId.ENTITY_BODY_PART_INJURY:
             {
 				var ebpcp = (EntityBodyPartInjuryPacket)packet;
-				Creature? entity = ebpcp.CreatureRef.Creature;
-				if (entity == null)
-					break;
-
-				BodyPart? part = entity.BodyRoot.GetChildByPath(ebpcp.Path);
+                if (!IsGm)
+                    break;
+				BodyPart? part = ebpcp.BpRef.Component;
 				if (part == null)
 					break;
-
+                switch (ebpcp.Type)
+                {
+                    case EntityBodyPartInjuryPacket.InjuryPacketType.ADD:
+                        part.AddInjury(ebpcp.Injury);
+                        break;
+                    case EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE:
+                        part.RemoveInjury(ebpcp.Injury);
+                        break;
+                    case EntityBodyPartInjuryPacket.InjuryPacketType.REPLACE:
+                        if (ebpcp.OldInjury.HasValue)
+                            part.ChangeInjury(ebpcp.OldInjury.Value, ebpcp.Injury);
+                        break;
+                }
                 break;
             }
             case ProtocolId.ENTITY_CREATE:
@@ -258,70 +271,58 @@ public class RpgClient
                 board.AddEntity(ecp.Entity);
                 break;
             }
-            case ProtocolId.ENTITY_MIDIA:
+            case ProtocolId.BODY_EQUIP_ITEM:
             {
-                var emp = (EntityMidiaPacket)packet;
-                if (!IsGm)
-                    return;
-                var entity = emp.Ref.Entity;
-                if (entity == null)
-                    return;
-                entity.Display = emp.Midia;
-                break;
-            }
-            case ProtocolId.CREATURE_EQUIP_ITEM:
-            {
-                var cei = (CreatureEquipItemPacket)packet;
-                BodyPart? bp = cei.BPRef.BodyPart;
+                var cei = (BodyEquipItemPacket)packet;
+                BodyPart? bp = cei.BPRef.Component;
                 if (bp == null)
                     return;
-                Item? item = cei.ItemRef.Item;
-                if (item == null || !item.HasProperty<EquipmentProperty>())
+                if (!OwnsEntity(bp.OwnerEntity))
                     return;
+                var equipment = cei.ItemRef.Component;
+                if (equipment == null)
+                    return;
+
                 if (cei.Equipped)
                 {
-                    bp.Equip(item, cei.Slot!);
+                    bp.Equip(equipment.Item, cei.Slot!);
                 }
                 else
-                    bp.RemoveItem(item);
+                    bp.RemoveItem(equipment.Item);
                 break;
             }
             case ProtocolId.SKILL_UPDATE:
             {
                 var csu = (SkillUpdatePacket)packet;
-                Creature? creature = csu.Ref.Creature;
-                if (creature == null || (creature.Owner != Username && !IsGm))
+                var exec = csu.Ref.Component;
+                if (exec == null || !OwnsEntity(exec.Entity))
                     return;
                 
-                if (creature.ActiveSkills.ContainsKey(csu.Data.Id))
-                    creature.ActiveSkills[csu.Data.Id] = csu.Data;
+                if (exec.ActiveSkills.ContainsKey(csu.Data.Id))
+                    exec.ActiveSkills[csu.Data.Id] = csu.Data;
                 else
                 {
-                    ISkillSource? source = csu.Data.Source.SkillSource;
-                    if (source == null)
-                    {
-                        Logger.LogWarning($"Execute Skill from {Username} doesn't have a valid SkillSource.");
-                        return;
-                    }
-                    creature.ExecuteSkill(csu.Data.Skill, csu.Data.Arguments, source);
+                    exec.ExecuteSkill(csu.Data.Skill, csu.Data.Arguments);
                 }
                 break;
             }
             case ProtocolId.SKILL_REMOVE:
             {
                 var csr = (SkillRemovePacket)packet;
-                Creature? creature = csr.CreatureRef.Creature;
-                if (creature == null)
+                var exec = csr.Ref.Component;
+                if (exec == null || !OwnsEntity(exec.Entity))
                     break;
                 
-                creature.CancelSkill(csr.SkillId);
+                exec.CancelSkill(csr.SkillId);
                 break;
             }
             case ProtocolId.CREATURE_ACTION_LAYER_REMOVE:
             {
                 var calr = (ActionLayerRemovePacket)packet;
-                Creature? creature = calr.CreatureRef.Creature;
-                creature?.CancelActionLayer(calr.LayerId);
+                var exec = calr.Ref.Component;
+                if (exec == null || !OwnsEntity(exec.Entity))
+                    break;
+                exec.CancelActionLayer(calr.LayerId);
                 break;
             }
             case ProtocolId.CREATURE_SKILLTREE_UPDATE:
@@ -330,8 +331,8 @@ public class RpgClient
                 var entry = csu.EntryRef.Entry;
                 if (entry is not { CanEnable: true })
                     break;
-                var creature = csu.EntryRef.Creature.Creature!;
-                if (!IsGm && creature.Owner != Username)
+                var skillTree = csu.EntryRef.SkillTree.Component;
+                if (skillTree == null || !OwnsEntity(skillTree?.Entity))
                     break;
                 
                 if (csu.Enabled && !entry.Enabled)
@@ -363,8 +364,13 @@ public class RpgClient
                 }
                 else
                 {
-                    Compendium.RegisterEntry(type, name, data!);
-                    File.WriteAllText("Data/" + type + "/" + name + ".json", data!.ToJsonString());
+                    if (!data.HasValue)
+                    {
+                        Logger.LogError("No data provided for compendium entry " + type + "/" + name);
+                        break;
+                    }
+                    Compendium.RegisterEntry(type, name, data.Value);
+                    File.WriteAllText("Data/" + type + "/" + name + ".json", data.Value.ToString());
                 }
                 
                 break;
@@ -380,7 +386,7 @@ public class RpgClient
             case ProtocolId.PRIVATE_MESSAGE:
             {
                 var pmp = (PrivateMessagePacket)packet;
-                var target = pmp.Recipient?.Creature;
+                var target = pmp.Recipient?.Entity;
                 Manager.SendToSome(pmp, (client) => (target != null && client.Username == target.Owner) || client.IsGm);
                 break;
             }
@@ -422,8 +428,6 @@ public class RpgClient
     public void SendBoard(ServerBoard board)
     {
         Send(new BoardAddPacket(board));
-        foreach (Entity e in board.GetEntities())
-            Send(new EntityCreatePacket(board, e));
         LoadedBoards.Add(board.Name);
         if (Device == DeviceType.MOBILE)
             return;

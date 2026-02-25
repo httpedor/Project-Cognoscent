@@ -7,7 +7,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rpg;
-using Rpg.Inventory;
+using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Entities.Components.Inventory;
+using Rpg.Skills;
 using Server.Game.Import;
 using Server.Network;
 
@@ -245,8 +248,8 @@ public class Command
 
     public static void RegisterCommand(Command cmd)
     {
-        Type[] accepted = new[]
-        {
+        Type[] accepted =
+        [
             typeof(ServerBoard),
             typeof(Entity),
             typeof(string),
@@ -254,7 +257,7 @@ public class Command
             typeof(bool),
             typeof(int),
             typeof(byte)
-        };
+        ];
         foreach (Type t in cmd.Arguments)
         {
             if (!Array.Exists(accepted, (x) => x == t))
@@ -448,7 +451,7 @@ public class Command
             "Displays a list of commands, or help for a specific command.",
             "[command]",
             null,
-            new[] { typeof(string) },
+            [typeof(string)],
             (_, args) =>
             {
                 if (args.Length == 0)
@@ -480,7 +483,7 @@ public class Command
             "who",
             "Displays a list of connected clients.",
             "",
-            new[]{"online", "players"},
+            ["online", "players"],
             null,
             (_, _) =>
             {
@@ -494,7 +497,7 @@ public class Command
             "boardlist",
             "Lists all boards loaded",
             "",
-            new[]{"showboards", "listboards"},
+            ["showboards", "listboards"],
             null,
             (_, _) =>
             {
@@ -508,8 +511,8 @@ public class Command
             "boardrename",
             "Renams a board",
             "<board> <name>",
-            new[]{"renameboard", "boardname"},
-            new[]{typeof(ServerBoard), typeof(string)},
+            ["renameboard", "boardname"],
+            [typeof(ServerBoard), typeof(string)],
             (_, args) => 
             {
                 var board = args[0] as ServerBoard;
@@ -526,8 +529,8 @@ public class Command
             "boardsave",
             "Saves a board to a file.",
             "<board> [filename]",
-            new[]{"saveboard", "save"},
-            new[] { typeof(ServerBoard), typeof(string)},
+            ["saveboard", "save"],
+            [typeof(ServerBoard), typeof(string)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -556,8 +559,8 @@ public class Command
             "boardload",
             "Loads a board from a file.",
             "<filename>",
-            new[]{"loadboard", "load"},
-            new[]{typeof(string)},
+            ["loadboard", "load"],
+            [typeof(string)],
             (_, args) =>
             {
                 string fileName = (args[0] as string)!;
@@ -583,8 +586,8 @@ public class Command
             "boardunload",
             "Unloads a board from memory.",
             "<board>",
-            new[]{"unloadboard", "unload"},
-            new[] { typeof(ServerBoard) },
+            ["unloadboard", "unload"],
+            [typeof(ServerBoard)],
             (_, args) =>
             {
                 Board board = (args[0] as Board)!;
@@ -596,8 +599,8 @@ public class Command
             "uvttloadmultiple",
             "Loads a board from multiple uvtt floors.",
             "<name> <floor1> [floor2] [floor3]...",
-            new[]{"loaduvttmultiple", "uvttmultiple", "uvttloadmany", "loaduvttmany", "uvttmany"},
-            new[] { typeof(string), typeof(string) },
+            ["loaduvttmultiple", "uvttmultiple", "uvttloadmany", "loaduvttmany", "uvttmany"],
+            [typeof(string), typeof(string)],
             (_, args) =>
             {
                 string boardName = (args[0] as string)!;
@@ -625,7 +628,8 @@ public class Command
                         board.AddFloor(f);
                         foreach (Entity entity in ents)
                         {
-                            entity.Position = new Vector3(entity.Position.X, entity.Position.Y, board.GetFloorCount()-1);
+                            if (entity.TryGetComponent<Token>(out var token))
+                                token.Position = new Vector3(token.Position.X, token.Position.Y, board.GetFloorCount()-1);
                             board.AddEntity(entity);
                         }
                     }
@@ -642,8 +646,8 @@ public class Command
             "uvttload",
             "Loads a board from a file. If [new|append] is not specified, it defaults to new. If append, the floor will be added to the [board] board.",
             "<file> [new|append] [board]",
-            new[]{"loaduvtt", "uvtt"},
-            new[] { typeof(string) },
+            ["loaduvtt", "uvtt"],
+            [typeof(string)],
             (_, args) =>
             {
                 string fileName = (args[0] as string)!;
@@ -689,7 +693,8 @@ public class Command
 
                             foreach (Entity entity in ents)
                             {
-                                entity.Position = new Vector3(entity.Position.X, entity.Position.Y, board.GetFloorCount()-1);
+                                if (entity.TryGetComponent<Token>(out var token))
+                                    token.Position = new Vector3(token.Position.X, token.Position.Y, board.GetFloorCount()-1);
                                 board.AddEntity(entity);
                             }
                             return "Loaded floor to index " + (board.GetFloorCount()-1) + " in board " + board.Name;
@@ -710,14 +715,14 @@ public class Command
             "entitylist",
             "Lists all entities",
             "<board>",
-            new[]{"listentities", "showentities", "entities", "entityshow"},
-            new[] { typeof(ServerBoard)},
+            ["listentities", "showentities", "entities", "entityshow"],
+            [typeof(ServerBoard)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 string ret = "";
                 foreach (Entity e in board.GetEntities())
-                    ret += e.Id + " - " + e.GetType().Name + " at " + e.Position + "\n";
+                    ret += e.Id + " - " + e.Name + (e.TryGetComponent<Token>(out var token) ? (" at " + token.Position) : ("")) + "\n";
                 return ret;
             }
         ));
@@ -725,8 +730,8 @@ public class Command
             "entityremove",
             "Removes an entity from a board",
             "<board> <entity>",
-            new[]{"removeentity", "deleteentity", "entitydelete", "entitydestroy", "destroyentity"},
-            new[] { typeof(ServerBoard), typeof(Entity) },
+            ["removeentity", "deleteentity", "entitydelete", "entitydestroy", "destroyentity"],
+            [typeof(ServerBoard), typeof(Entity)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -741,7 +746,7 @@ public class Command
             "Clears the chat",
             "<board>",
             null,
-            new[] { typeof(ServerBoard) },
+            [typeof(ServerBoard)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -753,22 +758,19 @@ public class Command
             "entityowner",
             "Sets the owner of an entity",
             "<board> <entity> [owner]",
-            new[]{"entitysetowner", "creatureowner", "creaturesetowner", "setcreatureowner", "creatureownerset", "entityownerset"},
-            new[] { typeof(ServerBoard), typeof(Entity), typeof(string) },
+            ["entitysetowner", "creatureowner", "creaturesetowner", "setcreatureowner", "creatureownerset", "entityownerset"],
+            [typeof(ServerBoard), typeof(Entity), typeof(string)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 Entity e = (args[1] as Entity)!;
-                if (e is Creature c)
-                {
-                    if (args.Length == 3)
-                        c.Owner = (args[2] as string)!;
+                if (args.Length == 3)
+                    e.Owner = (args[2] as string)!;
+                else
+                    if (e.Owner == "")
+                        return $"{e.Id} has no owner";
                     else
-                        if (c.Owner == "")
-                            return $"{c.Id} has no owner";
-                        else
-                            return $"{c.Id}'s owner is: {c.Owner}";
-                }
+                        return $"{e.Id}'s owner is: {e.Owner}";
                 return "Owner set";
             }
         ));
@@ -776,32 +778,36 @@ public class Command
             "entitypos",
             "Sets an entity's position",
             "<board> <entity> [x] [y] [z]",
-            new[]{"pos", "entitysetpos", "setentitypos"},
-            new[]{typeof(ServerBoard), typeof(Entity), typeof(double), typeof(double), typeof(double)},
+            ["pos", "entitysetpos", "setentitypos"],
+            [typeof(ServerBoard), typeof(Entity), typeof(double), typeof(double), typeof(double)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 Entity e = (args[1] as Entity)!;
+                Token? token = e.Token;
+                if (token == null)
+                    return "Entity has no token";
+
                 if (args.Length == 2)
-                    return e.Position.ToString();
+                    return token.Position.ToString();
                 if (args.Length == 5)
-                    e.Position = new Vector3((float)(double)args[2], (float)(double)args[3], (float)(double)args[4]);
+                    token.Position = new Vector3((float)(double)args[2], (float)(double)args[3], (float)(double)args[4]);
                 else
                 {
                     if (args.Length == 4)
-                        e.Position = new Vector3((float)(double)args[2], (float)(double)args[3], e.Position.Z);
+                        token.Position = new Vector3((float)(double)args[2], (float)(double)args[3], token.Position.Z);
                     else if (args.Length == 3)
                         return "Invalid number of arguments";
                 }
-                return "Position set to " + e.Position;
+                return "Position set to " + token.Position;
             }
         ));
         RegisterCommand(new Command(
             "playerkick",
             "Kicks a player from the server",
             "<player>",
-            new[]{"kick"},
-            new[] { typeof(string) },
+            ["kick"],
+            [typeof(string)],
             (_, args) =>
             {
                 string username = (args[0] as string)!;
@@ -822,10 +828,14 @@ public class Command
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 Entity e = (args[1] as Entity)!;
+                var token = e.Token;
+                if (token == null)
+                    return "Entity has no token";
+
                 string? str = args[2] as string;
                 if (string.IsNullOrWhiteSpace(str))
                     return "Invalid image";
-                e.Display = new Midia(str);
+                token.Midia = new Midia(str);
                 return "Image set";
             }
         ));
@@ -837,11 +847,15 @@ public class Command
             new[] { typeof(ServerBoard), typeof(Entity), typeof(int) },
             (_, args) => {
                 var entity = (args[1] as Entity)!;
+                var token = entity.Token;
+                if (token == null)
+                    return "Entity has no token";
+
                 if (args.Length == 2)
                 {
-                    return "Entity rotation: " + entity.Rotation;
+                    return "Entity rotation: " + token.Rotation;
                 }
-                entity.Rotation = (int)args[2];
+                token.Rotation = (int)args[2];
                 return "Set entity rotation.";
             }
         ));
@@ -849,8 +863,8 @@ public class Command
             "boardtick",
             "Ticks a board, or checks in which tick it's in",
             "<board> [ticks]",
-            new[]{"tick"},
-            new[] { typeof(ServerBoard), typeof(int) },
+            ["tick"],
+            [typeof(ServerBoard), typeof(int)],
             (_, args) =>
             {
                 var board = (args[0] as ServerBoard)!;
@@ -867,7 +881,7 @@ public class Command
             "boardcombat",
             "Checks or toggles the board's combat mode",
             "<board> [state]",
-            new[]{"combat", "combatmode", "turn", "turnmode"},
+            ["combat", "combatmode", "turn", "turnmode"],
             [typeof(ServerBoard), typeof(bool)],
             (_, args) =>
             {
@@ -883,39 +897,39 @@ public class Command
             }
         ));
         RegisterCommand(new Command(
-            "creatureactions",
-            "Lists current actions of a creature",
+            "entityskills",
+            "Lists current skills of an entity",
             "<board> <entity>",
-            new[]{"actions", "creatureaction", "listcreatureactions", "listactions"},
+            new[]{"skills", "entityskills", "listentityskills", "listskills"},
             new[] { typeof(ServerBoard), typeof(Entity) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 Entity e = (args[1] as Entity)!;
-                if (e is Creature c)
+                if (e.TryGetComponent<SkillExecutor>(out var exec))
                 {
                     string ret = "";
-                    foreach (SkillData action in c.ActiveSkills.Values)
+                    foreach (SkillData action in exec.ActiveSkills.Values)
                         ret += action.Skill.GetName() + " - " + action.Skill.GetDescription() + "\n";
                     return ret;
                 }
-                return "Entity is not a creature";
+                return "Entity does not have skills";
             }
         ));
         RegisterCommand(new Command(
-            "creaturestats",
-            "Lists creature stats",
+            "entitystats",
+            "Lists entity stats",
             "<board> <entity>",
-            new[]{"liststats"},
+            new[]{"liststats", "stats"},
             new[]{ typeof(ServerBoard), typeof(Entity) },
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 Entity e = (args[1] as Entity)!;
-                if (e is Creature c)
+                if (e.TryGetComponent<StatsContainer>(out var holder))
                 {
                     string ret = "";
-                    foreach (Stat stat in c.Stats)
+                    foreach (Stat stat in holder.Stats)
                     {
                         ret += stat.Id + " - " + stat.FinalValue + "(" + stat.BaseValue + ") ; " ;
                         ret += stat.GetModifiers().Count() + " mods: ";
@@ -927,15 +941,15 @@ public class Command
                     }
                     return ret;
                 }
-                return "Entity is not a creature";
+                return "Entity does not have stats";
             }
         ));
         RegisterCommand(new Command(
             "testcollision",
             "Tests collision between two points",
             "<board> <x1> <y1> <x2> <y2>",
-            new[]{"collision"},
-            new[] { typeof(ServerBoard), typeof(double), typeof(double), typeof(double), typeof(double) },
+            ["collision"],
+            [typeof(ServerBoard), typeof(double), typeof(double), typeof(double), typeof(double)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -951,8 +965,8 @@ public class Command
             "floorambientlight",
             "Sets the ambient light of a floor",
             "<board> <floor> <r> <g> <b> [a]",
-            new[]{"ambientlight", "setambientlight"},
-            new[] { typeof(ServerBoard), typeof(int), typeof(byte), typeof(byte), typeof(byte) },
+            ["ambientlight", "setambientlight"],
+            [typeof(ServerBoard), typeof(int), typeof(byte), typeof(byte), typeof(byte)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -962,10 +976,10 @@ public class Command
                 if (args.Length == 6)
                 {
                     byte a = (byte)args[5];
-                    board.GetFloor((int)args[1]).AmbientLight = BitConverter.ToUInt32(new[]{r, g, b, a}, 0);
+                    board.GetFloor((int)args[1]).AmbientLight = BitConverter.ToUInt32([r, g, b, a], 0);
                 }
                 else
-                    board.GetFloor((int)args[1]).AmbientLight = BitConverter.ToUInt32(new byte[]{r, g, b, 255}, 0);
+                    board.GetFloor((int)args[1]).AmbientLight = BitConverter.ToUInt32([r, g, b, 255], 0);
 
                 return "Ambient light set";
             }
@@ -974,8 +988,8 @@ public class Command
             "dumpfloorimage",
             "Dumps an image to a file",
             "<board> <floor> <filename>",
-            new[]{"floordumpimage", "floordump", "dumpfloor"},
-            new[] { typeof(ServerBoard), typeof(int), typeof(string) },
+            ["floordumpimage", "floordump", "dumpfloor"],
+            [typeof(ServerBoard), typeof(int), typeof(string)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -996,8 +1010,8 @@ public class Command
             "tilemap",
             "Shows the tileflag map of a floor",
             "<board> <floor>",
-            new[]{"floormap"},
-            new[] { typeof(ServerBoard), typeof(int) },
+            ["floormap"],
+            [typeof(ServerBoard), typeof(int)],
             (_, args) =>
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
@@ -1019,8 +1033,8 @@ public class Command
             "exectime",
             "Executes a function and returns the time it took to execute",
             "<intersection | tick> <amount> <args...>",
-            new[]{"time"},
-            new[] { typeof(string), typeof(int), typeof(ServerBoard), typeof(int)},
+            ["time"],
+            [typeof(string), typeof(int), typeof(ServerBoard), typeof(int)],
             (_, args) =>
             {
                 string code = (args[0] as string)!;
@@ -1090,7 +1104,7 @@ public class Command
                 };
             }
         ));
-        RegisterCommand(new Command(
+        /*RegisterCommand(new Command(
             "spawnitem",
             "Spawns an item",
             "<board> <x> <y> <floor> <name>",
@@ -1111,7 +1125,7 @@ public class Command
                 board.AddEntity(e);
                 return "Item spawned";
             }
-        ));
+        ));*/
         
         RegisterCommand(new Command(
             "dooredit",
@@ -1124,7 +1138,7 @@ public class Command
                 var board = (args[0] as ServerBoard)!;
                 string? operation = args[2] as string;
                 var ent = (args[1] as Entity)!;
-                var door = ent as DoorEntity;
+                var door = ent.Door;
                 if (door == null)
                     return "Entity is not a door";
 
@@ -1134,7 +1148,7 @@ public class Command
                     {
                         door.BlocksVision = !door.BlocksVision;
                         Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
-                        return "Door " + door.Id + " is now " + door.BlocksVision;
+                        return "Door " + door.Entity.Id + " is now " + door.BlocksVision;
                     }
                     case "flip":
                     {
@@ -1142,19 +1156,19 @@ public class Command
                         door.Bounds[1] = door.Bounds[0];
                         door.Bounds[0] = old1;
                         Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
-                        return "Door " + door.Id + " is now flipped";
+                        return "Door " + door.Entity.Id + " is now flipped";
                     }
                     case "open":
                     {
                         door.Closed = false;
                         Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
-                        return "Door " + door.Id + " opened";
+                        return "Door " + door.Entity.Id + " opened";
                     }
                     case "close":
                     {
                         door.Closed = true;
                         Manager.SendToBoard(new DoorUpdatePacket(door), board.Name);
-                        return "Door " + door.Id + " closed";
+                        return "Door " + door.Entity.Id + " closed";
                     }
                     default:
                     {
@@ -1177,11 +1191,11 @@ public class Command
             {
                 ServerBoard board = (args[0] as ServerBoard)!;
                 var ent = (args[1] as Entity)!;
-                Creature? c = ent as Creature;
-                if (c == null)
-                    return "Creature not found";
+                var body = ent.Body;
+                if (body == null)
+                    return "Entity does not have a body";
 
-                return c.Body.Root.ToJson().ToString();
+                return body.Model?.GetOriginalJson().ToString() ?? "No JSON data for body";
             }
         ));
         RegisterCommand(new Command(
@@ -1204,12 +1218,12 @@ public class Command
                 if (Compendium.GetEntryJsonOrNull(folder, fName) != null)
                     return $"Entry {fName} already exists in folder {folder}";
 
-                var json = JsonNode.Parse(File.ReadAllText(fPath));
-                if (json == null || json.GetValueKind() != JsonValueKind.Object)
+                var json = JsonDocument.Parse(File.ReadAllText(fPath)).RootElement;
+                if (json.ValueKind != JsonValueKind.Object)
                 {
                     return "Invalid JSON Data";
                 }
-                var obj = Compendium.RegisterEntry(folder, fName, json.AsObject());
+                var obj = Compendium.RegisterEntry(folder, fName, json);
                 if (obj == null)
                     return "Invalid JSON Data";
                 return "Registered entry " + fName;

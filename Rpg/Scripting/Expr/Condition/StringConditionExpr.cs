@@ -1,19 +1,19 @@
 namespace Rpg.Scripting;
 
-public class StringEqualsConditionExpr : ConditionExpr
+public class StringEqualsConditionExpr : Expr<bool>
 {
-    public readonly StringExpr Left;
-    public readonly StringExpr Right;
+    public readonly Expr<string> Left;
+    public readonly Expr<string> Right;
 
-    public StringEqualsConditionExpr(StringExpr left, StringExpr right)
+    public StringEqualsConditionExpr(Expr<string> left, Expr<string> right)
     {
         Left = left;
         Right = right;
     }
     public StringEqualsConditionExpr(Stream stream)
     {
-        Left = (StringExpr)BaseExpr.Deserialize(stream);
-        Right = (StringExpr)BaseExpr.Deserialize(stream);
+        Left = (Expr<string>)BaseExpr.Deserialize(stream);
+        Right = (Expr<string>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
@@ -25,5 +25,33 @@ public class StringEqualsConditionExpr : ConditionExpr
         base.ToBytes(stream);
         Left.ToBytes(stream);
         Right.ToBytes(stream);
+    }
+}
+
+public class StringContainsConditionExpr : Expr<bool>
+{
+    public readonly Expr<string> Text;
+    public readonly Expr<string> Substring;
+
+    public StringContainsConditionExpr(Expr<string> text, Expr<string> substring)
+    {
+        Text = text;
+        Substring = substring;
+    }
+    public StringContainsConditionExpr(Stream stream)
+    {
+        Text = (Expr<string>)BaseExpr.Deserialize(stream);
+        Substring = (Expr<string>)BaseExpr.Deserialize(stream);
+    }
+
+    public override bool Eval(EvalContext ctx)
+    {
+        return Text.Eval(ctx).Contains(Substring.Eval(ctx));
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Text.ToBytes(stream);
+        Substring.ToBytes(stream);
     }
 }

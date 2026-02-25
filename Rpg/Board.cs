@@ -52,6 +52,23 @@ public abstract class Board
 
     }
 
+    /// <summary>
+    /// This method should be called after all the entities have been added to the board, as it initializes them and assigns their dependencies.
+    /// </summary>
+    public void InitializeEntities()
+    {
+        foreach (var entity in entityCache.Values)
+        {
+            entity.Initialize();
+        }
+        WasInitialized = true;
+        foreach (var entity in entityCache.Values)
+        {
+            foreach (var component in entity.Components)
+                component.OnReady();
+        }
+    }
+
     private void IndexEntity(Entity entity)
     {
         foreach (var component in entity.Components)
@@ -251,6 +268,10 @@ public abstract class Board
                 pair.Value.Action();
             queuedActions.Remove(pair.Key);
         }
+    }
+    public virtual void ComponentHandledEvent(Component comp, ComponentEvent e)
+    {
+        
     }
     public virtual void HandleEvent(ComponentEvent e)
     {

@@ -1,6 +1,8 @@
 using System.Numerics;
 using System.Text.Json;
 using Rpg;
+using Rpg.Entities;
+using Rpg.Entities.Components;
 
 namespace Server.Game.Import;
 
@@ -126,29 +128,41 @@ public class Environment
             for (int i = 0; i < uvtt.portals.Length; i++)
             {
                 var portal = uvtt.portals[i];
-                var door = new DoorEntity
+                var entity = new Entity("Door" + i);
+                entity.AddComponent(new Token()
                 {
                     Position = new Vector3(portal.position.x, portal.position.y, 0),
-                    Bounds = portal.bounds.Select((b) => new Vector2(b.x, b.y)).ToArray(),
+                    Entity = entity
+                });
+                entity.AddComponent(new Door()
+                {
+                    Entity = entity,
                     Closed = portal.closed,
-                    Rotation = portal.rotation
-                };
-                entities.Add(door);
+                    Bounds = portal.bounds.Select((b) => new Vector2(b.x, b.y)).ToArray()
+                });
+                entities.Add(entity);
             }
             for (int i = 0; i < uvtt.lights.Length; i++)
             {
                 var uvttLight = uvtt.lights[i];
                 if (!uvttLight.color.StartsWith("0x"))
                     uvttLight.color = "0x" + uvttLight.color.ToUpper();
-                var light = new LightEntity
+                var entity = new Entity("Light" + i);
+                entity.AddComponent(new Token()
                 {
                     Position = new Vector3(uvttLight.position.x, uvttLight.position.y, 0),
+                    Entity = entity
+                });
+                entity.AddComponent(new Light()
+                {
+                    Entity = entity,
                     Range = uvttLight.range,
                     Intensity = uvttLight.intensity,
                     Color = Convert.ToUInt32(uvttLight.color, 16),
                     Shadows = uvttLight.shadows
-                };
-                entities.Add(light);
+                });
+
+                entities.Add(entity);
             }
         }
 

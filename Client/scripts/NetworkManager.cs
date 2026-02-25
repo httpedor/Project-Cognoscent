@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
 using Godot;
 using Rpg;
-using Rpg.Inventory;
+using Rpg.Entities;
+using Rpg.Entities.Components.Health;
+using Rpg.Entities.Components.Inventory;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
 using Exception = System.Exception;
@@ -150,7 +150,7 @@ public partial class NetworkManager : Node
 			case ProtocolId.DOOR_UPDATE:
 			{
 				var dup = (DoorUpdatePacket)packet;
-				dup.@ref.Door?.CopyFrom(dup.Door);
+				dup.@ref.Component?.CopyFrom(dup.Door);
 				break;
 			}
 			case ProtocolId.ENTITY_CREATE:
@@ -162,16 +162,16 @@ public partial class NetworkManager : Node
 				board?.AddEntity(ecp.Entity);
 				break;
 			}
-			case ProtocolId.ENTITY_MIDIA:
+			case ProtocolId.TOKEN_UPDATE:
 			{
-				var emp = (EntityMidiaPacket)packet;
-				var entity = emp.Ref.Entity;
-				if (entity == null)
+				var tup = (TokenUpdatePacket)packet;
+				var token = tup.TokenRef.Component;
+				if (token == null)
 				{
-					GD.PushWarning("Received midia packet for unknown entity: " + emp.Ref.Id);
+					GD.PushWarning("Received token update packet for unknown token: " + tup.TokenRef.EntityRef.Id);
 					break;
 				}
-				entity.Display = emp.Midia;
+				token.CopyFrom(tup.NewToken);
 				break;
 			}
 			case ProtocolId.ENTITY_REMOVE:
@@ -183,24 +183,6 @@ public partial class NetworkManager : Node
 				if (entity == null || board == null)
 					break;
 				board.RemoveEntity(entity);
-				break;
-			}
-			case ProtocolId.ENTITY_POSITION:
-			{
-				var epp = (EntityPositionPacket)packet;
-				Entity? entity = epp.EntityRef.Entity;
-				if (entity == null)
-					break;
-				entity.Position = epp.Position;
-				break;
-			}
-			case ProtocolId.ENTITY_ROTATION:
-			{
-				var erp = (EntityRotationPacket)packet;
-				Entity? entity = erp.EntityRef.Entity;
-				if (entity == null)
-					break;
-				entity.Rotation = erp.Rotation;
 				break;
 			}
 			case ProtocolId.COMBAT_MODE:
@@ -219,31 +201,11 @@ public partial class NetworkManager : Node
 				board.CurrentTick = turnModePacket.Tick;
 				break;
 			}
-			case ProtocolId.ENTITY_BODY_PART:
-			{
-				var ebpp = (EntityBodyPartPacket)packet;
-				Creature? entity = ebpp.CreatureRef.Creature;
-				if (entity == null)
-					break;
-
-				BodyPart? part = ebpp.Part;
-				int lastSlash = ebpp.Path.LastIndexOf('/');
-				string path = lastSlash != -1 ? ebpp.Path[..lastSlash] : ebpp.Path;
-				BodyPart? parent = entity.BodyRoot.GetChildByPath(path);
-				if (parent == null)
-					return;
-
-				parent.RemoveChild(ebpp.Path[(ebpp.Path.LastIndexOf('/') + 1)..]);
-				if (part != null)
-					parent.AddChild(part);
-				break;
-			}
 			case ProtocolId.ENTITY_BODY_PART_INJURY:
 			{
 				var ebpcp = (EntityBodyPartInjuryPacket)packet;
-				Creature? entity = ebpcp.CreatureRef.Creature;
 
-				BodyPart? part = entity?.BodyRoot.GetChildByPath(ebpcp.Path);
+				BodyPart? part = ebpcp.BpRef.Component;
 				if (part == null)
 					break;
 
@@ -265,16 +227,16 @@ public partial class NetworkManager : Node
 			case ProtocolId.STAT_UPDATE:
 			{
 				var sup = (Rpg.StatsUpdatePacket)packet;
-				IStatHolder? holder = sup.HolderRef.Holder;
-				if (holder == null)
+				var stats = sup.StatsRef.Component;
+				if (stats == null)
 					break;
 
 				foreach (var incoming in sup.Stats)
 				{
-					Stat? existing = holder.GetStat(incoming.Id);
+					Stat? existing = stats.GetStat(incoming.Id);
 					if (existing == null)
 					{
-						holder.CreateStat(incoming);
+						stats.CreateStat(incoming);
 						continue;
 					}
 
@@ -283,51 +245,41 @@ public partial class NetworkManager : Node
 					existing.MinValue = incoming.MinValue;
 					existing.MaxValue = incoming.MaxValue;
 
-					// Sync modifiers: add/update incoming
-					var incomingMods = incoming.GetModifiers().ToList();
-					var incomingIds = new HashSet<string>(incomingMods.Select(m => m.Id));
-					foreach (var mod in incomingMods)
-						existing.SetModifier(mod);
+					existing.ClearModifiers();
 
-					// Remove modifiers that are not present in incoming
-					var existingMods = existing.GetModifiers().Select(m => m.Id).ToList();
-					foreach (var id in existingMods)
-					{
-						if (!incomingIds.Contains(id))
-							existing.RemoveModifier(id);
-					}
+					// Sync modifiers: add/update incoming
+					foreach (var mod in incoming.GetModifiers())
+						existing.SetModifier(mod);
 				}
 				break;
 			}
 			case ProtocolId.FEATURE_UPDATE:
 			{
 				var efu = (FeatureUpdatePacket)packet;
-				IFeatureContainer? source = efu.SourceRef.FeatureSource;
-				if (source == null)
+				var container = efu.ContainerRef.Component;
+				if (container == null)
 					break;
 
 				switch (efu.UpdateType)
 				{
 					case FeatureUpdatePacket.FeatureUpdateType.ADD:
 					{
-						if (efu.Feature == null)
-							throw new Exception("Feature is null");
-						source.AddFeature(efu.Feature);
+						container.AddFeature(efu.Feature!);
 						break;
 					}
 					case FeatureUpdatePacket.FeatureUpdateType.REMOVE:
 					{
-						source.RemoveFeature(efu.FeatureId!);
+						container.RemoveFeature(efu.FeatureId!);
 						break;
 					}
 					case FeatureUpdatePacket.FeatureUpdateType.ENABLE:
 					{
-						source.EnableFeature(efu.FeatureId!);
+						container.EnableFeature(efu.FeatureId!);
 						break;
 					}
 					case FeatureUpdatePacket.FeatureUpdateType.DISABLE:
 					{
-						source.DisableFeature(efu.FeatureId!);
+						container.DisableFeature(efu.FeatureId!);
 						break;
 					}
 					default:
@@ -335,54 +287,56 @@ public partial class NetworkManager : Node
 				}
 				break;
 			}
-            case ProtocolId.CREATURE_EQUIP_ITEM:
+            case ProtocolId.BODY_EQUIP_ITEM:
             {
-                var cei = (CreatureEquipItemPacket)packet;
-                BodyPart? bp = cei.BPRef.BodyPart;
+                var cei = (BodyEquipItemPacket)packet;
+                BodyPart? bp = cei.BPRef.Component;
                 if (bp == null)
                     return;
-                Item? item = cei.ItemRef.Item;
-                if (item == null || !item.HasProperty<EquipmentProperty>())
+
+                var equipment = cei.ItemRef.Component;
+                if (equipment == null)
                     return;
+
                 if (cei.Equipped)
-                    bp.Equip(item, cei.Slot!);
+                    bp.Equip(equipment.Item, cei.Slot!);
                 else
-                    bp.RemoveItem(item);
+                    bp.RemoveItem(equipment.Item);
                 break;
             }
 			case ProtocolId.SKILL_UPDATE:
 			{
 				var csu = (SkillUpdatePacket)packet;
-				Creature? creature = csu.Ref.Creature;
-				if (creature == null)
+				var exec = csu.Ref.Component;
+				if (exec == null)
 					break;
-				creature.ActiveSkills[csu.Data.Id] = csu.Data;
+				exec.ActiveSkills[csu.Data.Id] = csu.Data;
 				break;
 			}
 			case ProtocolId.SKILL_REMOVE:
 			{
 				var csr = (SkillRemovePacket)packet;
-				Creature? creature = csr.CreatureRef.Creature;
-				creature?.CancelSkill(csr.SkillId);
+				var exec = csr.Ref.Component;
+				exec?.CancelSkill(csr.SkillId);
 				break;
 			}
 			case ProtocolId.CREATURE_ACTION_LAYER_UPDATE:
 			{
 				var calup = (ActionLayerUpdatePacket)packet;
-				Creature? creature = calup.CreatureRef.Creature;
-				if (creature == null)
+				var exec = calup.Ref.Component;
+				if (exec == null)
 					break;
-				if (creature.GetActionLayer(calup.Layer.Name) != null)
-					creature.UpdateActionLayer(calup.Layer);
+				if (exec.GetActionLayer(calup.Layer.Name) != null)
+					exec.UpdateActionLayer(calup.Layer);
 				else
-					creature.TriggerActionLayer(calup.Layer);
+					exec.TriggerActionLayer(calup.Layer);
 				break;
 			}
 			case ProtocolId.CREATURE_ACTION_LAYER_REMOVE:
 			{
 				var calrp = (ActionLayerRemovePacket)packet;
-				Creature? creature = calrp.CreatureRef.Creature;
-				creature?.CancelActionLayer(calrp.LayerId);
+				var exec = calrp.Ref.Component;
+				exec?.CancelActionLayer(calrp.LayerId);
 				break;
 			}
 			case ProtocolId.CREATURE_SKILLTREE_UPDATE:
@@ -415,7 +369,7 @@ public partial class NetworkManager : Node
                     Compendium.RemoveEntry(type, name);
                 else
                 {
-					Compendium.RegisterEntry(type, name, data!);
+					Compendium.RegisterEntry(type, name, data!.Value);
 	                GD.Print("Registered " + type + "/" + name);
                 }
                 
@@ -442,7 +396,7 @@ public partial class NetworkManager : Node
 				var pmp = (PrivateMessagePacket)packet;
 				ToastParty.Show(new ToastParty.Config()
 				{
-					Text = (pmp.Sender?.Creature?.Name ?? "Alguém") + " sussurrou para " + (pmp.Recipient?.Creature?.Name ?? "Deus") + ": " + pmp.Message,
+					Text = (pmp.Sender?.Entity?.Name ?? "Alguém") + " sussurrou para " + (pmp.Recipient?.Entity?.Name ?? "Deus") + ": " + pmp.Message,
 				});
 				break;
 			}

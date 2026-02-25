@@ -6,7 +6,11 @@ using System.Reflection.Metadata.Ecma335;
 using System.Threading.Tasks;
 using Godot;
 using Rpg;
-using Rpg.Inventory;
+using Rpg.Entities;
+using Rpg.Entities.Components;
+using Rpg.Entities.Components.Health;
+using Rpg.Entities.Components.Inventory;
+using Rpg.Skills;
 using TTRpgClient.scripts.RpgImpl;
 using TTRpgClient.scripts.ui;
 
@@ -176,31 +180,7 @@ public partial class InputManager : SubViewportContainer
 		CancelEntityRequest();
 	}
 
-	private void ExecuteContextMenuAction(Creature creature, Skill action, Vector2 pos)
-	{
-		//NetworkManager.Instance.SendPacket(new CreatureActionExecutePacket(action, creature));
-		RadialMenu.Instance.Hide();
-	}
-
-	private void AddActionsToRadialMenu(Creature creature)
-	{
-		foreach (var pair in creature.AvailableSkills)
-		{
-			var source = pair.Item1;
-			var action = pair.Item2;
-
-			RadialMenu.Instance.AddOption(new RadialMenuOption(
-				Icons.GetIcon(action.GetIconName()),
-				action.GetName(),
-				action.GetDescription(),
-				pos => {
-					ExecuteContextMenuAction(creature, action, pos);
-				}
-			));
-		}
-	}
-
-	public async Task<List<SkillArgument>?> RequestSkillArguments(Creature creature, ISkillSource source, Skill skill)
+	public async Task<List<SkillArgument>?> RequestSkillArguments(SkillExecutor exec, Skill skill)
 	{
 		List<SkillArgument> arguments = new();
 		int index = 0;
@@ -209,31 +189,31 @@ public partial class InputManager : SubViewportContainer
 			TaskCompletionSource<SkillArgument?> result = new();
 			if (argSet.Contains(typeof(BodyPartSkillArgument)))
 			{
-				Predicate<BodyPart> bpPredicate = bp => skill.CanUseArgument(creature, source, index, new BodyPartSkillArgument(bp));
+				Predicate<BodyPart> bpPredicate = bp => skill.CanUseArgument(exec, index, new BodyPartSkillArgument(bp));
 				if (argSet.Contains(typeof(EntitySkillArgument)))
 				{
 					Instance.RequestEntity(ent =>
 					{
-						switch (ent)
+						if (ent == null)
 						{
-							case null:
-								result.SetResult(null);
-								return;
-							case Creature c:
-								BodyInspector.Instance.Show(c.Body, new BodyInspector.BodyInspectorSettings
-								{
-									Predicate = bpPredicate,
-									OnPick = bp =>
-									{
-										result.SetResult(bp == null ? null : new BodyPartSkillArgument(bp));
-									}
-								});
-								break;
-							default:
-								result.SetResult(new EntitySkillArgument(ent));
-								break;
+							result.SetResult(null);
+							return;
 						}
-					}, ent => ent is Creature || skill.CanUseArgument(creature, source, index, new EntitySkillArgument(ent)));
+
+						if (ent.TryGetComponent<Body>(out var body))
+						{
+							BodyInspector.Instance.Show(body, new BodyInspector.BodyInspectorSettings
+							{
+								Predicate = bpPredicate,
+								OnPick = bp =>
+								{
+									result.SetResult(bp == null ? null : new BodyPartSkillArgument(bp));
+								}
+							});
+						}
+						else
+							result.SetResult(new EntitySkillArgument(ent));
+					}, ent => ent.HasComponent(Body.ID) || skill.CanUseArgument(exec, index, new EntitySkillArgument(ent)));
 				}
 				else
 				{
@@ -242,8 +222,7 @@ public partial class InputManager : SubViewportContainer
 						if (ent == null)
 							return;
 						
-						var c = (Creature)ent;
-						BodyInspector.Instance.Show(c.Body, new BodyInspector.BodyInspectorSettings
+						BodyInspector.Instance.Show(ent.Body!, new BodyInspector.BodyInspectorSettings
 						{
 							Predicate = bpPredicate,
 							OnPick = bp => {
@@ -253,18 +232,18 @@ public partial class InputManager : SubViewportContainer
 									result.SetResult(new BodyPartSkillArgument(bp));
 							}
 						});
-					}, ent => ent is Creature);
+					}, ent => ent.HasComponent(Body.ID));
 				}
 			}
 			else if (argSet.Contains(typeof(EntitySkillArgument)))
 			{
-				bool Predicate(Entity ent) => skill.CanUseArgument(creature, source, index, new EntitySkillArgument(ent));
+				bool Predicate(Entity ent) => skill.CanUseArgument(exec, index, new EntitySkillArgument(ent));
 				RequestEntity(ent => { result.SetResult(ent == null ? null : new EntitySkillArgument(ent)); }, Predicate);
 			}
 
 			if (argSet.Contains(typeof(PositionSkillArgument)))
 			{
-				bool Predicate(Vector3 pos) => skill.CanUseArgument(creature, source, index, new PositionSkillArgument(pos.ToNumerics()));
+				bool Predicate(Vector3 pos) => skill.CanUseArgument(exec, index, new PositionSkillArgument(pos.ToNumerics()));
 				Instance.RequestPosition(pos =>
 				{
 					result.SetResult(pos == null
@@ -311,16 +290,26 @@ public partial class InputManager : SubViewportContainer
 						string btName = (info["Corpo"] as string)!;
 						Midia img = (Midia)info["Imagem"];
 						var bodyModel = Compendium.GetEntry<BodyModel>(btName)!;
-						var body = bodyModel.Build();
-						if (body == null)
-							return;
-						Creature created = new Creature(body)
+						var entWithBody = bodyModel.Build();
+						var ent = entWithBody.Entity;
+						ent.Name = name;
+						if (!ent.HasComponent(Token.ID))
 						{
-							Name = name,
-							Position = new System.Numerics.Vector3(board.CurrentFloor.PixelToWorld(new System.Numerics.Vector2(Mathf.Floor(pos.X), Mathf.Floor(pos.Y))), board.FloorIndex),
-							Display = img
-						};
-						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, created));
+							var token = new Token()
+							{
+								Entity = ent,
+								Position = new System.Numerics.Vector3(board.CurrentFloor.PixelToWorld(new System.Numerics.Vector2(Mathf.Floor(pos.X), Mathf.Floor(pos.Y))), board.FloorIndex),
+								Midia = img
+							};
+							ent.AddComponent(token);
+						}
+						else
+						{
+							var token = ent.Token!;
+							token.Position = new System.Numerics.Vector3(board.CurrentFloor.PixelToWorld(new System.Numerics.Vector2(Mathf.Floor(pos.X), Mathf.Floor(pos.Y))), board.FloorIndex);
+							token.Midia = img;
+						}
+						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, ent));
 					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<BodyModel>().ToArray(), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
 				});
 				ContextMenu.AddOption(board.TurnMode ? "Sair do modo de turnos" : "Entrar no modo de turnos", _ =>
@@ -335,35 +324,42 @@ public partial class InputManager : SubViewportContainer
 			ContextMenu.AddSeparator();
 		}
 		
-		if (board.SelectedEntity != null && (GameManager.IsGm || (board.SelectedEntity is Creature c && c.Owner == GameManager.Username)))
+		if (board.SelectedEntity != null && (GameManager.IsGm || board.SelectedEntity.Owner == GameManager.Username))
 		{
 			var entity = board.SelectedEntity;
-			ContextMenu.AddOption("Olhar Aqui", pos => {
-				var worldPos = board.PixelToWorld(pos);
-				var rotation = (worldPos - entity.Position.ToGodot().ToV2()).Angle();
-				NetworkManager.Instance.SendPacket(new EntityRotationPacket(entity, rotation));
-				ContextMenu.Hide();
-			});
-
-			if (GameManager.IsGm)
+			if (entity.TryGetComponent<Token>(out var token))
 			{
-				ContextMenu.AddOption("Teleportar Aqui", pos => {
-					var worldPos = board.CurrentFloor.PixelToTileCenter(pos);
-					NetworkManager.Instance.SendPacket(new EntityPositionPacket(entity, new System.Numerics.Vector3(worldPos.ToNumerics(), entity.FloorIndex)));
+				ContextMenu.AddOption("Olhar Aqui", pos => {
+					var worldPos = board.PixelToWorld(pos);
+					var rotation = (worldPos - token.Position.ToGodot().ToV2()).Angle();
+					token.Rotation = rotation;
+					token.Position = new System.Numerics.Vector3(worldPos.ToNumerics(), token.Position.Z);
+					NetworkManager.Instance.SendPacket(new TokenUpdatePacket(token));
 					ContextMenu.Hide();
 				});
-				ContextMenu.AddOption("Teleportar Exatamente Aqui", pos => {
-					var worldPos = board.CurrentFloor.PixelToWorld(pos);
-					NetworkManager.Instance.SendPacket(new EntityPositionPacket(entity, new System.Numerics.Vector3(worldPos.ToNumerics(), entity.FloorIndex)));
-					ContextMenu.Hide();
-				});
+
+				if (GameManager.IsGm)
+				{
+					ContextMenu.AddOption("Teleportar Aqui", pos => {
+						var worldPos = board.CurrentFloor.PixelToTileCenter(pos);
+						token.Position = new System.Numerics.Vector3(worldPos.ToNumerics(), token.Position.Z);
+						NetworkManager.Instance.SendPacket(new TokenUpdatePacket(token));
+						ContextMenu.Hide();
+					});
+					ContextMenu.AddOption("Teleportar Exatamente Aqui", pos => {
+						var worldPos = board.CurrentFloor.PixelToWorld(pos);
+						token.Position = new System.Numerics.Vector3(worldPos.ToNumerics(), token.Position.Z);
+						NetworkManager.Instance.SendPacket(new TokenUpdatePacket(token));
+						ContextMenu.Hide();
+					});
+				}
 			}
 		}
 
 
 		ContextMenu.Show();
 	}
-	private void HandleMovement(ClientBoard board, Creature? creature)
+	private void HandleMovement(ClientBoard board, Token? token)
 	{
 		var move_dir = new Vector2();
 		if (Input.IsActionPressed("move_n"))
@@ -385,19 +381,23 @@ public partial class InputManager : SubViewportContainer
 
 		
 		if (move_dir.X != 0 || move_dir.Y != 0){
-			if (creature != null)
+			if (token != null)
 			{
 				if (Time.GetTicksMsec() - lastMovementTick < 100)
 					return;
 				lastMovementTick = Time.GetTicksMsec();
 
-				var targetPos = creature.Position.ToGodot().ToV2() + (move_dir * 0.5f);
-				var dir = targetPos - creature.Position.ToGodot().ToV2();
+				var targetPos = token.Position.ToGodot().ToV2() + (move_dir * 0.5f);
+				var dir = targetPos - token.Position.ToGodot().ToV2();
 				var angle = Mathf.Atan2(dir.Y, dir.X);
-				if (Math.Abs(creature.Rotation - angle) > 0.02)
-					NetworkManager.Instance.SendPacket(new EntityRotationPacket(creature, angle));
+				if (Math.Abs(token.Rotation - angle) > 0.02)
+				{
+					NetworkManager.Instance.SendPacket(new TokenMovePacket(token, token.Position.ToV2(), angle));
+				}
 				else
-					NetworkManager.Instance.SendPacket(new EntityMovePacket(creature, targetPos.ToNumerics()));
+				{
+					NetworkManager.Instance.SendPacket(new TokenMovePacket(token, targetPos.ToNumerics(), token.Rotation));
+				}
 			}
 			else
 			{
@@ -408,7 +408,7 @@ public partial class InputManager : SubViewportContainer
 	}
 	private void HandleRequests(ClientBoard board)
 	{
-		if (line == null && board.SelectedEntity != null && positionCallback != null)
+		if (line == null && board.SelectedEntity != null && board.SelectedEntity.HasComponent(Token.ID) && positionCallback != null)
 		{
 			line = new Line2D
 			{
@@ -428,9 +428,9 @@ public partial class InputManager : SubViewportContainer
 
 		if (line != null)
 		{
-			var start = board.WorldToPixel(board.SelectedEntity!.Position.ToGodot().ToV2());
+			var start = board.WorldToPixel(board.SelectedEntity!.Token!.Position.ToGodot().ToV2());
 			var end = MousePosition;
-			line.Points = new Vector2[] { start, end };
+			line.Points = [start, end];
 		}
 	}
 	private void HandleFiles(string[] files)
@@ -440,39 +440,41 @@ public partial class InputManager : SubViewportContainer
 		
 		if (GameManager.Instance.CurrentBoard == null)
 			return;
-
-		var prop = new PropEntity
+		var ent = new Entity();
+		var token = new Token()
 		{
+			Entity = ent,
 			Position = new System.Numerics.Vector3(GameManager.Instance.CurrentBoard.CurrentFloor.PixelToWorld(MousePosition).ToNumerics(), GameManager.Instance.CurrentBoard.FloorIndex),
-			Display = new Midia(files[0]),
+			Midia = new Midia(files[0])
 		};
-		NetworkManager.Instance.SendPacket(new EntityCreatePacket(GameManager.Instance.CurrentBoard, prop));
+		ent.AddComponent(token);
+		NetworkManager.Instance.SendPacket(new EntityCreatePacket(GameManager.Instance.CurrentBoard, ent));
 	}
 
 	public void PopulateContextMenuWithItem(Item item)
 	{
         var owned = GameManager.Instance.CurrentBoard!.OwnedSelectedEntity;
-        if (owned != null)
+        if (owned != null && owned.TryGetComponent<Body>(out var body))
         {
             var ep = item.GetProperty<EquipmentProperty>();
             if (ep != null)
             {
-                foreach (var bp in owned.Body.GetPartsThatCanEquip(ep.Slot))
+                foreach (var bp in body.GetPartsThatCanEquip(ep.Slot))
                 {
                     if (bp.CanAddItem(item))
                     {
                         ContextMenu.AddOption("Equipar Em: " + bp.Name, _ => {
-                            NetworkManager.Instance.SendPacket(new CreatureEquipItemPacket(bp, ep.Slot, item));
+                            NetworkManager.Instance.SendPacket(new BodyEquipItemPacket(bp, ep.Slot, item));
                         });
                     }
                 }
             }
-            foreach (var bp in owned.Body.GetPartsThatCanEquip(EquipmentSlot.Hold))
+            foreach (var bp in body.GetPartsThatCanEquip(EquipmentSlot.Hold))
             {
                 if (bp.CanAddItem(item))
                 {
                     ContextMenu.AddOption("Pegar Com " + bp.Name, _ => {
-                        NetworkManager.Instance.SendPacket(new CreatureEquipItemPacket(bp, EquipmentSlot.Hold, item));
+                        NetworkManager.Instance.SendPacket(new BodyEquipItemPacket(bp, EquipmentSlot.Hold, item));
                     });
                 }
             }
@@ -530,15 +532,15 @@ public partial class InputManager : SubViewportContainer
 			HandleContextMenu(board);
 		}
 
-		if (board.SelectedEntity != null && board.SelectedEntity is Creature creature && (creature.Owner.Equals(GameManager.Username) || GameManager.IsGm)){
+		if (board.SelectedEntity != null && board.SelectedEntity.HasComponent(Token.ID) && ((board.SelectedEntity.Owner?.Equals(GameManager.Username) ?? false) || GameManager.IsGm)){
 			if (Input.IsActionJustPressed("radial_menu"))
 			{
-				AddActionsToRadialMenu(creature);
-				RadialMenu.Instance.Show();
+				//AddActionsToRadialMenu(creature);
+				//RadialMenu.Instance.Show();
 			}
 
 			if (!board.TurnMode)
-				HandleMovement(board, creature);
+				HandleMovement(board, board.SelectedEntity.Token);
 		}
 
 		if (board.SelectedEntity == null)
@@ -572,7 +574,7 @@ public partial class InputManager : SubViewportContainer
 			if (@event is InputEventMouseButton iemb2 && iemb2.Pressed && iemb2.ButtonIndex == MouseButton.Left)
 			{
 				// That thing is an entity
-				if (InputPriority is EntityNode entityNode)
+				if (InputPriority is EntityRenderer entityNode)
 				{
 					if (entityCallback != null)
 					{
@@ -585,13 +587,6 @@ public partial class InputManager : SubViewportContainer
 					entityNode.OnClick();
 					entityNode.GetViewport().SetInputAsHandled();
 				}
-				// That thing is a door
-				if (InputPriority is DoorNode doorNode)
-				{
-
-					doorNode.GetViewport().SetInputAsHandled();
-				}
-
 				AcceptEvent();
 			}
 			return;

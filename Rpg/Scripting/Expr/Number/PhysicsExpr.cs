@@ -1,17 +1,17 @@
 namespace Rpg.Scripting;
 
-public sealed class TicksToSecondsExpr : NumberExpr
+public sealed class TicksToSecondsExpr : Expr<float>
 {
     public const float TickRate = 50f;
-    public readonly NumberExpr TicksExpr;
+    public readonly Expr<float> TicksExpr;
 
-    public TicksToSecondsExpr(NumberExpr ticksExpr)
+    public TicksToSecondsExpr(Expr<float> ticksExpr)
     {
         TicksExpr = ticksExpr;
     }
     public TicksToSecondsExpr(Stream stream)
     {
-        TicksExpr = (NumberExpr)BaseExpr.Deserialize(stream);
+        TicksExpr = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)
@@ -20,17 +20,17 @@ public sealed class TicksToSecondsExpr : NumberExpr
         return ticks / TickRate;
     }
 }
-public sealed class SecondsToTicksExpr : NumberExpr
+public sealed class SecondsToTicksExpr : Expr<float>
 {
-    public readonly NumberExpr SecondsExpr;
+    public readonly Expr<float> SecondsExpr;
 
-    public SecondsToTicksExpr(NumberExpr secondsExpr)
+    public SecondsToTicksExpr(Expr<float> secondsExpr)
     {
         SecondsExpr = secondsExpr;
     }
     public SecondsToTicksExpr(Stream stream)
     {
-        SecondsExpr = (NumberExpr)BaseExpr.Deserialize(stream);
+        SecondsExpr = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)

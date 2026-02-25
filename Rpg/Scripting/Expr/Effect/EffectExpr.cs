@@ -50,17 +50,17 @@ public sealed class CompositeEffectExpr : EffectExpr
 }
 public sealed class ConditionalEffectExpr : EffectExpr
 {
-    public readonly ConditionExpr Condition;
+    public readonly Expr<bool> Condition;
     public readonly EffectExpr Effect;
 
-    public ConditionalEffectExpr(ConditionExpr condition, EffectExpr effect)
+    public ConditionalEffectExpr(Expr<bool> condition, EffectExpr effect)
     {
         Condition = condition;
         Effect = effect;
     }
     public ConditionalEffectExpr(Stream stream)
     {
-        Condition = (ConditionExpr)BaseExpr.Deserialize(stream);
+        Condition = (Expr<bool>)BaseExpr.Deserialize(stream);
         Effect = (EffectExpr)BaseExpr.Deserialize(stream);
     }
 
@@ -80,9 +80,9 @@ public sealed class ConditionalEffectExpr : EffectExpr
 }
 public sealed class ForEachEffectExpr : EffectExpr
 {
-    public readonly SelectorExpr[] selectors;
+    public readonly Expr<Entity?>[] selectors;
     public readonly EffectExpr Effect;
-    public ForEachEffectExpr(SelectorExpr[] selectors, EffectExpr effect)
+    public ForEachEffectExpr(Expr<Entity?>[] selectors, EffectExpr effect)
     {
         this.selectors = selectors;
         Effect = effect;
@@ -90,9 +90,9 @@ public sealed class ForEachEffectExpr : EffectExpr
     public ForEachEffectExpr(Stream stream)
     {
         int length = stream.ReadInt32();
-        selectors = new SelectorExpr[length];
+        selectors = new Expr<Entity?>[length];
         for (int i = 0; i < length; i++)
-            selectors[i] = (SelectorExpr)BaseExpr.Deserialize(stream);
+            selectors[i] = (Expr<Entity?>)BaseExpr.Deserialize(stream);
         Effect = (EffectExpr)BaseExpr.Deserialize(stream);
     }
 

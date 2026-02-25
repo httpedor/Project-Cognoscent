@@ -1,6 +1,7 @@
 ﻿using System;
 using Godot;
 using Rpg;
+using Rpg.Entities.Components;
 using TTRpgClient.scripts.ui;
 
 public partial class SkillTreeEntryDisplay : Sprite2D

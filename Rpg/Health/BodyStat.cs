@@ -2,6 +2,7 @@ namespace Rpg.Health;
 
 using Rpg.Entities;
 using Rpg.Entities.Components.Health;
+using Rpg.Scripting;
 
 public class BodyStat : ISerializable
 {
@@ -9,32 +10,27 @@ public class BodyStat : ISerializable
     public class StatDependency : ISerializable
     {
         public string StatName;
-        public string Code;
-        public Func<float, Entity, (float, StatModifierType)>? Compiled;
+        public Expr<float> ModifierValue;
+        public EnumExpr<StatModifierType> ModifierType;
 
-        public StatDependency(string statName, string code)
+        public StatDependency(string statName, Expr<float> value, EnumExpr<StatModifierType> type)
         {
             StatName = statName;
-            Code = code;
-            if (SidedLogic.Instance.IsClient())
-            {
-                //Compiled = CompileDep(code);
-            }
+            ModifierValue = value;
+            ModifierType = type;
         }
 
         public StatDependency(Stream stream)
         {
             StatName = stream.ReadString();
-            Code = stream.ReadString();
-            if (SidedLogic.Instance.IsClient())
-            {
-                //Compiled = CompileDep(Code);
-            }
+            ModifierValue = BaseExpr.Deserialize<Expr<float>>(stream);
+            ModifierType = BaseExpr.Deserialize<EnumExpr<StatModifierType>>(stream);
         }
         public void ToBytes(Stream stream)
         {
             stream.WriteString(StatName);
-            stream.WriteString(Code);
+            ModifierValue.ToBytes(stream);
+            ModifierType.ToBytes(stream);
         }
     }
 
@@ -47,9 +43,9 @@ public class BodyStat : ISerializable
     /// </summary>
     public StatDependency[]? Dependencies;
     /// <summary>
-    /// Either the name of the stat that defines the regeneration rate, or a flat float value.
+    /// Either the name of the stat that defines the regeneration rate, or a Expr<float> value.
     /// </summary>
-    public Either<string, float>? Regen;
+    public Expr<float>? Regen;
     /// <summary>
     /// Name of the stat that defines the maximum value of this stat.
     /// </summary>
@@ -64,13 +60,9 @@ public class BodyStat : ISerializable
     public bool Vital = false;
     public Dictionary<string, float> GroupEffectiveness = new();
     /// <summary>
-    /// Code to execute when the stat changes. It must be an Action<float, float> where the parameters are the old and new values.
+    /// Code to execute when the stat changes. The parameters are the old and new values.
     /// </summary>
-    public string? OnChangeCode;
-    /// <summary>
-    /// Compiled code to execute when the stat changes.
-    /// </summary>
-    public Action<float, Entity>? OnChange;
+    public EffectExpr? OnChange;
 
     public BodyStat(Stat def)
     {
@@ -95,7 +87,7 @@ public class BodyStat : ISerializable
 
         if (Regen != null)
         {
-            float regenAmount = Regen.IsRight ? Regen.Right : stats.GetStat(Regen.Left)?.FinalValue ?? 0;
+            float regenAmount = Regen.Eval(body.Context);
             stat.BaseValue = Math.Clamp(stat.BaseValue + (regenAmount * (1/50f)), stat.MinValue, stat.MaxValue);
         }
 
@@ -104,44 +96,29 @@ public class BodyStat : ISerializable
             foreach (var dep in Dependencies)
             {
                 var depStat = stats.GetStat(dep.StatName);
-                if (depStat != null && dep.Compiled != null)
+                if (depStat != null && dep.ModifierValue != null && dep.ModifierType != null)
                 {
-                    var (modValue, modType) = dep.Compiled(depStat.FinalValue, body.Entity);
+                    var ctx = new EvalContext(depStat.FinalValue)
+                    {
+                        Target = body.Entity,
+                        Caller = body.Entity,
+                        Board = body.Entity.Board
+                    };
+                    var modValue = dep.ModifierValue.Eval(ctx);
+                    var modType = dep.ModifierType.Eval(ctx);
                     stat.SetModifier(dep.StatName, modValue, modType);
                 }
             }
         }
     }
 
-    public static Action<float, Entity> CompileOnChange(string code)
-    {
-        var script = CSharpScript.Create<Action<float, float>>(code,
-            ScriptOptions.Default.WithReferences(typeof(StatModifierType).Assembly, typeof(Math).Assembly)
-                .WithImports("Rpg", "System.Math"), typeof(StatDepCodeGlobals)).CreateDelegate();
-        return (x, y) => script(new StatDepCodeGlobals{x = x, entity=y});
-    }
-
     public BodyStat(Stream stream)
     {
         Definition = new Stat(stream);
 
-        bool hasRegen = stream.ReadBoolean();
-        if (hasRegen)
-        {
-            bool isLeft = stream.ReadBoolean();
-            if (isLeft)
-            {
-                string statName = stream.ReadString();
-                Regen = new Either<string, float>(statName);
-            }
-            else
-            {
-                float value = stream.ReadFloat();
-                Regen = new Either<string, float>(value);
-            }
-        }
-        bool hasMaxDep = stream.ReadBoolean();
-        if (hasMaxDep)
+        if (stream.ReadBoolean())
+            Regen = BaseExpr.Deserialize<Expr<float>>(stream);
+        if (stream.ReadBoolean())
             MaxDependencyName = stream.ReadString();
         Vital = stream.ReadBoolean();
         int depCount = stream.ReadByte();
@@ -160,16 +137,7 @@ public class BodyStat : ISerializable
         stream.WriteBoolean(Regen != null);
         if (Regen != null)
         {
-            if (Regen.IsLeft)
-            {
-                stream.WriteBoolean(true);
-                stream.WriteString(Regen.Left);
-            }
-            else
-            {
-                stream.WriteBoolean(false);
-                stream.WriteFloat(Regen.Right);
-            }
+            Regen.ToBytes(stream);
         }
         stream.WriteBoolean(!string.IsNullOrEmpty(MaxDependencyName));
         if (!string.IsNullOrEmpty(MaxDependencyName))

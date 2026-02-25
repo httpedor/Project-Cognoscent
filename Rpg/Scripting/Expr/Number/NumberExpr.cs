@@ -1,13 +1,10 @@
 namespace Rpg.Scripting;
 
-public abstract class NumberExpr : Expr<float>
-{
-}
-public sealed class ConstExpr : NumberExpr
+public sealed class ConstNumberExpr : Expr<float>
 {
     public readonly float Value;
-    public ConstExpr(float value) => Value = value;
-    public ConstExpr(Stream stream)
+    public ConstNumberExpr(float value) => Value = value;
+    public ConstNumberExpr(Stream stream)
     {
         Value = stream.ReadFloat();
     }
@@ -19,30 +16,30 @@ public sealed class ConstExpr : NumberExpr
     }
 }
 
-public sealed class VarExpr : NumberExpr
+public sealed class VarNumberExpr : Expr<float>
 {
-    public readonly int SymbolId;
+    public readonly int Index;
 
-    public VarExpr(int symbolId)
+    public VarNumberExpr(int symbolId)
     {
-        SymbolId = symbolId;
+        Index = symbolId;
     }
-    public VarExpr(Stream stream)
+    public VarNumberExpr(Stream stream)
     {
-        SymbolId = stream.ReadInt32();
+        Index = stream.ReadInt32();
     }
 
     public override float Eval(EvalContext ctx)
     {
-        if (SymbolId < 0 || SymbolId >= ctx.Variables.Length)
+        if (Index < 0 || Index >= ctx.Variables.Length)
         {
-            throw new IndexOutOfRangeException($"Variable symbol ID {SymbolId} is out of range.");
+            throw new IndexOutOfRangeException($"Variable symbol ID {Index} is out of range.");
         }
-        return (float)ctx.Variables[SymbolId];
+        return (float)ctx.Variables[Index];
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteInt32(SymbolId);
+        stream.WriteInt32(Index);
     }
 }

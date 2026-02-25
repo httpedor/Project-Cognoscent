@@ -1,12 +1,12 @@
 namespace Rpg.Scripting;
 
-public sealed class LerpExpr : NumberExpr
+public sealed class LerpExpr : Expr<float>
 {
-    public readonly NumberExpr Min;
-    public readonly NumberExpr Max;
-    public readonly NumberExpr T;
+    public readonly Expr<float> Min;
+    public readonly Expr<float> Max;
+    public readonly Expr<float> T;
 
-    public LerpExpr(NumberExpr min, NumberExpr max, NumberExpr t)
+    public LerpExpr(Expr<float> min, Expr<float> max, Expr<float> t)
     {
         Min = min;
         Max = max;
@@ -14,9 +14,9 @@ public sealed class LerpExpr : NumberExpr
     }
     public LerpExpr(Stream stream)
     {
-        Min = (NumberExpr)BaseExpr.Deserialize(stream);
-        Max = (NumberExpr)BaseExpr.Deserialize(stream);
-        T = (NumberExpr)BaseExpr.Deserialize(stream);
+        Min = (Expr<float>)BaseExpr.Deserialize(stream);
+        Max = (Expr<float>)BaseExpr.Deserialize(stream);
+        T = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)
@@ -34,20 +34,20 @@ public sealed class LerpExpr : NumberExpr
         T.ToBytes(stream);
     }
 }
-public sealed class RangeExpr : NumberExpr
+public sealed class RangeExpr : Expr<float>
 {
-    public readonly NumberExpr Min;
-    public readonly NumberExpr Max;
+    public readonly Expr<float> Min;
+    public readonly Expr<float> Max;
 
-    public RangeExpr(NumberExpr min, NumberExpr max)
+    public RangeExpr(Expr<float> min, Expr<float> max)
     {
         Min = min;
         Max = max;
     }
     public RangeExpr(Stream stream)
     {
-        Min = (NumberExpr)BaseExpr.Deserialize(stream);
-        Max = (NumberExpr)BaseExpr.Deserialize(stream);
+        Min = (Expr<float>)BaseExpr.Deserialize(stream);
+        Max = (Expr<float>)BaseExpr.Deserialize(stream);
     }
     /// <summary>
     /// Parses a range expression from a string, like 1d20, 3-10, 5:15.
@@ -59,8 +59,8 @@ public sealed class RangeExpr : NumberExpr
             var parts = range.Split(new char[] { 'd', 'D' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 2 && float.TryParse(parts[0], out float count) && float.TryParse(parts[1], out float sides))
             {
-                Min = new ConstExpr(count);
-                Max = new ConstExpr(count * sides);
+                Min = new ConstNumberExpr(count);
+                Max = new ConstNumberExpr(count * sides);
                 return;
             }
         }
@@ -69,8 +69,8 @@ public sealed class RangeExpr : NumberExpr
             var parts = range.Split(new char[] { '-', ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 2 && float.TryParse(parts[0], out float min) && float.TryParse(parts[1], out float max))
             {
-                Min = new ConstExpr(min);
-                Max = new ConstExpr(max);
+                Min = new ConstNumberExpr(min);
+                Max = new ConstNumberExpr(max);
                 return;
             }
         }
@@ -78,8 +78,8 @@ public sealed class RangeExpr : NumberExpr
         // Fallback to constant value
         if (float.TryParse(range, out float value))
         {
-            Min = new ConstExpr(value);
-            Max = new ConstExpr(value);
+            Min = new ConstNumberExpr(value);
+            Max = new ConstNumberExpr(value);
             return;
         }
 

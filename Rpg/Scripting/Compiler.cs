@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Rpg.Entities;
+using Rpg.Entities.Components;
 
 namespace Rpg.Scripting;
 public sealed class EvalContext
@@ -11,32 +12,27 @@ public sealed class EvalContext
     /// <summary>
     /// The board on which the script is being executed, if any.
     /// </summary>
-    public Board? Board {get; init;} = null;
+    public Board? Board = null;
     /// <summary>
     /// The entity executing the script, if any.
     /// </summary>
-    public Entity? Caller {get; init;} = null;
+    public Entity? Caller = null;
     /// <summary>
     /// The target entity of the script, if any.
     /// </summary>
-    public Entity? Target {get; init;} = null;
+    public Entity? Target = null;
     /// <summary>
     /// The exact bodypart of the target entity being affected, if any.
     /// </summary>
-    public Entity? TargetPart {get; init;} = null;
+    public Entity? TargetPart = null;
 
     public EvalContext()
     {
         Variables = Array.Empty<object>();
     }
-    public EvalContext(Dictionary<string, object> variables, CompileContext compileCtx)
+    public EvalContext(params object[] args)
     {
-        Variables = new object[compileCtx.Symbols.Count];
-        foreach (var kvp in variables)
-        {
-            int symbolId = compileCtx.GetSymbol(kvp.Key);
-            Variables[symbolId] = kvp.Value;
-        }
+        Variables = args;
     }
 
     public T Eval<T>(Expr<T> expr)
@@ -59,6 +55,17 @@ public sealed class EvalContext
             TargetPart = targetPart
         };
     }
+    public EvalContext WithVariables(params object[] variables)
+    {
+        return new EvalContext
+        {
+            Variables = variables,
+            Board = this.Board,
+            Caller = this.Caller,
+            Target = this.Target,
+            TargetPart = this.TargetPart
+        };
+    }
 
     public T GetVariable<T>(int index)
     {
@@ -67,51 +74,21 @@ public sealed class EvalContext
 }
 
 //TODO: Use this in all stuff in the compendium
-public sealed class CompileContext
+public static class ExpressionCompiler
 {
-    private readonly static Dictionary<string, string> _aliases = new()
-    {
-        {"STR", "STRENGTH"},
-        {"DEX", "DEXTERITY"},
-        {"CON", "CONSTITUTION"},
-        {"INT", "INTELLIGENCE"},
-        {"WIS", "WISDOM"},
-        {"CHA", "CHARISMA"},
-        {"HP", "HEALTH"},
-        {"MP", "MANA"},
-        {"SP", "STAMINA"},
-    };
-    private readonly Dictionary<string, int> _symbols = new();
-
-    public int GetSymbol(string name)
-    {
-        name = name.ToUpper();
-        if (_aliases.TryGetValue(name, out string? alias))
-        {
-            name = alias;
-        }
-        if (!_symbols.TryGetValue(name, out int id))
-        {
-            id = _symbols.Count;
-            _symbols[name] = id;
-        }
-        return id;
-    }
-
-    public IReadOnlyDictionary<string, int> Symbols => _symbols;
-    private T[] CompileArgsAs<T>(JsonElement array) where T : BaseExpr
+    private static T[] CompileArgsAs<T>(JsonElement array) where T : BaseExpr
     {
         var list = new List<T>();
         foreach (var el in array.EnumerateArray())
         {
             T compiled;
-            if (typeof(T).IsAssignableTo(typeof(NumberExpr)))
+            if (typeof(T).IsAssignableTo(typeof(Expr<float>)))
                 compiled = CompileNumber(el) as T
                     ?? throw new Exception("Compiled expression is not of the expected type.");
             else if (typeof(T).IsAssignableTo(typeof(EffectExpr)))
                 compiled = CompileEffect(el) as T
                     ?? throw new Exception("Compiled expression is not of the expected type.");
-            else if (typeof(T).IsAssignableTo(typeof(ConditionExpr)))
+            else if (typeof(T).IsAssignableTo(typeof(Expr<bool>)))
                 compiled = CompileCondition(el) as T
                     ?? throw new Exception("Compiled expression is not of the expected type.");
             else
@@ -120,12 +97,45 @@ public sealed class CompileContext
         }
         return list.ToArray();
     }
-    public NumberExpr CompileNumber(JsonElement element)
+    private static Expr<T>? CheckForIf<T>(JsonElement element)
     {
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("op", out var opElement) && opElement.ValueKind == JsonValueKind.String && opElement.GetString()?.ToLower() == "if")
+        {
+            var condition = CompileCondition(element.GetProperty("condition"));
+            var trueExpr = Compile<T>(element.GetProperty("true"));
+            var falseExpr = Compile<T>(element.GetProperty("false"));
+            return new ConditionalExpr<T>(condition, trueExpr, falseExpr);
+        }
+        return null;
+    }
+    public static Expr<T> Compile<T>(JsonElement element)
+    {
+        var ifExpr = CheckForIf<T>(element);
+        if (ifExpr != null)
+            return ifExpr;
+        if (typeof(T) == typeof(float))
+            return CompileNumber(element) as Expr<T>
+                ?? throw new Exception("Compiled expression is not of the expected type.");
+        if (typeof(T) == typeof(bool))
+            return CompileCondition(element) as Expr<T>
+                ?? throw new Exception("Compiled expression is not of the expected type.");
+        if (typeof(T) == typeof(Entity))
+            return CompileSelector(element) as Expr<T>
+                ?? throw new Exception("Compiled expression is not of the expected type.");
+        if (typeof(T) == typeof(string))
+            return CompileString(element) as Expr<T>
+                ?? throw new Exception("Compiled expression is not of the expected type.");
+        throw new Exception($"Unsupported expression type for compilation: {typeof(T)}");
+    }
+    public static Expr<float> CompileNumber(JsonElement element)
+    {
+        var ifExpr = CheckForIf<float>(element);
+        if (ifExpr != null)
+            return ifExpr;
         switch (element.ValueKind)
         {
             case JsonValueKind.Number:
-                return new ConstExpr(element.GetSingle());
+                return new ConstNumberExpr(element.GetSingle());
 
             case JsonValueKind.String:
             {
@@ -133,15 +143,25 @@ public sealed class CompileContext
                 var randDenominators = new char[] {'d', 'D', '-', ':', ','};
                 if (name.Length > 2 && name.IndexOfAny(randDenominators) >= 0)
                     return new RangeExpr(name);
-
-                int symbolId = GetSymbol(name);
-                return new VarExpr(symbolId);
+                if (name.StartsWith("$"))
+                {
+                    string varId = name[1..];
+                    if (int.TryParse(varId, out int symbolId))
+                    {
+                        return new VarNumberExpr(symbolId);
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid variable ID: {varId}");
+                    }
+                }
+                throw new Exception($"Invalid number expression string: {name}");
             }
 
             case JsonValueKind.Object:
                 var op = element.GetProperty("op").GetString();
                 if (op == null)
-                    throw new Exception("NumberExpression object missing 'op' property.");
+                    throw new Exception("Expr<float>ession object missing 'op' property.");
 
                 return CompileNumberObj(element, op.ToLower());
 
@@ -149,7 +169,7 @@ public sealed class CompileContext
                 throw new Exception($"Invalid expression json: {element}");
         }
     }
-    private NumberExpr CompileNumberObj(JsonElement obj, string op)
+    private static Expr<float> CompileNumberObj(JsonElement obj, string op)
     {
         switch (op)
         {
@@ -173,8 +193,8 @@ public sealed class CompileContext
             case "stat":
             {
                 string statName = obj.GetProperty("stat").GetString()!;
-                SelectorExpr entityName = obj.TryGetProperty("entity", out var entityNameElement) ? CompileSelector(entityNameElement) : new CallerSelectorExpr();
-                NumberExpr defaultValue = obj.TryGetProperty("default", out var defaultValueElement) ? CompileNumber(defaultValueElement) : new ConstExpr(0);
+                Expr<Entity?> entityName = obj.TryGetProperty("entity", out var entityNameElement) ? CompileSelector(entityNameElement) : new CallerSelectorExpr();
+                Expr<float> defaultValue = obj.TryGetProperty("default", out var defaultValueElement) ? CompileNumber(defaultValueElement) : new ConstNumberExpr(0);
                 return new StatExpr(statName, entityName, defaultValue);
             }
 
@@ -183,27 +203,27 @@ public sealed class CompileContext
             case "add":
             case "addition":
             case "+":
-                return new AddExpr(CompileArgsAs<NumberExpr>(obj.GetProperty("numbers")));
+                return new AddExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
 
             case "sub":
             case "subtract":
             case "minus":
             case "subtraction":
             case "-":
-                return new SubExpr(CompileArgsAs<NumberExpr>(obj.GetProperty("numbers")));
+                return new SubExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
 
             case "mul":
             case "multiply":
             case "times":
             case "multiplication":
             case "*":
-                return new MulExpr(CompileArgsAs<NumberExpr>(obj.GetProperty("numbers")));
+                return new MulExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
 
             case "div":
             case "divide":
             case "division":
             case "/":
-                return new DivExpr(CompileArgsAs<NumberExpr>(obj.GetProperty("numbers")));
+                return new DivExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
 
             case "run_script":
             case "runscript":
@@ -218,7 +238,7 @@ public sealed class CompileContext
                 throw new Exception("Unknown operation: " + op);
         }
     }
-    public EffectExpr CompileEffect(JsonElement element)
+    public static EffectExpr CompileEffect(JsonElement element)
     {
         switch (element.ValueKind)
         {
@@ -237,7 +257,7 @@ public sealed class CompileContext
                 throw new Exception($"Invalid effect element: {element}");
         }
     }
-    private EffectExpr CompileEffectObj(JsonElement obj, string effectName)
+    private static EffectExpr CompileEffectObj(JsonElement obj, string effectName)
     {
         switch (effectName)
         {
@@ -252,8 +272,11 @@ public sealed class CompileContext
         }
     }
 
-    public ConditionExpr CompileCondition(JsonElement element)
+    public static Expr<bool> CompileCondition(JsonElement element)
     {
+        var ifExpr = CheckForIf<bool>(element);
+        if (ifExpr != null)
+            return ifExpr;
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
@@ -283,8 +306,19 @@ public sealed class CompileContext
                             throw new Exception($"Invalid probability value in condition: {name}");
                         }
                     }
-                    int symbolId = GetSymbol(name);
-                    return new VarConditionExpr(symbolId);
+                    if (name.StartsWith("$"))
+                    {
+                        string varId = name[1..];
+                        if (int.TryParse(varId, out int symbolId))
+                        {
+                            return new VarConditionExpr(symbolId);
+                        }
+                        else
+                        {
+                            throw new Exception($"Invalid variable ID: {varId}");
+                        }
+                    }
+                    throw new Exception($"Invalid condition string: {name}");
                 }
             case JsonValueKind.Null:
                 return new ConstConditionExpr(false);
@@ -306,16 +340,16 @@ public sealed class CompileContext
                 throw new Exception($"Invalid condition element: {element}");
         }
     }
-    public ConditionExpr CompileConditionObj(JsonElement obj, string op)
+    public static Expr<bool> CompileConditionObj(JsonElement obj, string op)
     {
         var left = obj.GetProperty("left");
         var right = obj.GetProperty("right");
         switch (op)
         {
             case "and":
-                return new AndConditionExpr(CompileArgsAs<ConditionExpr>(obj.GetProperty("conditions")));
+                return new AndConditionExpr(CompileArgsAs<Expr<bool>>(obj.GetProperty("conditions")));
             case "or":
-                return new OrConditionExpr(CompileArgsAs<ConditionExpr>(obj.GetProperty("conditions")));
+                return new OrConditionExpr(CompileArgsAs<Expr<bool>>(obj.GetProperty("conditions")));
             case "not":
                 return new NotConditionExpr(
                     CompileCondition(obj.GetProperty("condition")));
@@ -350,12 +384,6 @@ public sealed class CompileContext
                 return new NotEqualConditionExpr(
                     CompileNumber(left),
                     CompileNumber(right));
-            case "var":
-                {
-                    string name = obj.GetProperty("name").GetString()!;
-                    int symbolId = GetSymbol(name);
-                    return new VarConditionExpr(symbolId);
-                }
             case "random":
             case "rand":
                 {
@@ -368,8 +396,11 @@ public sealed class CompileContext
         }
     }
 
-    public SelectorExpr CompileSelector(JsonElement element)
+    public static Expr<Entity?> CompileSelector(JsonElement element)
     {
+        var ifExpr = CheckForIf<Entity?>(element);
+        if (ifExpr != null)
+            return ifExpr;
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
@@ -381,14 +412,14 @@ public sealed class CompileContext
                     "caller" => new CallerSelectorExpr(),
                     "target" => new TargetSelectorExpr(),
                     "target_part" => new TargetPartSelectorExpr(),
-                    _ => new VarEntitySelectorExpr(GetSymbol(name)),
+                    _ => new VarEntitySelectorExpr(int.Parse(name[1..])),
                 };
             }
             case JsonValueKind.Object:
             {
-                string? name = element.GetProperty("selector").GetString();
+                string? name = element.GetProperty("op").GetString();
                 if (name == null)
-                    throw new Exception("SelectorExpression object missing 'selector' property.");
+                    throw new Exception("SelectorExpression object missing 'op' property.");
                 return CompileSelectorObj(element, name);
             }
             case JsonValueKind.Null:
@@ -398,7 +429,7 @@ public sealed class CompileContext
                 throw new Exception($"Invalid selector element: {element}");
         }
     }
-    public SelectorExpr CompileSelectorObj(JsonElement obj, string selectorName)
+    public static Expr<Entity?> CompileSelectorObj(JsonElement obj, string selectorName)
     {
         switch (selectorName.ToLower())
         {
@@ -413,16 +444,26 @@ public sealed class CompileContext
                 throw new Exception("Unknown selector: " + selectorName);
         }
     }
-    public StringExpr CompileString(JsonElement element)
+    public static Expr<string> CompileString(JsonElement element)
     {
+        var ifExpr = CheckForIf<string>(element);
+        if (ifExpr != null)
+            return ifExpr;
+
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
                 if (element.GetString()?.StartsWith("$") == true)
                 {
-                    string varName = element.GetString()![1..];
-                    int symbolId = GetSymbol(varName);
-                    return new VarStringExpr(symbolId);
+                    string varId = element.GetString()![1..];
+                    if (int.TryParse(varId, out int symbolId))
+                    {
+                        return new VarStringExpr(symbolId);
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid variable ID: {varId}");
+                    }
                 }
                 return new StringLiteralExpr(element.GetString()!);
             case JsonValueKind.Object:
@@ -437,27 +478,27 @@ public sealed class CompileContext
                 throw new Exception($"Invalid string expression element: {element}");
         }
     }
-    private StringExpr CompileStringObj(JsonElement obj, string op)
+    private static Expr<string> CompileStringObj(JsonElement obj, string op)
     {
         switch (op)
         {
-            case "argumentType":
-            case "argType":
-            case "argtype":
-            case "argumenttype":
-                var argName = obj.GetProperty("argument").GetString();
-                if (argName == null)
-                    throw new Exception("StringExpression with 'argumentType' operation missing 'argument' property.");
-                int argumentIndex = GetSymbol(argName);
-                return new ArgumentTypeNameExpr(argumentIndex);
+            case "concat":
+            case "add":
+            case "join":
+                return new StringConcatExpr(CompileArgsAs<Expr<string>>(obj.GetProperty("strings")));
             default:
                 throw new Exception("Unknown string operation: " + op);
         }
     }
 
-    public CompendiumEntryExpr<T> CompileCompendiumEntry<T>(JsonElement element) where T : class
+    public static CompendiumEntryExpr<T> CompileCompendiumEntry<T>(JsonElement element) where T : class
     {
-        StringExpr idExpr = CompileString(element);
+        Expr<string> idExpr = CompileString(element);
         return new CompendiumEntryExpr<T>(idExpr);
+    }
+    public static EnumExpr<T> CompileEnum<T>(JsonElement element) where T : struct, Enum
+    {
+        Expr<string> valueExpr = CompileString(element);
+        return new EnumExpr<T>(valueExpr);
     }
 }

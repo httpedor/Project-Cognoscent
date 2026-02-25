@@ -1,99 +1,32 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using Rpg;
+using Rpg.Features;
+using Rpg.Health;
 using TTRpgClient.scripts;
 using TTRpgClient.scripts.ui;
 
-public partial class FeatureCompendiumEntry : CodeCompendiumEntry
+public partial class FeatureCompendiumEntry : CompendiumEntry
 {
-    private static TabInfo[] arbitraryTabs =
-    [
-        new()
-        {
-            JsonKey = "tick",
-            TabTitle = "OnTick"
-        },
-        new()
-        {
-            JsonKey = "enable",
-            TabTitle = "OnEnable"
-        },
-        new()
-        {
-            JsonKey = "disable",
-            TabTitle = "OnDisable"
-        },
-        new ()
-        {
-            JsonKey = "doesGetAttacked",
-            TabTitle = "DoesGetAttacked"
-        },
-        new ()
-        {
-            JsonKey = "doesAttack",
-            TabTitle = "DoesAttack"
-        },
-        new ()
-        {
-            JsonKey = "doesExecuteSkill",
-            TabTitle = "DoesExecuteSkill"
-        },
-        new ()
-        {
-            JsonKey = "attacked",
-            TabTitle = "OnAttacked"
-        },
-        new ()
-        {
-            JsonKey = "attack",
-            TabTitle = "OnAttack"
-        },
-        new ()
-        {
-            JsonKey = "executeSkill",
-            TabTitle = "OnExecuteSkill"
-        },
-        new ()
-        {
-            JsonKey = "injured",
-            TabTitle = "OnInjured"
-        },
-        new()
-        {
-            JsonKey = "receivingDamage",
-            TabTitle = "ModifyReceivingDamage"
-        },
-        new()
-        {
-            JsonKey = "attackingDamage",
-            TabTitle = "ModifyAttackingDamage"
-        }
-    ];
-    public FeatureCompendiumEntry(string entryId, JsonObject json) : base(Compendium.GetFolderName<Feature>(), entryId, json)
+    public FeatureCompendiumEntry(string entryId, JsonElement json) : base(Compendium.GetFolderName<Feature>(), entryId, json)
     {
-        if (!json.ContainsKey("type"))
-            json["type"] = "arbitrary";
-        tabs = json["type"]!.ToString() switch
-        {
-            "arbitrary" => arbitraryTabs,
-            _ => tabs
-        };
     }
 
     private JsonObject CopyObjBase()
     {
         JsonObject newObj = new JsonObject
         {
-            ["type"] = json["type"]!.DeepClone(),
-            ["name"] = json["name"]!.DeepClone(),
-            ["description"] = json["description"]!.DeepClone(),
-            ["icon"] = json["icon"]!.DeepClone()
+            ["type"] = json.GetProperty("type").GetString(),
+            ["name"] = json.GetProperty("name")!.GetString(),
+            ["description"] = json.GetProperty("description")!.GetString(),
+            ["icon"] = json.GetProperty("icon")!.GetString()
         };
         return newObj;
     }
 
     protected override void OnClick()
     {
-        switch (json["type"]!.ToString())
+        switch (json.GetProperty("type").ToString())
         {
             case "arbitrary":
             {
@@ -109,8 +42,8 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                     newObj["damage"] = result.Dano;
                     newObj["interval"] = result.Intervalo;
                     
-                    NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj));
-                }, (TipoDeDano: Compendium.GetDefaultEntry<DamageType>(), Dano: 1f, Intervalo: json["interval"]?.GetValue<int>() ?? 0));
+                    NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj.ToElement()));
+                }, (TipoDeDano: Compendium.GetDefaultEntry<DamageType>(), Dano: 1f, Intervalo: json.GetPropertyOrNull("interval")?.GetInt32() ?? 0));
                 break;
             }
         }
@@ -129,8 +62,8 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                     return;
 
                 var newObj = CopyObjBase();
-                if (json.ContainsKey("toggleable"))
-                    newObj["toggleable"] = json["toggleable"];
+                if (json.TryGetProperty("toggleable", out var toggleable))
+                    newObj["toggleable"] = toggleable.GetBoolean();
                 
                 switch (type)
                 {
@@ -142,7 +75,7 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                     }
                 }
                 
-                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj));
+                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, newObj.ToElement()));
             });
         });
         ContextMenu.AddOption("Mudar Nome", (_) =>
@@ -156,19 +89,21 @@ public partial class FeatureCompendiumEntry : CodeCompendiumEntry
                     Modal.OpenAcceptDialog("Erro", "Uma feature com esse id já existe.");
                     return;
                 }
-                json["name"] = name;
-                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.UpdateEntry(folder, entryId, json));
+                var mutJson = json.ToNode()!.AsObject();
+                mutJson["name"] = name;
+                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.UpdateEntry(folder, entryId, mutJson.ToElement()));
             }, true);
         });
         ContextMenu.AddOption("Mudar Descrição", (_) =>
         {
             Modal.OpenStringDialog("Mudar descrição de " + entryId, (desc) =>
             {
-                if (desc == null || desc == json["description"]!.ToString())
+                var mutJson = json.ToNode()!.AsObject();
+                if (desc == null || desc == mutJson["description"]!.ToString())
                     return;
-                json["description"] = desc;
-                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.UpdateEntry(folder, entryId, json));
-            }, false, json["description"]!.ToString());
+                mutJson["description"] = desc;
+                NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.UpdateEntry(folder, entryId, mutJson.ToElement()));
+            }, false, json.GetProperty("description").ToString());
         });
         
     }

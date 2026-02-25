@@ -3,6 +3,7 @@ using Rpg.Entities.Components.Health;
 using Rpg.Entities.Interfaces;
 using Rpg.Features;
 using Rpg.Health;
+using Rpg.Skills;
 
 namespace Rpg.Entities.Components;
 
@@ -22,7 +23,7 @@ public class FeatureEnabledEvent(Component component, Feature feature) : Feature
 public class FeatureDisabledEvent(Component component, Feature feature) : FeatureEvent(component, feature) 
 {
 }
-public partial class FeaturesContainer : Component, ITickableComponent, ComponentEventHandler<DamageEvent>, ComponentEventHandler<BodyPartInjuryAddedEvent>
+public partial class FeaturesContainer : Component, ITickableComponent, ISkillProvider, ComponentEventHandler<DamageEvent>, ComponentEventHandler<BodyPartInjuryAddedEvent>
 {
     [JsonInclude]
     protected Dictionary<string, (Feature feature, bool enabled)> features = new();
@@ -170,6 +171,17 @@ public partial class FeaturesContainer : Component, ITickableComponent, Componen
         foreach (var feat in EnabledFeatures)
         {
             feat.OnInjured(this, componentEvent.Part, componentEvent.Injury);
+        }
+    }
+
+    public IEnumerable<Skill> GetSkillsFor(SkillExecutor executor)
+    {
+        foreach (var feat in EnabledFeatures)
+        {
+            foreach (var skill in feat.GetSkills(this, executor))
+            {
+                yield return skill;
+            }
         }
     }
 }

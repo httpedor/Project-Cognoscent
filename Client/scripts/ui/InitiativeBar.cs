@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Godot;
 using Rpg;
+using Rpg.Entities.Components;
 using TTRpgClient.scripts.RpgImpl;
 
 namespace TTRpgClient.scripts.ui;
@@ -80,12 +81,13 @@ public static class InitiativeBar
     public static void PopulateWithBoard(ClientBoard board)
     {
         Clear();
-        LinkedList<(Creature Executor, ActionLayer Layer)> actionQueue = new();
-        foreach (var creature in board.GetEntities<Creature>())
+        LinkedList<(SkillExecutor Executor, ActionLayer Layer)> actionQueue = new();
+        foreach (var entity in board.GetEntitiesWithComponent<SkillExecutor>())
         {
-            foreach (string layerName in creature.ActiveActionLayers)
+            var exec = entity.SkillExecutor!;
+            foreach (string layerName in exec.ActiveActionLayers)
             {
-                var layer = creature.GetActionLayer(layerName)!;
+                var layer = exec.GetActionLayer(layerName)!;
                 var current = actionQueue.First;
                 var prev = current;
                 while (current != null)
@@ -99,15 +101,15 @@ public static class InitiativeBar
                 }
 
                 if (prev != null)
-                    actionQueue.AddAfter(prev, (creature, layer));
+                    actionQueue.AddAfter(prev, (exec, layer));
                 else
-                    actionQueue.AddFirst((creature, layer));
+                    actionQueue.AddFirst((exec, layer));
             }
         }
 
         foreach (var action in actionQueue)
         {
-            AddButton(action.Executor.Id.ToString(), action.Executor.Name + " acaba " + action.Layer.Name, board.GetEntityNode(action.Executor).Display.Texture, null, true);
+            AddButton(action.Executor.Entity.Id.ToString(), action.Executor.Entity.Name + " acaba " + action.Layer.Name, board.GetEntityRenderer(action.Executor.Entity).Display?.Texture, null, true);
         }
     }
 }

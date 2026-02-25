@@ -10,7 +10,6 @@ namespace Rpg.Features;
 
 public abstract class Feature : ISerializable
 {
-    public static readonly CompileContext DefaultCompilerContext = new();
     public string? CustomName;
     public string? CustomIcon;
     private readonly Dictionary<string, List<StatModifier>> statModifiers = new();
@@ -90,77 +89,90 @@ public abstract class Feature : ISerializable
             }
             case "arbitrary":
             {
-                EffectExpr? onTick = json.TryGetProperty("tick", out JsonElement onTickElement) ? DefaultCompilerContext.CompileEffect(onTickElement) : null;
-                EffectExpr? onEnable = json.TryGetProperty("enable", out JsonElement onEnableElement) ? DefaultCompilerContext.CompileEffect(onEnableElement) : null;
-                EffectExpr? onDisable = json.TryGetProperty("disable", out JsonElement onDisableElement) ? DefaultCompilerContext.CompileEffect(onDisableElement) : null;
-                (ConditionExpr, StringExpr)? doesGetAttacked = null;
+                EffectExpr? onTick = json.TryGetProperty("tick", out JsonElement onTickElement) ? ExpressionCompiler.CompileEffect(onTickElement) : null;
+                EffectExpr? onEnable = json.TryGetProperty("enable", out JsonElement onEnableElement) ? ExpressionCompiler.CompileEffect(onEnableElement) : null;
+                EffectExpr? onDisable = json.TryGetProperty("disable", out JsonElement onDisableElement) ? ExpressionCompiler.CompileEffect(onDisableElement) : null;
+                (Expr<bool>, Expr<string>)? doesGetAttacked = null;
                 if (json.TryGetProperty("doesGetAttacked", out JsonElement doesGetAttackedElement))
                 {
-                    var condition = DefaultCompilerContext.CompileCondition(doesGetAttackedElement);
-                    StringExpr? reason = new StringLiteralExpr("");
+                    var condition = ExpressionCompiler.CompileCondition(doesGetAttackedElement);
+                    Expr<string>? reason = new StringLiteralExpr("");
                     if (doesGetAttackedElement.TryGetProperty("reason", out JsonElement reasonElement))
                     {
-                        reason = DefaultCompilerContext.CompileString(reasonElement);
+                        reason = ExpressionCompiler.CompileString(reasonElement);
                     }
                     doesGetAttacked = (condition, reason);
                 }
-                (ConditionExpr, StringExpr)? doesAttack = null;
+                (Expr<bool>, Expr<string>)? doesAttack = null;
                 if (json.TryGetProperty("doesAttack", out JsonElement doesAttackElement))
                 {
-                    var condition = DefaultCompilerContext.CompileCondition(doesAttackElement);
-                    StringExpr? reason = new StringLiteralExpr("");
+                    var condition = ExpressionCompiler.CompileCondition(doesAttackElement);
+                    Expr<string>? reason = new StringLiteralExpr("");
                     if (doesAttackElement.TryGetProperty("reason", out JsonElement reasonElement))
                     {
-                        reason = DefaultCompilerContext.CompileString(reasonElement);
+                        reason = ExpressionCompiler.CompileString(reasonElement);
                     }
                     doesAttack = (condition, reason);
                 }
-                (ConditionExpr, StringExpr)? doesExecuteSkill = null;
+                (Expr<bool>, Expr<string>)? doesExecuteSkill = null;
                 if (json.TryGetProperty("doesExecuteSkill", out JsonElement doesExecuteSkillElement))
                 {
-                    var condition = DefaultCompilerContext.CompileCondition(doesExecuteSkillElement);
-                    StringExpr? reason = new StringLiteralExpr("");
+                    var condition = ExpressionCompiler.CompileCondition(doesExecuteSkillElement);
+                    Expr<string>? reason = new StringLiteralExpr("");
                     if (doesExecuteSkillElement.TryGetProperty("reason", out JsonElement reasonElement))
                     {
-                        reason = DefaultCompilerContext.CompileString(reasonElement);
+                        reason = ExpressionCompiler.CompileString(reasonElement);
                     }
                     doesExecuteSkill = (condition, reason);
                 }
-                EffectExpr? onAttacked = json.TryGetProperty("attacked", out JsonElement onAttackedElement) ? DefaultCompilerContext.CompileEffect(onAttackedElement) : null;
-                EffectExpr? onAttack = json.TryGetProperty("attack", out JsonElement onAttackElement) ? DefaultCompilerContext.CompileEffect(onAttackElement) : null;
-                EffectExpr? onExecuteSkill = json.TryGetProperty("executeSkill", out JsonElement onExecuteSkillElement) ? DefaultCompilerContext.CompileEffect(onExecuteSkillElement) : null;
-                EffectExpr? onInjured = json.TryGetProperty("injured", out JsonElement onInjuredElement) ? DefaultCompilerContext.CompileEffect(onInjuredElement) : null;
-                (NumberExpr, StringExpr)? modifyReceivingDamage = null;
+                EffectExpr? onAttacked = json.TryGetProperty("attacked", out JsonElement onAttackedElement) ? ExpressionCompiler.CompileEffect(onAttackedElement) : null;
+                EffectExpr? onAttack = json.TryGetProperty("attack", out JsonElement onAttackElement) ? ExpressionCompiler.CompileEffect(onAttackElement) : null;
+                EffectExpr? onExecuteSkill = json.TryGetProperty("executeSkill", out JsonElement onExecuteSkillElement) ? ExpressionCompiler.CompileEffect(onExecuteSkillElement) : null;
+                EffectExpr? onInjured = json.TryGetProperty("injured", out JsonElement onInjuredElement) ? ExpressionCompiler.CompileEffect(onInjuredElement) : null;
+                (Expr<float>, Expr<string>)? modifyReceivingDamage = null;
                 if (json.TryGetProperty("receivingDamage", out JsonElement modifyReceivingDamageElement))
                 {
-                    var numberExpr = DefaultCompilerContext.CompileNumber(modifyReceivingDamageElement);
-                    StringExpr? reason = new StringLiteralExpr("");
+                    var numberExpr = ExpressionCompiler.CompileNumber(modifyReceivingDamageElement);
+                    Expr<string>? reason = new StringLiteralExpr("");
                     if (modifyReceivingDamageElement.TryGetProperty("formula", out JsonElement reasonElement))
                     {
-                        reason = DefaultCompilerContext.CompileString(reasonElement);
+                        reason = ExpressionCompiler.CompileString(reasonElement);
                     }
                     modifyReceivingDamage = (numberExpr, reason);
                 }
-                (NumberExpr, StringExpr)? modifyAttackingDamage = null;
+                (Expr<float>, Expr<string>)? modifyAttackingDamage = null;
                 if (json.TryGetProperty("attackingDamage", out JsonElement modifyAttackingDamageElement))
                 {
-                    var numberExpr = DefaultCompilerContext.CompileNumber(modifyAttackingDamageElement);
-                    StringExpr? reason = new StringLiteralExpr("");
+                    var numberExpr = ExpressionCompiler.CompileNumber(modifyAttackingDamageElement);
+                    Expr<string>? reason = new StringLiteralExpr("");
                     if (modifyAttackingDamageElement.TryGetProperty("formula", out JsonElement reasonElement))
                     {
-                        reason = DefaultCompilerContext.CompileString(reasonElement);
+                        reason = ExpressionCompiler.CompileString(reasonElement);
                     }
                     modifyAttackingDamage = (numberExpr, reason);
                 }
 
-                ConditionExpr toggleable = json.TryGetProperty("toggleable", out JsonElement toggleableElement) ? DefaultCompilerContext.CompileCondition(toggleableElement) : new ConstConditionExpr(false);
+                Expr<bool> toggleable = json.TryGetProperty("toggleable", out JsonElement toggleableElement) ? ExpressionCompiler.CompileCondition(toggleableElement) : new ConstConditionExpr(false);
 
+                CompendiumEntryExpr<Skill>[]? skillExprs = null;
+                if (json.TryGetProperty("skills", out JsonElement skillsElement) && skillsElement.ValueKind == JsonValueKind.Array)
+                {
+                    List<CompendiumEntryExpr<Skill>> skillExprsList = new();
+                    foreach (JsonElement skillElement in skillsElement.EnumerateArray())
+                    {
+                        var skillExpr = ExpressionCompiler.CompileCompendiumEntry<Skill>(skillElement);
+                        if (skillExpr != null)
+                            skillExprsList.Add(skillExpr);
+                    }
+                    skillExprs = skillExprsList.ToArray();
+                }
                 feature = new ArbitraryFeature(
                     id, name, description,
                     onTick, onEnable, onDisable,
                     doesGetAttacked, doesAttack, doesExecuteSkill,
                     onAttacked, onAttack, onExecuteSkill, onInjured,
                     modifyReceivingDamage, modifyAttackingDamage,
+                    skillExprs,
                     toggleable
                 );
                 break;
@@ -364,6 +376,11 @@ public abstract class Feature : ISerializable
     public virtual void OnInjured(FeaturesContainer source, IDamageable injured, Injury injury)
     {
         
+    }
+    
+    public virtual IEnumerable<Skill> GetSkills(FeaturesContainer source, SkillExecutor executor)
+    {
+        return Array.Empty<Skill>();
     }
     
     public virtual bool CanBeSeenBy(Entity viewer)

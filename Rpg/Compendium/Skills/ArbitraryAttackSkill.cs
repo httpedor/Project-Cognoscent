@@ -35,13 +35,13 @@ public class ArbitraryAttackSkill : AttackSkill
     public override void Execute(SkillExecutor executor, List<SkillArgument> arguments, uint tick)
     {
         base.Execute(executor, arguments, tick);
-        code.onExecute?.Eval(code.CreateEvalContext(executor, arguments, new Dictionary<string, object> { { "tick", tick } }));
+        code.onExecute?.Eval(code.CreateEvalContext(executor, arguments, tick));
     }
 
     public override void Cancel(SkillExecutor executor, List<SkillArgument> arguments, bool interrupted = false)
     {
         base.Cancel(executor, arguments, interrupted);
-        code.onCancel?.Eval(code.CreateEvalContext(executor, arguments, new Dictionary<string, object> { { "interrupted", interrupted } }));
+        code.onCancel?.Eval(code.CreateEvalContext(executor, arguments, interrupted));
     }
 
     public override bool CanCancel(SkillExecutor executor, List<SkillArgument> arguments)

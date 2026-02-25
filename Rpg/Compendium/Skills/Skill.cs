@@ -8,7 +8,6 @@ namespace Rpg.Skills;
 
 public abstract partial class Skill : ISerializable, ITaggable
 {
-    public static readonly CompileContext DefaultCompilerContext = new CompileContext();
     public string? CustomName = null;
     public string? CustomIcon = null;
     public string? CustomLayer = null;
