@@ -9,6 +9,22 @@ public abstract class BaseExpr : ISerializable
         var type = Type.GetType("Rpg.Scripting." + typeName);
         if (type == null)
             throw new Exception("Failed to get expression type: " + typeName);
+
+        // If the resolved type is an open generic (e.g. EnumExpr`1), read the
+        // generic type arguments that were written by ToBytes and close the type.
+        if (type.IsGenericTypeDefinition)
+        {
+            var genericParams = type.GetGenericArguments();
+            var typeArgs = new Type[genericParams.Length];
+            for (int i = 0; i < genericParams.Length; i++)
+            {
+                var argTypeName = stream.ReadString();
+                typeArgs[i] = Type.GetType(argTypeName)
+                    ?? throw new Exception($"Failed to resolve generic type argument: {argTypeName}");
+            }
+            type = type.MakeGenericType(typeArgs);
+        }
+
         if (!type.IsSubclassOf(typeof(BaseExpr)))
             throw new Exception("Type is not an expression: " + typeName);
         if (type.GetConstructor(new[] { typeof(Stream) }) == null)
@@ -27,7 +43,19 @@ public abstract class BaseExpr : ISerializable
     public virtual void ToBytes(Stream stream)
     {
         //No need for full name since all expressions are in the same namespace
-        stream.WriteString(GetType().Name);
+        var type = GetType();
+        stream.WriteString(type.Name);
+
+        // For generic types (e.g. EnumExpr<StatModifierType>), also write
+        // the assembly-qualified names of the type arguments so Deserialize
+        // can reconstruct the closed generic type.
+        if (type.IsGenericType)
+        {
+            foreach (var arg in type.GetGenericArguments())
+            {
+                stream.WriteString(arg.AssemblyQualifiedName!);
+            }
+        }
     }
 }
 public abstract class Expr<T> : BaseExpr
@@ -47,5 +75,9 @@ public abstract class Expr<T> : BaseExpr
     public T Eval(Entity target)
     {
         return Eval(target, target, null);
+    }
+    public T Eval()
+    {
+        return Eval(null, null, null);
     }
 }

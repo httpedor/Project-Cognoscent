@@ -76,9 +76,9 @@ public class Environment
             return null;
         var b = new ServerBoard(name);
         b.AddFloor(f);
-        foreach (var ent in entities)
-            b.AddEntity(ent);
+        b.AddEntities(entities, false);
         
+        b.InitializeEntities();
         return b;
     }
 

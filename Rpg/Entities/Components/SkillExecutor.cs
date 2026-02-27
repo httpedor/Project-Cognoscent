@@ -79,6 +79,39 @@ public partial class SkillExecutor : Component, ITickableComponent
     private readonly Dictionary<string, ActionLayer> actionLayers = new();
     public IEnumerable<string> ActiveActionLayers => actionLayers.Keys;
     public readonly Dictionary<int, SkillData> ActiveSkills = new();
+
+    public SkillExecutor() : base() { }
+
+    public SkillExecutor(Stream stream) : base(stream) {
+        int actionLayerCount = stream.ReadUInt16();
+        for (int i = 0; i < actionLayerCount; i++)
+        {
+            ActionLayer layer = new ActionLayer(stream);
+            actionLayers[layer.Name] = layer;
+        }
+        int activeSkillCount = stream.ReadUInt16();
+        for (int i = 0; i < activeSkillCount; i++)
+        {
+            SkillData data = new SkillData(stream);
+            ActiveSkills[data.Id] = data;
+        }
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteUInt16((ushort)actionLayers.Count);
+        foreach (var layer in actionLayers.Values)
+        {
+            layer.ToBytes(stream);
+        }
+        stream.WriteUInt16((ushort)ActiveSkills.Count);
+        foreach (var skill in ActiveSkills.Values)
+        {
+            skill.ToBytes(stream);
+        }
+    }
+
     public IEnumerable<Skill> Skills {
         get
         {

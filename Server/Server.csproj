@@ -8,7 +8,7 @@
     <Folder Include="Web\assets\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="ConsoleRenderer" Version="0.7.1" />
+    <PackageReference Include="Terminal.Gui" Version="1.19.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

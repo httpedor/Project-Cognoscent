@@ -393,7 +393,7 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
         BodyPart? child = GetChild(id);
         if (child == null) return;
 
-        Body?.OnPartRemoved(child);
+        Body?.UnindexPart(child);
         child.Parent = null;
         child.Body = null;
         children.Remove(child.Entity.Id);
@@ -413,7 +413,7 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
         child.Parent = this;
         child.Body = Body;
 
-        Body?.OnPartAdded(child);
+        Body?.IndexPart(child);
 
         Entity.DispatchEvent(new BodyPartChildAddedEvent(this, child));
     }

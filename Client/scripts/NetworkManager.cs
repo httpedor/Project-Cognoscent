@@ -157,9 +157,9 @@ public partial class NetworkManager : Node
 			{
 
 				var ecp = (EntityCreatePacket)packet;
-				GD.Print("Received entity packet for " + ecp.BoardName + " with id " + ecp.Entity.Id);
+				GD.Print("Received " + ecp.Entities.Length + " entities for board " + ecp.BoardName);
 				ClientBoard? board = GameManager.Instance.GetBoard(ecp.BoardName);
-				board?.AddEntity(ecp.Entity);
+				board?.AddEntities(ecp.Entities, true);
 				break;
 			}
 			case ProtocolId.TOKEN_UPDATE:
@@ -226,7 +226,7 @@ public partial class NetworkManager : Node
 			}
 			case ProtocolId.STAT_UPDATE:
 			{
-				var sup = (Rpg.StatsUpdatePacket)packet;
+				var sup = (StatsUpdatePacket)packet;
 				var stats = sup.StatsRef.Component;
 				if (stats == null)
 					break;

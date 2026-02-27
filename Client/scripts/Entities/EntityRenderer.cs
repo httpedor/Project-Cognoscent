@@ -23,9 +23,9 @@ public partial class EntityRenderer : Node2D, IContextMenuProvider
 
     private readonly ComponentRendererBase?[] componentArray = new ComponentRendererBase[Component.ComponentCount];
     private readonly LinkedList<ComponentRendererBase> componentRenderers = new();
-    public bool Hoverable;
-    public bool Clickable;
-    public bool NameKnown;
+    public bool Hoverable = true;
+    public bool Clickable = true;
+    public bool NameKnown = false;
     public MidiaNode? Display { get; private set; }
     public Entity Entity { get; }
     public ClientBoard Board { get; }

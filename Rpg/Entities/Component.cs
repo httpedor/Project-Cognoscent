@@ -118,6 +118,10 @@ public abstract partial class Component : ISerializable
     {
         return true;
     }
+    /// <summary>
+    /// Called after all entities are added to the board and all components are added to their entities, but before any component's OnReady is called. This is where you should look for other components that this component depends on, using LookForComponent, and do any setup that requires those components to be present. Note that the components you look for here haven't had their OnReady called yet, so they might not be fully initialized.
+    /// </summary>
+    /// <param name="entity">The entity this component belongs to.</param>
     public virtual void OnInit(Entity entity)
     {
         foreach (var (group, list) in entitiesToFind)
@@ -139,6 +143,9 @@ public abstract partial class Component : ISerializable
         }
         WasInitialized = true;
     }
+    /// <summary>
+    /// Called after OnInit for all components, after all components are fully initialized and ready to be used. This is where you should do any setup that requires other components to be fully initialized.
+    /// </summary>
     public virtual void OnReady()
     {
     }
@@ -148,6 +155,11 @@ public abstract partial class Component : ISerializable
     public virtual void OnRemovedFrom(Entity entity)
     {
     }
+    /// <summary>
+    /// Called after looking for components in OnInit, with the results of those lookups. This is where you should do any setup that requires the components you looked for in OnInit to be present, but they might not be fully initialized yet.
+    /// </summary>
+    /// <param name="group">The name of the group of components that were found.</param>
+    /// <param name="components">The list of components that were found in the group.</param>
     protected virtual void OnFoundComponents(string group, List<Component> components)
     {
     }
@@ -159,6 +171,12 @@ public abstract partial class Component : ISerializable
         Entity.RemoveComponent(Component.GetComponentId(GetType()));
     }
 
+    /// <summary>
+    /// Marks an entity with the intention to look for a component of type T on that entity in OnInit. The component will be looked for after all components have had their OnInit called, so you can be sure that the entity and all its components are present, but the components you look for here haven't had their OnReady called yet, so they might not be fully initialized. After looking for the components, OnFoundComponents will be called with the results of the lookup.
+    /// </summary>
+    /// <typeparam name="T">The component's type</typeparam>
+    /// <param name="group">The name of the group to add the component to.</param>
+    /// <param name="entityId">The ID of the entity to look for the component on.</param>
     protected void LookForComponent<T>(string group, int entityId) where T : Component
     {
         if (!entitiesToFind.ContainsKey(group))
@@ -172,7 +190,7 @@ public abstract partial class Component : ISerializable
 
     public virtual void ToBytes(Stream stream)
     {
-        stream.WriteUInt32(_componentTypeIds[GetType()]);
+        stream.WriteUInt32(GetId());
     }
 
     public static Component FromBytes(Stream stream)

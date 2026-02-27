@@ -139,6 +139,7 @@ public static class Modal
                 {
                     AllowReselect = true
                 };
+                ob.GetPopup().AlwaysOnTop = true;
                 for (int j = 0; j < strings.Length; j++)
                 {
                     ob.AddItem(strings[j], j);
@@ -146,7 +147,6 @@ public static class Modal
                 ob.ItemSelected += id => {
                     callback(strings[id]);
                 };
-                callback(strings[0]);
                 return ob;
             }
             case float f:
@@ -180,6 +180,7 @@ public static class Modal
                 {
                     AllowReselect = true,
                 };
+                ob.GetPopup().AlwaysOnTop = true;
                 var ids = new List<Entity>();
                 foreach (var board in GameManager.Instance.GetBoards())
                 {
@@ -192,6 +193,8 @@ public static class Modal
                 ob.ItemSelected += id => {
                     callback(ids[(int)id]);
                 };
+                if (ids.Count > 0)
+                    callback(ids[0]);
                 return ob;
             }
             case Token tok:
@@ -200,6 +203,7 @@ public static class Modal
                 {
                     AllowReselect = true,
                 };
+                ob.GetPopup().AlwaysOnTop = true;
                 var tokens = new List<Token>();
                 foreach (var board in GameManager.Instance.GetBoards())
                 {
@@ -221,6 +225,7 @@ public static class Modal
                 {
                     AllowReselect = true
                 };
+                ob.GetPopup().AlwaysOnTop = true;
                 var values = Enum.GetValues(e.GetType());
                 ob.ItemSelected += id => {
                     callback(values.GetValue(id));
@@ -340,6 +345,7 @@ public static class Modal
                 {
                     AllowReselect = true
                 };
+                ob.GetPopup().AlwaysOnTop = true;
                 ob.ItemSelected += id => callback(Compendium.GetEntries<DamageType>().ElementAt((int)id));
                 
                 var values = Compendium.GetEntries<DamageType>();
@@ -369,7 +375,7 @@ public static class Modal
             Exclusive = true,
             AlwaysOnTop = true,
             PopupWindow = true,
-            Size = GameManager.Instance.GetWindow().Size/2
+            Size = GameManager.Instance.GetWindow().Size / 2
         };
         dialog.CloseRequested += () => {
             dialog.Hide();
@@ -378,57 +384,84 @@ public static class Modal
         if (startingValue == null)
             return;
 
+        var margin = new MarginContainer();
+        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        margin.AddThemeConstantOverride("margin_left", 12);
+        margin.AddThemeConstantOverride("margin_right", 12);
+        margin.AddThemeConstantOverride("margin_top", 12);
+        margin.AddThemeConstantOverride("margin_bottom", 12);
+        dialog.AddChild(margin);
+
+        var outerVBox = new VBoxContainer
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill
+        };
+        margin.AddChild(outerVBox);
+
+        var scroll = new ScrollContainer
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled
+        };
+        outerVBox.AddChild(scroll);
+
+        var fieldList = new VBoxContainer
+        {
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+        };
+        fieldList.AddThemeConstantOverride("separation", 8);
+        scroll.AddChild(fieldList);
+
         int i = 1;
-        const int height = 40;
-        const int gap = 8;
         foreach (var field in startingValue.GetType().GetFields())
         {
             string key = field.Name;
             var attr = field.GetCustomAttribute<TupleElementNamesAttribute>();
             if (attr != null && attr.TransformNames.Count == i)
-                key = attr.TransformNames[i-1]!;
-            var container = new HBoxContainer
+                key = attr.TransformNames[i - 1]!;
+            var row = new HBoxContainer
             {
-                AnchorLeft = 0,
-                AnchorRight = 1,
-                AnchorBottom = 0,
-                AnchorTop = 0,
-                OffsetTop = (height * (i-1)) + (gap * (i-1)),
-                OffsetBottom = (height * i) + (gap * i),
                 Name = key,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
+            row.AddThemeConstantOverride("separation", 8);
             var label = new Label
             {
-                Text = key + ":"
+                Text = key + ":",
+                CustomMinimumSize = new Vector2(120, 0),
+                VerticalAlignment = VerticalAlignment.Center
             };
 
             object value = field.GetValue(startingValue)!;
             var input = GetControlFor(value, (result) => field.SetValue(startingValue, result));
             if (input == null)
                 continue;
-            
-            if (value.GetType() != typeof(Midia))
-                input.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            else
-                input.Size = new Vector2(64, 64);
 
-            container.AddChild(label);
-            container.AddChild(input);
-            dialog.AddChild(container);
+            if (value.GetType() != typeof(Midia))
+            {
+                input.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                input.CustomMinimumSize = new Vector2(0, 32);
+            }
+            else
+                input.CustomMinimumSize = new Vector2(64, 64);
+
+            row.AddChild(label);
+            row.AddChild(input);
+            fieldList.AddChild(row);
             i++;
         }
 
         var okBtn = new Button
         {
             Text = "Ok",
-            GrowVertical = Control.GrowDirection.Begin,
+            CustomMinimumSize = new Vector2(100, 36),
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter
         };
-        okBtn.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         okBtn.Pressed += () => {
             callback(startingValue);
             dialog.QueueFree();
         };
-        dialog.AddChild(okBtn);
+        outerVBox.AddChild(okBtn);
 
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();
@@ -443,59 +476,85 @@ public static class Modal
             Exclusive = true,
             AlwaysOnTop = true,
             PopupWindow = true,
-            Size = GameManager.Instance.GetWindow().Size/2
+            Size = GameManager.Instance.GetWindow().Size / 2
         };
         dialog.CloseRequested += () => {
             dialog.Hide();
             dialog.QueueFree();
         };
-        int i = 1;
-        const int height = 40;
-        const int gap = 8;
+
+        var margin = new MarginContainer();
+        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        margin.AddThemeConstantOverride("margin_left", 12);
+        margin.AddThemeConstantOverride("margin_right", 12);
+        margin.AddThemeConstantOverride("margin_top", 12);
+        margin.AddThemeConstantOverride("margin_bottom", 12);
+        dialog.AddChild(margin);
+
+        var outerVBox = new VBoxContainer
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill
+        };
+        margin.AddChild(outerVBox);
+
+        var scroll = new ScrollContainer
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled
+        };
+        outerVBox.AddChild(scroll);
+
+        var fieldList = new VBoxContainer
+        {
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+        };
+        fieldList.AddThemeConstantOverride("separation", 8);
+        scroll.AddChild(fieldList);
+
         Dictionary<string, object> results = new();
         foreach (var pair in inputs)
         {
             results[pair.Key] = pair.Value;
-            var container = new HBoxContainer
+            var row = new HBoxContainer
             {
-                AnchorLeft = 0,
-                AnchorRight = 1,
-                AnchorBottom = 0,
-                AnchorTop = 0,
-                OffsetTop = (height * (i-1)) + (gap * (i-1)),
-                OffsetBottom = (height * i) + (gap * i),
                 Name = pair.Key,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
+            row.AddThemeConstantOverride("separation", 8);
             var label = new Label
             {
-                Text = pair.Key + ":"
+                Text = pair.Key + ":",
+                CustomMinimumSize = new Vector2(120, 0),
+                VerticalAlignment = VerticalAlignment.Center
             };
             var input = GetControlFor(pair.Value, (obj) => results[pair.Key] = obj);
             if (input == null)
                 continue;
-            
-            if (pair.Value.GetType() != typeof(byte[]))
-                input.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            else
-                input.Size = new Vector2(64, 64);
 
-            container.AddChild(label);
-            container.AddChild(input);
-            dialog.AddChild(container);
-            i++;
+            if (pair.Value.GetType() != typeof(byte[]))
+            {
+                input.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                input.CustomMinimumSize = new Vector2(0, 32);
+            }
+            else
+                input.CustomMinimumSize = new Vector2(64, 64);
+
+            row.AddChild(label);
+            row.AddChild(input);
+            fieldList.AddChild(row);
         }
 
         var okBtn = new Button
         {
             Text = "Ok",
-            GrowVertical = Control.GrowDirection.Begin,
+            CustomMinimumSize = new Vector2(100, 36),
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter
         };
-        okBtn.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         okBtn.Pressed += () => {
             callback(results);
             dialog.QueueFree();
         };
-        dialog.AddChild(okBtn);
+        outerVBox.AddChild(okBtn);
 
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();

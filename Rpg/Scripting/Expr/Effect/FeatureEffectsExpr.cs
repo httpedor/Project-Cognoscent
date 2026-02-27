@@ -3,23 +3,23 @@ using Rpg.Features;
 
 namespace Rpg.Scripting;
 
-public class AddFeatureExpr : EffectExpr
+public class AddFeatureEffect : EffectExpr
 {
     public readonly Expr<Entity?> Target;
-    public readonly string FeatureName;
-    public AddFeatureExpr(string featureName, Expr<Entity?> target)
+    public readonly CompendiumEntryExpr<Feature> FeatureName;
+    public AddFeatureEffect(CompendiumEntryExpr<Feature> feature, Expr<Entity?> target)
     {
-        FeatureName = featureName;
+        FeatureName = feature;
         Target = target;
     }
-    public AddFeatureExpr(Stream stream)
+    public AddFeatureEffect(Stream stream)
     {
-        FeatureName = stream.ReadString();
+        FeatureName = (CompendiumEntryExpr<Feature>)BaseExpr.Deserialize(stream);
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {
-        var feat = Compendium.GetEntry<Feature>(FeatureName);
+        var feat = FeatureName.Eval(ctx);
         if (feat == null)
             throw new Exception($"Feature '{FeatureName}' not found in Compendium.");
         var entity = Target.Eval(ctx);
@@ -33,27 +33,27 @@ public class AddFeatureExpr : EffectExpr
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteString(FeatureName);
+        FeatureName.ToBytes(stream);
         Target.ToBytes(stream);
     }
 }
-public class RemoveFeatureExpr : EffectExpr
+public class RemoveFeatureEffect : EffectExpr
 {
     public readonly Expr<Entity?> Target;
-    public readonly string FeatureName;
-    public RemoveFeatureExpr(string featureName, Expr<Entity?> target)
+    public readonly CompendiumEntryExpr<Feature> FeatureName;
+    public RemoveFeatureEffect(CompendiumEntryExpr<Feature> featureName, Expr<Entity?> target)
     {
         FeatureName = featureName;
         Target = target;
     }
-    public RemoveFeatureExpr(Stream stream)
+    public RemoveFeatureEffect(Stream stream)
     {
-        FeatureName = stream.ReadString();
+        FeatureName = (CompendiumEntryExpr<Feature>)BaseExpr.Deserialize(stream);
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
     }
     public override void Eval(EvalContext ctx)
     {
-        var feat = Compendium.GetEntry<Feature>(FeatureName);
+        var feat = FeatureName.Eval(ctx);
         if (feat == null)
             throw new Exception($"Feature '{FeatureName}' not found in Compendium.");
         var entity = Target.Eval(ctx);
@@ -67,23 +67,23 @@ public class RemoveFeatureExpr : EffectExpr
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteString(FeatureName);
+        FeatureName.ToBytes(stream);
         Target.ToBytes(stream);
     }
 }
 
-public class AddConditionFeatureExpr : EffectExpr
+public class AddConditionEffect : EffectExpr
 {
     public readonly Expr<Entity?> Target;
     public readonly Expr<float> Ticks;
     public readonly string ConditionName;
-    public AddConditionFeatureExpr(string conditionName, Expr<Entity?> target, Expr<float> ticks)
+    public AddConditionEffect(string conditionName, Expr<Entity?> target, Expr<float> ticks)
     {
         ConditionName = conditionName;
         Target = target;
         Ticks = ticks;
     }
-    public AddConditionFeatureExpr(Stream stream)
+    public AddConditionEffect(Stream stream)
     {
         ConditionName = stream.ReadString();
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);

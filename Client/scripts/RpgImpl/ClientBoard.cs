@@ -233,9 +233,10 @@ public class ClientBoard : Board
 			FloorIndex = 0;
     }
 
-    public override void AddEntity(Entity entity)
+    public override void AddEntity(Entity entity, bool initialize = true)
     {
-        base.AddEntity(entity);
+        base.AddEntity(entity, initialize);
+
 		EntityRenderer node;
 		node = new EntityRenderer(entity, this);
 
@@ -285,6 +286,10 @@ public class ClientBoard : Board
 
 	public EntityRenderer? GetEntityRenderer(Entity entity){
 		return entityRenderers.TryGetValue(entity.Id, out var node) ? node : null;
+	}
+	public EntityRenderer? GetEntityRenderer(Component component)
+	{
+		return GetEntityRenderer(component.Entity);
 	}
 	public ComponentRendererBase? GetComponentRenderer(Entity entity, uint componentId)
 	{
@@ -347,6 +352,13 @@ public class ClientBoard : Board
     {
         base.HandleEvent(e);
 		GetComponentRenderer(e.Component)?.EventFired(e);
+    }
+
+    public override void HandleEvent(EntityEvent e)
+    {
+        base.HandleEvent(e);
+
+		GetEntityRenderer(e.Entity)?.OnReady();
     }
 
 }

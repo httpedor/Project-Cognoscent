@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-tree.schema.json",
+  "title": "SkillTree",
+  "description": "Schema for a SkillTree compendium entry (Rpg/Entities/Components/SkillTree.cs). The root object keys are category names (strings). Each category key maps to an array of SkillTreeEntry objects. The special key 'icon' (string) is also allowed at the root and is skipped by the parser.",
+  "type": "object",
+  "properties": {
+    "icon": {
+      "type": "string",
+      "description": "Optional icon identifier for the skill tree itself."
+    }
+  },
+  "additionalProperties": {
+    "oneOf": [
+      {
+        "type": "string",
+        "description": "The 'icon' root key value (skipped by the parser)."
+      },
+      {
+        "type": "array",
+        "description": "Array of skill tree entries in this category.",
+        "items": { "$ref": "#/$defs/SkillTreeEntry" }
+      }
+    ]
+  },
+
+  "$defs": {
+    "SkillTreeEntry": {
+      "type": "object",
+      "description": "A single node in the skill tree. Must have 'enabled' and at least one of 'name'/'feature'/'skill'.",
+      "required": ["enabled"],
+      "properties": {
+        "feature": {
+          "type": "string",
+          "description": "Feature compendium ID. If provided, name/description/icon are pre-filled from the feature (overridable)."
+        },
+        "skill": {
+          "type": "string",
+          "description": "Skill compendium ID. If provided, name/description/icon are pre-filled from the skill (overridable)."
+        },
+        "name": {
+          "type": ["string", "null"],
+          "description": "Display name. Overrides the name from 'feature' or 'skill' if provided."
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Description shown in the UI. Overrides the description from 'feature' or 'skill' if provided."
+        },
+        "icon": {
+          "type": ["string", "null"],
+          "description": "Icon identifier. Overrides the icon from 'feature' or 'skill' if provided."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this entry is unlocked/enabled at load time."
+        },
+        "features": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional feature compendium IDs granted by this entry.",
+          "default": []
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional skill compendium IDs granted by this entry.",
+          "default": []
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Names of other SkillTreeEntry nodes (within the same tree) that must be enabled before this entry can be enabled.",
+          "default": []
+        }
+      }
+    }
+  }
+}

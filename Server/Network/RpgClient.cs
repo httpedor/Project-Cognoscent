@@ -63,8 +63,6 @@ public class RpgClient
 
     public void Disconnect(bool sendDisconnect = true)
     {
-        if (!Connected)
-            return;
         if (sendDisconnect)
         {
             try
@@ -75,9 +73,12 @@ public class RpgClient
         }
         if (socket.IsLeft)
         {
-            socket.Left.Disconnect(false);
-            socket.Left.Shutdown(SocketShutdown.Both);
-            socket.Left.Close();
+            try
+            {
+                socket.Left.Disconnect(false);
+                socket.Left.Shutdown(SocketShutdown.Both);
+                socket.Left.Close();
+            } catch (Exception) {}
         }
         else
         {
@@ -267,8 +268,8 @@ public class RpgClient
                 ServerBoard? board = Game.Game.GetBoard(ecp.BoardName);
                 if (board == null)
                     return;
-
-                board.AddEntity(ecp.Entity);
+                board.AddEntities(ecp.Entities, true);
+                Manager.SendToBoard(packet, board.Name);
                 break;
             }
             case ProtocolId.BODY_EQUIP_ITEM:
@@ -404,7 +405,14 @@ public class RpgClient
             {
                 byte[] buffer = Packet.PreProcessPacket(packet);
                 //Console.WriteLine("Sending " + buffer.Length + " bytes(Id:  " + packet.Id +") to " + Username);
-                socket.Left.Send(buffer);
+                try
+                {
+                    socket.Left.Send(buffer);
+                } catch (SocketException)
+                {
+                    Logger.LogError("Failed to send packet to " + Username + ": Socket error, disconnecting client.");
+                    Disconnect(false);
+                }
             }
             else
             {

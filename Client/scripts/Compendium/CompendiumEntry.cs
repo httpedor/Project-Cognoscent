@@ -96,7 +96,9 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
 
     public virtual Texture2D GetIcon()
     {
-        return Icons.GetIcon(json.GetProperty("icon").GetString());
+        if (json.TryGetProperty("icon", out var iconProp))
+            return Icons.GetIcon(iconProp.GetString());
+        return Icons.GetIcon(null);
     }
 
     protected virtual void OnDrag(Vector2 target)

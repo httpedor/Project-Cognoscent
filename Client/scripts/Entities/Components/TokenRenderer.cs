@@ -189,8 +189,9 @@ public partial class TokenRenderer : ComponentRenderer<Token>
 
     public override void OnReady()
     {
-        GetParent().RemoveChild(this);
-		Board.GetFloor(Component.FloorIndex)?.EntitiesNode.AddChild(this);
+        if (EntityRenderer.GetParent() != null)
+            EntityRenderer.GetParent().RemoveChild(EntityRenderer);
+		Board.GetFloor(Component.FloorIndex)?.EntitiesNode.AddChild(EntityRenderer);
     }
 
 
@@ -198,12 +199,13 @@ public partial class TokenRenderer : ComponentRenderer<Token>
     {
         if (Math.Abs(newPos.Z - oldPos.Z) < 0.0001) return;
         
-        Board.GetFloor((int)oldPos.Z)?.EntitiesNode.RemoveChild(this);
-        Board.GetFloor((int)newPos.Z)?.EntitiesNode.AddChild(this);
+        Board.GetFloor((int)oldPos.Z)?.EntitiesNode.RemoveChild(EntityRenderer);
+        Board.GetFloor((int)newPos.Z)?.EntitiesNode.AddChild(EntityRenderer);
     }
 
     public override void _Process(double delta)
     {
+        //TODO: Positioning not quite working, probably because I changed from adding this to the entitiesnode to adding the EntityRenderer to the entitiesnode
         base._Process(delta);
 
         var token = Component;
@@ -223,7 +225,7 @@ public partial class TokenRenderer : ComponentRenderer<Token>
         ClientFloor? floor = Board.GetFloor((int)token.Position.Z);
         if (floor != null)
         {
-            Position = Position.Lerp(new Vector2(floor.TileSize.X * token.Position.X, floor.TileSize.Y * token.Position.Y), (float)delta * 10);
+            EntityRenderer.Position = EntityRenderer.Position.Lerp(new Vector2(floor.TileSize.X * token.Position.X, floor.TileSize.Y * token.Position.Y), (float)delta * 10);
             if (Display.Sprite.Texture != null)
                 Display.Scale = Display.Scale.Lerp(new Vector2(floor.TileSize.X / Display.Sprite.Texture.GetSize().X * token.Size.X, floor.TileSize.Y / Display.Sprite.Texture.GetSize().Y * token.Size.Y), (float)delta * 10);
         }
@@ -232,20 +234,20 @@ public partial class TokenRenderer : ComponentRenderer<Token>
         var top = token.Position.Z + token.Size.Z;
         if (Board.FloorIndex > top)
         {
-            Modulate = Modulate with {A = 1/MathF.Pow(2, Board.FloorIndex - top) + 0.3f};
+            EntityRenderer.Modulate = EntityRenderer.Modulate with {A = 1/MathF.Pow(2, Board.FloorIndex - top) + 0.3f};
             SpriteModulate = Modulate;
             Visible = true;
         }
         else if (Board.FloorIndex <= top)
         {
-            Modulate = Modulate with {A = 1};
+            EntityRenderer.Modulate = Modulate with {A = 1};
             SpriteModulate = Modulate;
             Visible = true;
         }
 
-        Modulate = Modulate.Lerp(new Color(1, 1, 1, Modulate.A), (float)delta * 5f);
+        EntityRenderer.Modulate = EntityRenderer.Modulate.Lerp(new Color(1, 1, 1, EntityRenderer.Modulate.A), (float)delta * 5f);
         
-        ZIndex = (int)(MathF.Round(token.Position.Z * 100) + 15);
+        EntityRenderer.ZIndex = (int)(MathF.Round(token.Position.Z * 100) + 15);
     }
 
     // This is called by the hitbox, and will call the EntityRenderer's MouseEntered, which will call all ComponentRenderer's MouseEntered

@@ -73,7 +73,18 @@ public readonly struct EntityWith<T> where T : Component
         return new EntityWith<T>(component.Entity, component);
     }
 }
+public abstract class EntityEvent : IImmediateEvent
+{
+    public readonly Entity Entity;
 
+    protected EntityEvent(Entity entity)
+    {
+        Entity = entity;
+    }
+}
+public class EntityReadyEvent(Entity entity) : EntityEvent(entity)
+{
+}
 public partial class Entity : ISerializable
 {
     // Aliases
@@ -124,11 +135,11 @@ public partial class Entity : ISerializable
             if (hasComponent)
             {
                 var component = Component.FromBytes(stream);
+                component.Entity = this;
                 componentArray[i] = component;
                 nonNullComponents.AddLast(component);
             }
         }
-        Logger = new Logger(stream);
     }
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
@@ -176,6 +187,15 @@ public partial class Entity : ISerializable
             component.OnInit(this);
         }
         WasInitialized = true;
+    }
+
+    public void OnReady()
+    {
+        DispatchEvent(new EntityReadyEvent(this));
+        foreach (var component in nonNullComponents)
+        {
+            component.OnReady();
+        }
     }
 
     public void AddComponent(Component component)
@@ -265,6 +285,10 @@ public partial class Entity : ISerializable
         }
         eventBus.AddLast(componentEvent);
     }
+    public void DispatchEvent(EntityEvent entityEvent)
+    {
+        Board?.HandleEvent(entityEvent);
+    }
     private void DispatchEventImmediate(ComponentEvent componentEvent)
     {
         var ids = Component.GetEventListenerComponentIds(componentEvent.GetType(), out var matchedEventType);
@@ -305,7 +329,6 @@ public partial class Entity : ISerializable
             stream.WriteBoolean(component is not null);
             component?.ToBytes(stream);
         }
-        Logger.ToBytes(stream);
     }
 }
 

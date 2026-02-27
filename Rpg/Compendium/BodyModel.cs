@@ -47,18 +47,19 @@ public class BodyPartJson
 
 public class StatJson
 {
-    [JsonPropertyName("base")] public JsonElement Base { get; set; }
-    [JsonPropertyName("max")] public JsonElement? Max { get; set; }
-    [JsonPropertyName("min")] public JsonElement? Min { get; set; }
-    [JsonPropertyName("overCap")] public bool OverCap { get; set; } = true;
-    [JsonPropertyName("underCap")] public bool UnderCap { get; set; } = true;
-    [JsonPropertyName("aliases")] public List<string>? Aliases { get; set; }
-    [JsonPropertyName("vital")] public bool Vital { get; set; }
-    [JsonPropertyName("regen")] public JsonElement? Regen { get; set; }
-    [JsonPropertyName("dependsOn")] public Dictionary<string, JsonElement>? DependsOn { get; set; }
-    [JsonPropertyName("groupEffectiveness")] public Dictionary<string, float>? GroupEffectiveness { get; set; }
-    [JsonPropertyName("name")] public string? Name { get; set; }
-    [JsonPropertyName("onChange")] public JsonElement? OnChange { get; set; }
+    [JsonPropertyName("base")] public JsonElement? Base;
+    [JsonPropertyName("max")] public JsonElement? Max;
+    [JsonPropertyName("min")] public JsonElement? Min;
+    [JsonPropertyName("overCap")] public bool OverCap = true;
+    [JsonPropertyName("underCap")] public bool UnderCap = true;
+    [JsonPropertyName("aliases")] public List<string>? Aliases;
+    [JsonPropertyName("vital")] public bool Vital;
+    [JsonPropertyName("regen")] public JsonElement? Regen;
+    [JsonPropertyName("dependsOn")] public Dictionary<string, JsonElement>? DependsOn;
+    [JsonPropertyName("groupEffectiveness")] public Dictionary<string, float>? GroupEffectiveness;
+    [JsonPropertyName("name")] public string? Name;
+    [JsonPropertyName("onChange")] public JsonElement? OnChange;
+    [JsonPropertyName("thresholds")] public List<JsonElement>? Thresholds;
 }
 
 public class BodyJson
@@ -360,9 +361,9 @@ public class BodyModel
 {
     public class StatConfig
     {
-        public JsonElement? BaseJson;
-        public JsonElement? MaxJson;
-        public JsonElement? MinJson;
+        public Expr<float>? BaseVal;
+        public Expr<float>? MaxVal;
+        public Expr<float>? MinVal;
         public bool OverCap = true;
         public bool UnderCap = true;
         public string[] Aliases = Array.Empty<string>();
@@ -374,6 +375,7 @@ public class BodyModel
         public Dictionary<string, float> GroupEffectiveness = new();
         public string? Name;
         public JsonElement? OnChange;
+        public List<BodyStat.StatThreshold> Thresholds = new();
     }
     private JsonElement originalJson;
 
@@ -470,11 +472,43 @@ public class BodyModel
                         groupEffectiveness[group] = value;
                 }
 
+                List<BodyStat.StatThreshold> thresholds = new();
+                if (statJson.Thresholds != null)
+                {
+                    foreach (var thresholdEl in statJson.Thresholds)
+                    {
+                        if (thresholdEl.ValueKind != JsonValueKind.Object)
+                        {
+                            Logger.LogWarning($"Invalid threshold entry for stat {statName}: must be an object");
+                            continue;
+                        }
+                        var conditionEl = thresholdEl.GetPropertyOrNull("condition");
+                        var effectEl = thresholdEl.GetPropertyOrNull("effect");
+                        if (!conditionEl.HasValue || !effectEl.HasValue)
+                        {
+                            Logger.LogWarning($"Invalid threshold entry for stat {statName}: missing 'condition' or 'effect' property");
+                            continue;
+                        }
+                        Expr<bool> condition = ExpressionCompiler.CompileCondition(conditionEl.Value);
+                        EffectExpr effect;
+
+                        if (effectEl.Value.ValueKind == JsonValueKind.String && Compendium.EntryExists<Feature>(effectEl.Value.GetString()!))
+                        {
+                            effect = new AddFeatureEffect(new CompendiumEntryExpr<Feature>(effectEl.Value.GetString()!), new TargetSelectorExpr());
+                        }
+                        else
+                        {
+                            effect = ExpressionCompiler.CompileEffect(effectEl.Value);
+                        }
+
+                        thresholds.Add(new BodyStat.StatThreshold(condition, effect));
+                    }
+                }
                 Stats[statName] = new StatConfig
                 {
-                    BaseJson = baseJson,
-                    MaxJson = maxJson,
-                    MinJson = minJson,
+                    BaseVal = baseJson.HasValue ? ExpressionCompiler.CompileNumber(baseJson.Value) : null,
+                    MaxVal = maxJson.HasValue ? ExpressionCompiler.CompileNumber(maxJson.Value) : null,
+                    MinVal = minJson.HasValue ? ExpressionCompiler.CompileNumber(minJson.Value) : null,
                     OverCap = statJson.OverCap,
                     UnderCap = statJson.UnderCap,
                     Aliases = statJson.Aliases?.ToArray() ?? Array.Empty<string>(),
@@ -485,7 +519,8 @@ public class BodyModel
                     DependsOn = dependsOn,
                     GroupEffectiveness = groupEffectiveness,
                     Name = statJson.Name,
-                    OnChange = statJson.OnChange
+                    OnChange = statJson.OnChange,
+                    Thresholds = thresholds
                 };
             }
         }
@@ -507,13 +542,13 @@ public class BodyModel
         List<BodyStat> statsList = new();
         foreach (var (statName, cfg) in Stats)
         {
-            float baseVal = cfg.BaseJson != null ? JsonHelpers.GetFloat(cfg.BaseJson.Value) : 0;
+            float baseVal = cfg.BaseVal != null ? cfg.BaseVal.Eval() : 0;
             float maxVal = float.MaxValue;
-            if (cfg.MaxJson?.ValueKind == JsonValueKind.Number)
-                maxVal = JsonHelpers.GetFloat(cfg.MaxJson.Value);
+            if (cfg.MaxVal != null)
+                maxVal = cfg.MaxVal.Eval();
             float minVal = 0;
-            if (cfg.MinJson?.ValueKind == JsonValueKind.Number)
-                minVal = JsonHelpers.GetFloat(cfg.MinJson.Value);
+            if (cfg.MinVal != null)
+                minVal = cfg.MinVal.Eval();
 
             var stat = new Stat(statName, baseVal, maxVal, minVal, cfg.OverCap, cfg.UnderCap)
             {

@@ -46,6 +46,12 @@ public partial class Token : Component, ITickableComponent, ICopyable<Token>
     [JsonIgnore]
     public OBB Hitbox => new(new Vector2(Position.X, Position.Y), new Vector2(Size.X/2, Size.Y/2), Rotation);
 
+    public Token()
+    {
+
+    }
+
+
     public void PreTick()
     {
         oldPosition = Position;
@@ -78,5 +84,26 @@ public partial class Token : Component, ITickableComponent, ICopyable<Token>
         Rotation = other.Rotation;
         Size = other.Size;
         Midia = other.Midia;
+    }
+
+    public Token(Stream stream) : base(stream)
+    {
+        Position = stream.ReadVec3();
+        Rotation = stream.ReadFloat();
+        Size = stream.ReadVec3();
+        bool hasMidia = stream.ReadBoolean();
+        if (hasMidia)
+            Midia = new Midia(stream);
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteVec3(Position);
+        stream.WriteFloat(Rotation);
+        stream.WriteVec3(Size);
+        stream.WriteBoolean(Midia != null);
+        if (Midia != null)
+            Midia.ToBytes(stream);
     }
 }

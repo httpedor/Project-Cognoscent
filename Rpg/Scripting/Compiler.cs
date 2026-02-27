@@ -1,14 +1,16 @@
 using System.Text.Json;
 using Rpg.Entities;
 using Rpg.Entities.Components;
+using Rpg.Features;
+using Rpg.Health;
 
 namespace Rpg.Scripting;
 public sealed class EvalContext
 {
     /// <summary>
-    /// Array of variable values indexed by symbol IDs.
+    /// Array of variable values.
     /// </summary>
-    public object[] Variables {get; init;}
+    public object[] Variables = Array.Empty<object>();
     /// <summary>
     /// The board on which the script is being executed, if any.
     /// </summary>
@@ -250,6 +252,18 @@ public static class ExpressionCompiler
                 return CompileEffectObj(
                     element,
                     name.ToLower());
+            case JsonValueKind.String:
+                string effectName = element.GetString()!;
+                switch (effectName.ToLower())
+                {
+                    case "null":
+                    case "nop":
+                    case "noeffect":
+                    case "no_effect":
+                        return new NoEffectExpr();
+                    default:
+                        throw new Exception("Unknown effect: " + effectName);
+                }
             case JsonValueKind.False:
             case JsonValueKind.Null:
                 return new NoEffectExpr();
@@ -266,7 +280,96 @@ public static class ExpressionCompiler
             case "noeffect":
             case "no_effect":
                 return new NoEffectExpr();
-
+            case "add_feature":
+            case "addfeature":
+            case "add_feat":
+            case "add_condition":
+            case "addcondition":
+                var feature = CompileCompendiumEntry<Feature>(obj.GetProperty("feature"));
+                var selector = CompileSelector(obj.GetProperty("target"));
+                if (obj.TryGetProperty("ticks", out var ticksElement))
+                {
+                    var ticks = CompileNumber(ticksElement);
+                    return new AddConditionEffect(feature.IdExpr.Eval(new EvalContext()), selector, ticks);
+                }
+                return new AddFeatureEffect(
+                    feature,
+                    selector
+                );
+            case "composite":
+                {
+                    var effects = CompileArgsAs<EffectExpr>(obj.GetProperty("effects"));
+                    return new CompositeEffectExpr(effects);
+                }
+            case "remove_feature":
+            case "removefeature":
+            case "remove_feat":
+                return new RemoveFeatureEffect(
+                    CompileCompendiumEntry<Feature>(obj.GetProperty("feature")),
+                    CompileSelector(obj.GetProperty("target"))
+                );
+            case "setstat":
+            case "set_stat":
+                {
+                    string statName = obj.GetProperty("stat").GetString()!;
+                    var value = CompileNumber(obj.GetProperty("value"));
+                    var target = CompileSelector(obj.GetProperty("target"));
+                    return new SetStatEffect(statName, target, value);
+                }
+            case "addstat":
+            case "add_stat":
+                {
+                    string statName = obj.GetProperty("stat").GetString()!;
+                    var value = CompileNumber(obj.GetProperty("value"));
+                    var target = CompileSelector(obj.GetProperty("target"));
+                    return new SetStatEffect(statName, target, new AddExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
+                }
+            case "substat":
+            case "sub_stat":
+            case "remove_stat":
+            case "removestat":
+                {
+                    string statName = obj.GetProperty("stat").GetString()!;
+                    var value = CompileNumber(obj.GetProperty("value"));
+                    var target = CompileSelector(obj.GetProperty("target"));
+                    return new SetStatEffect(statName, target, new SubExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
+                }
+            case "mulstat":
+            case "mul_stat":
+                {
+                    string statName = obj.GetProperty("stat").GetString()!;
+                    var value = CompileNumber(obj.GetProperty("value"));
+                    var target = CompileSelector(obj.GetProperty("target"));
+                    return new SetStatEffect(statName, target, new MulExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
+                }
+            case "divstat":
+            case "div_stat":
+                {
+                    string statName = obj.GetProperty("stat").GetString()!;
+                    var value = CompileNumber(obj.GetProperty("value"));
+                    var target = CompileSelector(obj.GetProperty("target"));
+                    return new SetStatEffect(statName, target, new DivExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
+                }
+            case "add_injury":
+            case "addinjury":
+            case "injury":
+            case "hurt":
+                return new AddInjuryEffect(
+                    new InjuryModel(obj.GetProperty("injury")),
+                     CompileSelector(obj.GetProperty("target"))
+                );
+            case "heal_injury":
+            case "healinjury":
+                {
+                    var injuryType = CompileCompendiumEntry<InjuryType>(obj.GetProperty("injury"));
+                    var target = CompileSelector(obj.GetProperty("target"));
+                    if (obj.TryGetProperty("amount", out var amountElement))
+                    {
+                        var amount = CompileNumber(amountElement);
+                        return new HealInjuryTypeEffect(injuryType, amount, target);
+                    }
+                    return new HealInjuryTypeEffect(injuryType, target);
+                }
             default:
                 throw new Exception("Unknown effect: " + effectName);
         }
@@ -299,7 +402,7 @@ public static class ExpressionCompiler
                         string probStr = name.Substring(0, name.Length - 1);
                         if (float.TryParse(probStr, out float probValue))
                         {
-                            return new RandomConditionExpr(probValue / 100f);
+                            return new RandomConditionExpr(new ConstNumberExpr(probValue / 100f));
                         }
                         else
                         {
@@ -326,10 +429,10 @@ public static class ExpressionCompiler
                 {
                     float value = element.GetSingle();
                     if (value > 1f)
-                        new RandomConditionExpr(value/100f);
+                        new RandomConditionExpr(new ConstNumberExpr(value/100f));
                     if (value < 0f)
                         throw new Exception($"Invalid probability value in condition: {value}");
-                    return new RandomConditionExpr(value);
+                    return new RandomConditionExpr(new ConstNumberExpr(value));
                 }
             case JsonValueKind.True:
                 return new ConstConditionExpr(true);
@@ -387,7 +490,7 @@ public static class ExpressionCompiler
             case "random":
             case "rand":
                 {
-                    float probability = obj.TryGetProperty("probability", out var probElem) ? probElem.GetSingle() : 0.5f;
+                    Expr<float> probability = obj.TryGetProperty("probability", out var probElem) ? CompileNumber(probElem) : new ConstNumberExpr(0.5f);
                     return new RandomConditionExpr(probability);
                 }
 
@@ -406,6 +509,18 @@ public static class ExpressionCompiler
             case JsonValueKind.String:
             {
                 string name = element.GetString()!;
+                if (name.StartsWith("$"))
+                {
+                    string varId = name[1..];
+                    if (int.TryParse(varId, out int symbolId))
+                    {
+                        return new VarEntitySelectorExpr(symbolId);
+                    }
+                    else
+                    {
+                        throw new Exception($"Invalid variable ID: {varId}");
+                    }
+                }
                 return name.ToLower() switch
                 {
                     "self" => new CallerSelectorExpr(),
@@ -440,6 +555,30 @@ public static class ExpressionCompiler
                 return new TargetSelectorExpr();
             case "target_part":
                 return new TargetPartSelectorExpr();
+            case "part_by_name":
+            case "bp_by_name":
+            case "bodypart_by_name":
+            case "body_part_by_name":
+                return new BodyPartSelectorByNameExpr(
+                    CompileSelector(obj.GetProperty("target")),
+                    CompileString(obj.GetProperty("name"))
+                );
+            case "part_by_path":
+            case "bp_by_path":
+            case "bodypart_by_path":
+            case "body_part_by_path":
+                return new BodyPartSelectorByPathExpr(
+                    CompileSelector(obj.GetProperty("target")),
+                    CompileString(obj.GetProperty("path"))
+                );
+            case "part_by_tag":
+            case "bp_by_tag":
+            case "bodypart_by_tag":
+            case "body_part_by_tag":
+                return new BodyPartSelectorByTagExpr(
+                    CompileSelector(obj.GetProperty("target")),
+                    CompileString(obj.GetProperty("tag"))
+                );
             default:
                 throw new Exception("Unknown selector: " + selectorName);
         }

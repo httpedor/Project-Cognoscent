@@ -6,7 +6,7 @@ using Rpg.Scripting;
 
 namespace Rpg.Health;
 
-using CreationEntry = (Expr<bool> condition, Injury injury, float interval);
+using CreationEntry = (Expr<bool> condition, InjuryModel injuryModel, float interval);
 
 //TODO: Injury treatments. For example, bandaged, cooled, disinfected, etc.
 // Each injury type can then interpret these treatments differently.
@@ -82,7 +82,7 @@ public class InjuryType : ISerializable
                 {
                     float interval = node.GetProperty("interval").GetSingle();
                     creations.Add((ExpressionCompiler.CompileCondition(node.GetProperty("condition")),
-                        new Injury(node.GetProperty("injury")),
+                        new InjuryModel(node.GetProperty("injury")),
                         interval));
                 }
                 catch (Exception e)
@@ -109,7 +109,7 @@ public class InjuryType : ISerializable
                 {
                     float interval = node.GetProperty("interval").GetSingle();
                     conversions.Add((ExpressionCompiler.CompileCondition(node.GetProperty("condition")),
-                        new Injury(node.GetProperty("injury")),
+                        new InjuryModel(node.GetProperty("injury")),
                         interval));
                 }
                 catch (Exception e)
@@ -144,6 +144,42 @@ public class InjuryType : ISerializable
         return Id.GetHashCode();
     }
 }
+public class InjuryModel
+{
+    public CompendiumEntryExpr<InjuryType> Type;
+    public Expr<float> Severity;
+    public InjuryModel(JsonElement json)
+    {
+        if (!json.TryGetProperty("type", out var typeEl) || typeEl.ValueKind != JsonValueKind.String)
+            throw new Exception("InjuryModel deserialization requires a 'type' property of type string.");
+        Type = new CompendiumEntryExpr<InjuryType>(ExpressionCompiler.CompileString(typeEl));
+        if (!json.TryGetProperty("severity", out var severityEl) || severityEl.ValueKind != JsonValueKind.Number)
+            throw new Exception("InjuryModel deserialization requires a 'severity' property of type number.");
+        Severity = ExpressionCompiler.CompileNumber(severityEl);
+    }
+
+    public InjuryModel(Stream stream)
+    {
+        Type = new CompendiumEntryExpr<InjuryType>(stream);
+        Severity = BaseExpr.Deserialize<Expr<float>>(stream);
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        Type.ToBytes(stream);
+        Severity.ToBytes(stream);
+    }
+
+    public Injury Eval(EvalContext ctx)
+    {
+        var type = Type.Eval(ctx);
+        if (type == null)
+        {
+            throw new Exception("InjuryModel evaluation resulted in null InjuryType.");
+        }
+        return new Injury(type, Severity.Eval(ctx));
+    }
+}
 public struct Injury : ISerializable
 {
     public InjuryType Type;
@@ -158,9 +194,13 @@ public struct Injury : ISerializable
 
     public Injury(JsonElement json)
     {
-        string typeId = json.GetProperty("type").GetString()!;
+        if (!json.TryGetProperty("type", out var typeEl) || typeEl.ValueKind != JsonValueKind.String)
+            throw new Exception("Injury deserialization requires a 'type' property of type string.");
+        string typeId = typeEl.GetString()!;
         Type = Compendium.GetEntry<InjuryType>(typeId) ?? throw new Exception("InjuryType '" + typeId + "' not found in Injury deserialization.");
-        Severity = json.GetProperty("severity").GetDouble();
+        if (!json.TryGetProperty("severity", out var severityEl) || severityEl.ValueKind != JsonValueKind.Number)
+            throw new Exception("Injury deserialization requires a 'severity' property of type number.");
+        Severity = severityEl.GetDouble();
     }
 
     public Injury(Stream stream)

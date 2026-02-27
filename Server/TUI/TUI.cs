@@ -1,528 +1,447 @@
-using ConsoleRenderer;
+using Terminal.Gui;
 using Rpg;
-using Server.Game;
+using GameCommand = Server.Game.Command;
 
 namespace Server.TUI;
 
+/// <summary>
+/// Terminal UI built on Terminal.Gui.  Provides tabbed log views (Console / Web),
+/// an inline command input with autocomplete suggestions, and command history.
+/// <para><c>Init()</c> is non-blocking — the UI runs on a dedicated background thread.</para>
+/// </summary>
 public static class TUI
 {
-    // UI configuration constants
-    private static class Ui
+    // ── Screens ──────────────────────────────────────────────────────────────
+    private static readonly (string Name, Func<Logger> GetLogger)[] Screens =
+    [
+        ("Console", () => Loggers.Console),
+        ("Web",     () => Loggers.Web),
+    ];
+
+    // ── Command history ──────────────────────────────────────────────────────
+    private static readonly List<string> _history = [];
+    private static int _historyIdx = -1;
+
+    // ── Layout constants ─────────────────────────────────────────────────────
+    private const int InputFrameHeight = 3;
+    private const int SuggestionsFrameHeight = 7;
+
+    // ── Widgets ──────────────────────────────────────────────────────────────
+    private static TabView   _tabs             = null!;
+    private static LogDataSource[] _logSources = null!;
+    private static ListView[] _logListViews    = null!;
+    private static FrameView _suggestionsFrame = null!;
+    private static ListView  _suggestionsList  = null!;
+    private static TextField _input            = null!;
+    private static FrameView _inputFrame       = null!;
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //  Public entry-point (non-blocking)
+    // ═════════════════════════════════════════════════════════════════════════
+    public static void Init()
     {
-        public const int MaxSuggestionRows = 5;
-        public const int InputBoxMaxHeight = 3;
-        public const int BorderPaddingX = 2;
-        public const int SuggestionHeaderHeight = 1;
-        public const int BorderChromeHeight = 2; // top title row + bottom border
+        var thread = new Thread(RunApplication)
+        {
+            IsBackground = true,
+            Name = "TUI",
+        };
+        thread.Start();
     }
 
-    // State
-    private static readonly ConsoleCanvas canvas = new(false, true);
-    private static bool typingCommand;
-    private static string currentCommand = string.Empty;
-    private static string lastTypedCommand = string.Empty;
-
-    // Suggestions state
-    private static readonly object suggestionsLock = new();
-    private static List<string> currentSuggestions = new();
-    private static int currentSuggestionIndex = -1; // -1 = none selected
-
-    // Logs state
-    private static int logScroll; // 0 = bottom (newest). Positive = scrolled up (older logs)
-    private static readonly object scrollLock = new();
-    // Which log screen is active: 0 = Console Logs, 1 = Web Logs
-    private static int currentLogScreen = 0;
-    private static readonly object screenLock = new();
-
-    // Suggestions lifecycle ----------------------------------------------------
-    private static void UpdateSuggestions()
+    // ═════════════════════════════════════════════════════════════════════════
+    //  Application bootstrap (runs on the TUI thread)
+    // ═════════════════════════════════════════════════════════════════════════
+    private static void RunApplication()
     {
-        List<string> nextSuggestions;
-        if (typingCommand)
+        Application.Init();
+
+        var top = Application.Top;
+
+        BuildInputFrame();
+        BuildSuggestionsFrame();
+        BuildLogTabs();
+        WireInputEvents();
+
+        top.Add(_tabs, _suggestionsFrame, _inputFrame);
+        top.Loaded += () => _input.SetFocus();
+
+        Application.Run();
+        Application.Shutdown();
+    }
+
+    // ─── Build: command input ────────────────────────────────────────────────
+    private static void BuildInputFrame()
+    {
+        _inputFrame = new FrameView("Command")
         {
-            var suggestions = Command.GetSuggestions(currentCommand);
-            nextSuggestions = new List<string>(suggestions);
+            X      = 0,
+            Y      = Pos.AnchorEnd(InputFrameHeight),
+            Width  = Dim.Fill(),
+            Height = InputFrameHeight,
+        };
+
+        _input = new TextField("")
+        {
+            X     = 0,
+            Y     = 0,
+            Width = Dim.Fill(),
+        };
+
+        _inputFrame.Add(_input);
+    }
+
+    // ─── Build: suggestions panel ────────────────────────────────────────────
+    private static void BuildSuggestionsFrame()
+    {
+        _suggestionsFrame = new FrameView("Suggestions")
+        {
+            X       = 0,
+            Y       = Pos.AnchorEnd(InputFrameHeight + SuggestionsFrameHeight),
+            Width   = Dim.Fill(),
+            Height  = SuggestionsFrameHeight,
+            Visible = false,
+        };
+
+        _suggestionsList = new ListView
+        {
+            X        = 0,
+            Y        = 0,
+            Width    = Dim.Fill(),
+            Height   = Dim.Fill(),
+            CanFocus = false,
+        };
+
+        _suggestionsFrame.CanFocus = false;
+        _suggestionsFrame.Add(_suggestionsList);
+    }
+
+    // ─── Build: tabbed log views ─────────────────────────────────────────────
+    private static void BuildLogTabs()
+    {
+        _tabs = new TabView
+        {
+            X        = 0,
+            Y        = 0,
+            Width    = Dim.Fill(),
+            Height   = Dim.Fill(InputFrameHeight), // initially no suggestions
+            CanFocus = false,
+        };
+
+        _logSources   = new LogDataSource[Screens.Length];
+        _logListViews = new ListView[Screens.Length];
+
+        for (int i = 0; i < Screens.Length; i++)
+        {
+            var source = new LogDataSource();
+            _logSources[i] = source;
+
+            var lv = new ListView(source)
+            {
+                X        = 0,
+                Y        = 0,
+                Width    = Dim.Fill(),
+                Height   = Dim.Fill(),
+                CanFocus = false,
+            };
+            _logListViews[i] = lv;
+
+            _tabs.AddTab(new TabView.Tab(Screens[i].Name, lv), i == 0);
+
+            // Seed with any logs that already exist (snapshot to avoid concurrent modification)
+            foreach (var log in Screens[i].GetLogger().Logs.ToList())
+                source.AddMessage(log);
+
+            // Subscribe to future logs (thread-safe via MainLoop.Invoke)
+            int idx = i;
+            Screens[i].GetLogger().OnLogAdded += msg =>
+            {
+                Application.MainLoop?.Invoke(() =>
+                {
+                    _logSources[idx].AddMessage(msg);
+                    var view = _logListViews[idx];
+                    view.SetNeedsDisplay();
+
+                    // Auto-scroll to the bottom
+                    int count = _logSources[idx].Count;
+                    if (count > 0)
+                    {
+                        view.SelectedItem = count - 1;
+                        try
+                        {
+                            int visibleRows = Math.Max(1, view.Frame.Height);
+                            int top = Math.Max(0, count - visibleRows);
+                            if (top < count) // TopItem must be < Count
+                                view.TopItem = top;
+                        }
+                        catch { /* layout not ready yet – SelectedItem alone is enough */ }
+                    }
+                });
+            };
+        }
+    }
+
+    // ─── Wire keyboard events on the input field ─────────────────────────────
+    private static void WireInputEvents()
+    {
+        _input.TextChanged += _ => RefreshSuggestions();
+
+        _input.KeyPress += args =>
+        {
+            bool handled = true;
+            switch (args.KeyEvent.Key)
+            {
+                case Key.Enter:
+                    ExecuteCurrentCommand();
+                    break;
+
+                case Key.Tab:
+                    ApplySelectedSuggestion();
+                    break;
+
+                case Key.Esc:
+                    _input.Text = "";
+                    _historyIdx = -1;
+                    SetSuggestionsVisible(false);
+                    break;
+
+                case Key.CursorUp:
+                    if (_suggestionsFrame.Visible && _suggestionsList.Source?.Count > 0)
+                    {
+                        if (_suggestionsList.SelectedItem > 0)
+                            _suggestionsList.SelectedItem--;
+                        EnsureSuggestionVisible();
+                    }
+                    else
+                        HistoryUp();
+                    break;
+
+                case Key.CursorDown:
+                    if (_suggestionsFrame.Visible && _suggestionsList.Source?.Count > 0)
+                    {
+                        if (_suggestionsList.SelectedItem < _suggestionsList.Source.Count - 1)
+                            _suggestionsList.SelectedItem++;
+                        EnsureSuggestionVisible();
+                    }
+                    else
+                        HistoryDown();
+                    break;
+
+                // Log scrolling
+                case Key.PageUp:
+                    ScrollActiveLog(-10);
+                    break;
+                case Key.PageDown:
+                    ScrollActiveLog(+10);
+                    break;
+
+                // Tab switching
+                case Key.PageUp | Key.CtrlMask:
+                    SwitchTab(-1);
+                    break;
+                case Key.PageDown | Key.CtrlMask:
+                    SwitchTab(+1);
+                    break;
+
+                default:
+                    handled = false;
+                    break;
+            }
+            args.Handled = handled;
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //  Suggestions
+    // ═════════════════════════════════════════════════════════════════════════
+    // The raw suggestion values (for tab-completion) and the display strings
+    // (with descriptions appended) are kept in parallel lists.
+    private static List<string> _rawSuggestions = [];
+
+    private static void RefreshSuggestions()
+    {
+        string cmd = _input.Text?.ToString() ?? "";
+
+        _rawSuggestions = string.IsNullOrEmpty(cmd)
+            ? []
+            : new List<string>(GameCommand.GetSuggestions(cmd));
+
+        if (_rawSuggestions.Count > 0)
+        {
+            // Are we completing a command name? (first token, no space typed yet)
+            bool isCommandName = !cmd.Contains(' ');
+
+            var display = new List<string>(_rawSuggestions.Count);
+            foreach (string s in _rawSuggestions)
+            {
+                if (isCommandName)
+                {
+                    string? desc = GameCommand.GetDescription(s);
+                    display.Add(string.IsNullOrEmpty(desc) ? s : $"{s}  \u2014 {desc}");
+                }
+                else
+                    display.Add(s);
+            }
+
+            _suggestionsList.SetSource(display);
+            _suggestionsList.SelectedItem = 0;
+            SetSuggestionsVisible(true);
         }
         else
         {
-            nextSuggestions = new List<string>();
-        }
-
-        lock (suggestionsLock)
-        {
-            currentSuggestions = nextSuggestions;
-            // Adjust selection index based on availability and input text
-            if (currentSuggestions.Count == 0 || string.IsNullOrEmpty(currentCommand))
-            {
-                currentSuggestionIndex = -1;
-            }
-            else
-            {
-                if (currentSuggestionIndex < 0)
-                    currentSuggestionIndex = 0;
-                if (currentSuggestionIndex >= currentSuggestions.Count)
-                    currentSuggestionIndex = currentSuggestions.Count - 1;
-            }
+            SetSuggestionsVisible(false);
         }
     }
 
-    private static void SetCommand(string cmd)
+    private static void SetSuggestionsVisible(bool show)
     {
-        currentCommand = cmd ?? string.Empty;
-        UpdateSuggestions();
+        if (_suggestionsFrame.Visible == show) return;
+
+        _suggestionsFrame.Visible = show;
+        _tabs.Height = show
+            ? Dim.Fill(InputFrameHeight + SuggestionsFrameHeight)
+            : Dim.Fill(InputFrameHeight);
+
+        Application.Top.LayoutSubviews();
+        Application.Top.SetNeedsDisplay();
     }
 
-    private static void ApplySuggestion()
+    /// <summary>Scrolls the suggestions ListView so the selected item is visible.</summary>
+    private static void EnsureSuggestionVisible()
     {
-        List<string> snapshot;
-        int selectedIndex;
-        lock (suggestionsLock)
+        int sel = _suggestionsList.SelectedItem;
+        int visibleRows = Math.Max(1, _suggestionsList.Frame.Height);
+
+        try
         {
-            snapshot = new List<string>(currentSuggestions);
-            selectedIndex = currentSuggestionIndex;
+            if (sel < _suggestionsList.TopItem)
+                _suggestionsList.TopItem = sel;
+            else if (sel >= _suggestionsList.TopItem + visibleRows)
+                _suggestionsList.TopItem = sel - visibleRows + 1;
         }
+        catch { /* layout not ready */ }
 
-        if (snapshot.Count == 0)
-            return;
+        _suggestionsList.SetNeedsDisplay();
+    }
 
-        if (selectedIndex < 0 || selectedIndex >= snapshot.Count)
-            selectedIndex = 0;
+    private static void ApplySelectedSuggestion()
+    {
+        if (!_suggestionsFrame.Visible || _rawSuggestions.Count == 0) return;
 
-        string suggestion = snapshot[selectedIndex];
-        if (string.IsNullOrEmpty(suggestion))
-            return;
+        int sel = _suggestionsList.SelectedItem;
+        if (sel < 0 || sel >= _rawSuggestions.Count) return;
 
-        int lastSpace = currentCommand.LastIndexOf(' ');
-        string next = currentCommand;
+        string suggestion = _rawSuggestions[sel];
+        if (string.IsNullOrEmpty(suggestion)) return;
+
+        // Entity suggestions are "id:name" – only insert the id part
+        int colonIdx = suggestion.IndexOf(':');
+        if (colonIdx > 0)
+            suggestion = suggestion[..colonIdx];
+
+        string current = _input.Text?.ToString() ?? "";
+        int lastSpace = current.LastIndexOf(' ');
+
+        string next;
         if (lastSpace < 0)
         {
             next = suggestion;
-            if (!next.EndsWith(' '))
-                next += ' ';
+            if (!next.EndsWith(' ')) next += ' ';
         }
-        else if (currentCommand.EndsWith(' '))
+        else if (current.EndsWith(' '))
+            next = current + suggestion;
+        else
+            next = current[..(lastSpace + 1)] + suggestion;
+
+        _input.Text = next;
+        _input.CursorPosition = _input.Text.RuneCount;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //  Command execution
+    // ═════════════════════════════════════════════════════════════════════════
+    private static void ExecuteCurrentCommand()
+    {
+        string cmd = _input.Text?.ToString() ?? "";
+        if (!string.IsNullOrWhiteSpace(cmd))
         {
-            next = currentCommand + suggestion;
+            if (_history.Count == 0 || _history[^1] != cmd)
+                _history.Add(cmd);
+            GameCommand.ExecuteCommand(null, cmd);
+        }
+
+        _input.Text = "";
+        _historyIdx = -1;
+        SetSuggestionsVisible(false);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    //  Command history
+    // ═════════════════════════════════════════════════════════════════════════
+    private static void HistoryUp()
+    {
+        if (_history.Count == 0) return;
+        if (_historyIdx < 0) _historyIdx = _history.Count;
+        if (_historyIdx > 0) _historyIdx--;
+
+        _input.Text = _history[_historyIdx];
+        _input.CursorPosition = _input.Text.RuneCount;
+    }
+
+    private static void HistoryDown()
+    {
+        if (_historyIdx < 0) return;
+        _historyIdx++;
+
+        if (_historyIdx >= _history.Count)
+        {
+            _historyIdx = -1;
+            _input.Text = "";
         }
         else
         {
-            next = currentCommand[..(lastSpace + 1)] + suggestion;
-        }
-
-        SetCommand(next);
-    }
-
-    private static void NavigateSuggestions(int delta)
-    {
-        lock (suggestionsLock)
-        {
-            if (currentSuggestions.Count == 0)
-            {
-                currentSuggestionIndex = -1;
-                return;
-            }
-
-            if (currentSuggestionIndex < 0)
-                currentSuggestionIndex = 0;
-            else
-                currentSuggestionIndex = Math.Clamp(currentSuggestionIndex + delta, 0, currentSuggestions.Count - 1);
+            _input.Text = _history[_historyIdx];
+            _input.CursorPosition = _input.Text.RuneCount;
         }
     }
 
-    public static void Init()
+    // ═════════════════════════════════════════════════════════════════════════
+    //  Log / tab navigation helpers
+    // ═════════════════════════════════════════════════════════════════════════
+    private static int ActiveTabIndex()
     {
-        Console.CursorVisible = false;
-        Loggers.Console.OnLogAdded += (_) => Render();
-        Loggers.Web.OnLogAdded += (_) => Render();
-        Task.Run(() =>
+        var selected = _tabs.SelectedTab;
+        if (selected is null) return 0;
+        int idx = 0;
+        foreach (var tab in _tabs.Tabs)
         {
-            while (true)
-            {
-                var keyInfo = Console.ReadKey(true);
-                if (typingCommand)
-                {
-                    switch (keyInfo.Key)
-                    {
-                        case ConsoleKey.Escape:
-                            typingCommand = false;
-                            SetCommand("");
-                            break;
-                        case ConsoleKey.Enter:
-                            typingCommand = false;
-                            // Execute and remember last typed command
-                            Command.ExecuteCommand(null, currentCommand);
-                            lastTypedCommand = currentCommand;
-                            SetCommand("");
-                            break;
-                        case ConsoleKey.Backspace:
-                            if (currentCommand.Length > 0)
-                                SetCommand(currentCommand.Substring(0, currentCommand.Length - 1));
-                            
-                            break;
-                        case ConsoleKey.Tab:
-                            ApplySuggestion();
-                            break;
-                        case ConsoleKey.UpArrow:
-                            // When input is empty, recall last typed command.
-                            // Otherwise, navigate suggestions if available.
-                            if (string.IsNullOrEmpty(currentCommand))
-                            {
-                                if (!string.IsNullOrEmpty(lastTypedCommand))
-                                    SetCommand(lastTypedCommand);
-                            }
-                            else
-                            {
-                                NavigateSuggestions(-1);
-                            }
-                            break;
-                        case ConsoleKey.DownArrow:
-                            // When input is empty, keep it empty; otherwise navigate suggestions.
-                            if (string.IsNullOrEmpty(currentCommand))
-                            {
-                                SetCommand("");
-                            }
-                            else
-                            {
-                                NavigateSuggestions(+1);
-                            }
-                            break;
-                        default:
-                            if (!char.IsControl(keyInfo.KeyChar))
-                            {
-                                SetCommand(currentCommand + keyInfo.KeyChar);
-                            }
-                            break;
-                    }
-                }
-                else
-                {
-                    if (keyInfo.Key == ConsoleKey.Enter)
-                    {
-                        typingCommand = true;
-                        SetCommand("");
-                    }
-                    else
-                    {
-                        // Scroll logs with Up/Down arrows or K/J (vim-like)
-                        // Switch screens with Left/Right or H/L
-                        switch (keyInfo.Key)
-                        {
-                            case ConsoleKey.UpArrow:
-                            case ConsoleKey.K:
-                                lock (scrollLock)
-                                {
-                                    logScroll++;
-                                }
-                                break;
-                            case ConsoleKey.DownArrow:
-                            case ConsoleKey.J:
-                                lock (scrollLock)
-                                {
-                                    if (logScroll > 0) logScroll--;
-                                }
-                                break;
-                            case ConsoleKey.LeftArrow:
-                            case ConsoleKey.H:
-                                lock (screenLock)
-                                {
-                                    currentLogScreen = Math.Max(0, currentLogScreen - 1);
-                                }
-                                break;
-                            case ConsoleKey.RightArrow:
-                            case ConsoleKey.L:
-                                lock (screenLock)
-                                {
-                                    currentLogScreen = Math.Min(1, currentLogScreen + 1);
-                                }
-                                break;
-                        }
-                    }
-                }
-                Render();
-            }
-        });
+            if (tab == selected) return idx;
+            idx++;
+        }
+        return 0;
     }
 
-
-    // Rendering ---------------------------------------------------------------
-    private static void Render()
+    private static void SwitchTab(int delta)
     {
-        Task.Run(() =>
+        int current = ActiveTabIndex();
+        int next = Math.Clamp(current + delta, 0, Screens.Length - 1);
+        if (next != current)
         {
-            Console.CursorVisible = typingCommand;
-            lock (canvas)
-            {
-                canvas.Clear();
-                canvas.Clear();
-
-                // Text Input dimensions
-                int inputHeight = Math.Min(Ui.InputBoxMaxHeight, canvas.Height);
-                int inputTop = Math.Max(0, canvas.Height - inputHeight);
-
-                List<string> suggestions;
-                int selectedIdx;
-                lock (suggestionsLock)
-                {
-                    suggestions = new List<string>(currentSuggestions);
-                    selectedIdx = currentSuggestionIndex;
-                }
-
-                int suggestionRows = 0;
-                int suggestionBoxHeight = 0;
-                if (suggestions.Count > 0 && inputTop >= 3)
-                {
-                    suggestionRows = Math.Min(Ui.MaxSuggestionRows, suggestions.Count);
-                    suggestionBoxHeight = suggestionRows + Ui.BorderChromeHeight;
-                    if (suggestionBoxHeight > inputTop)
-                    {
-                        suggestionRows = Math.Max(0, inputTop - Ui.BorderChromeHeight);
-                        suggestionBoxHeight = suggestionRows > 0 ? suggestionRows + Ui.BorderChromeHeight : 0;
-                    }
-                }
-
-                int suggestionTop = inputTop - suggestionBoxHeight;
-                if (suggestionTop < 0)
-                {
-                    suggestionBoxHeight = 0;
-                    suggestionRows = 0;
-                    suggestionTop = 0;
-                }
-
-                RenderSuggestions(suggestionTop, suggestionBoxHeight, suggestionRows, suggestions, selectedIdx);
-
-                RenderInput(inputTop, inputHeight);
-                
-                // Render only the active log screen as a full-width area
-                int active;
-                lock (screenLock)
-                {
-                    active = currentLogScreen;
-                }
-                if (active == 0)
-                    RenderLogsFull(suggestionTop);
-                else
-                    RenderWebLogsFull(suggestionTop);
-
-                // The double render appears intentional (double buffering / flicker mitigation)
-                canvas.Render();
-                canvas.Render();
-            }
-        });
-    }
-
-    private static void RenderSuggestions(int suggestionTop, int suggestionBoxHeight, int suggestionRows, List<string> suggestions, int selectedIdx)
-    {
-        if (suggestionBoxHeight <= 0) return;
-
-        canvas.CreateBorder(0, suggestionTop, canvas.Width, suggestionBoxHeight);
-        canvas.Text(Ui.BorderPaddingX, suggestionTop, "Suggestions");
-        for (int i = 0; i < suggestionRows; i++)
-        {
-            string prefix = (i == selectedIdx) ? "> " : "  ";
-            canvas.Text(Ui.BorderPaddingX, suggestionTop + Ui.SuggestionHeaderHeight + i, prefix + suggestions[i]);
+            _tabs.SelectedTab = _tabs.Tabs.ElementAt(next);
+            _tabs.SetNeedsDisplay();
         }
     }
 
-    private static void RenderInput(int inputTop, int inputHeight)
+    private static void ScrollActiveLog(int delta)
     {
-        canvas.CreateBorder(0, inputTop, canvas.Width, inputHeight);
-        canvas.Text(Ui.BorderPaddingX, inputTop, "Command Input");
+        int idx = ActiveTabIndex();
+        var view = _logListViews[idx];
+        int count = _logSources[idx].Count;
+        if (count == 0) return;
 
-        int commandLineY = canvas.Height - 2;
-        if (typingCommand)
-        {
-            canvas.Text(Ui.BorderPaddingX, commandLineY, currentCommand);
-            Console.SetCursorPosition(Ui.BorderPaddingX + currentCommand.Length, commandLineY);
-        }
-        else
-        {
-            canvas.Text(Ui.BorderPaddingX, commandLineY, "Press Enter to type a command...");
-        }
-    }
-
-    private static void RenderLogs(int suggestionTop)
-    {
-        // Logs area occupies left 2/3 of the screen, above suggestions/input
-        int logAreaHeight = Math.Max(1, suggestionTop);
-        int logAreaWidth = (canvas.Width / 3) * 2;
-        canvas.CreateBorder(0, 0, logAreaWidth, logAreaHeight);
-        canvas.Text(Ui.BorderPaddingX, 0, "Console Logs");
-
-        var consoleLogs = Loggers.Console.Logs;
-        int displayRows = Math.Max(0, logAreaHeight - Ui.BorderChromeHeight);
-
-        // Expand logs into individual display lines (preserve colors per log)
-        var renderedLines = new List<(string text, ConsoleColor fg, ConsoleColor bg)>();
-        foreach (var log in consoleLogs)
-        {
-            if (string.IsNullOrEmpty(log.Message))
-            {
-                renderedLines.Add((string.Empty, log.ForegroundColor, log.BackgroundColor));
-                continue;
-            }
-            var lines = log.Message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            foreach (var l in lines)
-                renderedLines.Add((l, log.ForegroundColor, log.BackgroundColor));
-        }
-
-        // Apply scroll offset (logScroll) so user can view older/newer messages.
-        int scrollSnapshot;
-        lock (scrollLock)
-        {
-            // Clamp scroll to available range
-            int maxScroll = Math.Max(0, renderedLines.Count - displayRows);
-            if (logScroll > maxScroll) logScroll = maxScroll;
-            scrollSnapshot = logScroll;
-        }
-
-        int lineStart = Math.Max(0, renderedLines.Count - displayRows - scrollSnapshot);
-        for (int i = 0; i < displayRows; i++)
-        {
-            int idx = lineStart + i;
-            if (idx < renderedLines.Count)
-            {
-                var entry = renderedLines[idx];
-                canvas.Text(Ui.BorderPaddingX, 1 + i, entry.text, false, entry.fg, entry.bg);
-            }
-        }
-    }
-
-    private static void RenderLogsFull(int suggestionTop)
-    {
-        int logAreaHeight = Math.Max(1, suggestionTop);
-        int logAreaWidth = canvas.Width;
-        canvas.CreateBorder(0, 0, logAreaWidth, logAreaHeight);
-        canvas.Text(Ui.BorderPaddingX, 0, "Console Logs (press H/Left and L/Right to switch)");
-
-        var consoleLogs = Loggers.Console.Logs;
-        int displayRows = Math.Max(0, logAreaHeight - Ui.BorderChromeHeight);
-
-        var renderedLines = new List<(string text, ConsoleColor fg, ConsoleColor bg)>();
-        foreach (var log in consoleLogs)
-        {
-            if (string.IsNullOrEmpty(log.Message))
-            {
-                renderedLines.Add((string.Empty, log.ForegroundColor, log.BackgroundColor));
-                continue;
-            }
-            var lines = log.Message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            foreach (var l in lines)
-                renderedLines.Add((l, log.ForegroundColor, log.BackgroundColor));
-        }
-
-        int scrollSnapshot;
-        lock (scrollLock)
-        {
-            int maxScroll = Math.Max(0, renderedLines.Count - displayRows);
-            if (logScroll > maxScroll) logScroll = maxScroll;
-            scrollSnapshot = logScroll;
-        }
-
-        int lineStart = Math.Max(0, renderedLines.Count - displayRows - scrollSnapshot);
-        for (int i = 0; i < displayRows; i++)
-        {
-            int idx = lineStart + i;
-            if (idx < renderedLines.Count)
-            {
-                var entry = renderedLines[idx];
-                canvas.Text(Ui.BorderPaddingX, 1 + i, entry.text, false, entry.fg, entry.bg);
-            }
-        }
-    }
-
-    private static void RenderWebLogs(int suggestionTop)
-    {
-        // Right 1/3 area of the screen dedicated to web logs, same height as logs
-        int logAreaHeight = Math.Max(1, suggestionTop);
-        int fullWidth = canvas.Width;
-        int leftWidth = (fullWidth / 3) * 2;
-        int webAreaWidth = fullWidth - leftWidth;
-        int webAreaLeft = leftWidth;
-
-        if (webAreaWidth <= 0)
-            return;
-
-        canvas.CreateBorder(webAreaLeft, 0, webAreaWidth, logAreaHeight);
-        canvas.Text(webAreaLeft + Ui.BorderPaddingX, 0, "Web Logs");
-
-        var webLogs = Loggers.Web.Logs;
-        int displayRows = Math.Max(0, logAreaHeight - Ui.BorderChromeHeight);
-
-        var renderedLines = new List<(string text, ConsoleColor fg, ConsoleColor bg)>();
-        foreach (var log in webLogs)
-        {
-            if (string.IsNullOrEmpty(log.Message))
-            {
-                renderedLines.Add((string.Empty, log.ForegroundColor, log.BackgroundColor));
-                continue;
-            }
-            var lines = log.Message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            foreach (var l in lines)
-                renderedLines.Add((l, log.ForegroundColor, log.BackgroundColor));
-        }
-
-        // No independent scrolling for web logs yet - sync to same scroll offset as console logs
-        int scrollSnapshot;
-        lock (scrollLock)
-        {
-            int maxScroll = Math.Max(0, renderedLines.Count - displayRows);
-            if (logScroll > maxScroll) logScroll = maxScroll;
-            scrollSnapshot = logScroll;
-        }
-
-        int lineStart = Math.Max(0, renderedLines.Count - displayRows - scrollSnapshot);
-        for (int i = 0; i < displayRows; i++)
-        {
-            int idx = lineStart + i;
-            if (idx < renderedLines.Count)
-            {
-                var entry = renderedLines[idx];
-                canvas.Text(webAreaLeft + Ui.BorderPaddingX, 1 + i, entry.text, false, entry.fg, entry.bg);
-            }
-        }
-    }
-
-    private static void RenderWebLogsFull(int suggestionTop)
-    {
-        int logAreaHeight = Math.Max(1, suggestionTop);
-        int logAreaWidth = canvas.Width;
-        canvas.CreateBorder(0, 0, logAreaWidth, logAreaHeight);
-        canvas.Text(Ui.BorderPaddingX, 0, "Web Logs (press H/Left and L/Right to switch)");
-
-        var webLogs = Loggers.Web.Logs;
-        int displayRows = Math.Max(0, logAreaHeight - Ui.BorderChromeHeight);
-
-        var renderedLines = new List<(string text, ConsoleColor fg, ConsoleColor bg)>();
-        var cloned = new List<Logger.LogMessage>(webLogs);
-        foreach (var log in cloned)
-        {
-            if (string.IsNullOrEmpty(log.Message))
-            {
-                renderedLines.Add((string.Empty, log.ForegroundColor, log.BackgroundColor));
-                continue;
-            }
-            var lines = log.Message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            foreach (var l in lines)
-                renderedLines.Add((l, log.ForegroundColor, log.BackgroundColor));
-        }
-
-        int scrollSnapshot;
-        lock (scrollLock)
-        {
-            int maxScroll = Math.Max(0, renderedLines.Count - displayRows);
-            if (logScroll > maxScroll) logScroll = maxScroll;
-            scrollSnapshot = logScroll;
-        }
-
-        int lineStart = Math.Max(0, renderedLines.Count - displayRows - scrollSnapshot);
-        for (int i = 0; i < displayRows; i++)
-        {
-            int idx = lineStart + i;
-            if (idx < renderedLines.Count)
-            {
-                var entry = renderedLines[idx];
-                canvas.Text(Ui.BorderPaddingX, 1 + i, entry.text, false, entry.fg, entry.bg);
-            }
-        }
+        int visibleRows = Math.Max(1, view.Frame.Height);
+        int maxTop = Math.Max(0, count - visibleRows);
+        int newTop = Math.Clamp(view.TopItem + delta, 0, maxTop);
+        try { view.TopItem = newTop; } catch { }
+        view.SetNeedsDisplay();
     }
 }

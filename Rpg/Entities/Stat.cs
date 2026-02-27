@@ -4,6 +4,7 @@ using System.Reflection.Metadata;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Rpg;
+using Rpg.Entities.Components;
 using Rpg.Entities.Components.Health;
 
 public enum StatModifierType
@@ -57,8 +58,55 @@ public class StatModifier : ISerializable
     }
 }
 
+public class StatEvent
+{
+    public Stat Stat;
+    public StatEvent(Stat stat)
+    {
+        Stat = stat;
+    }
+}
+public class StatBaseChangeEvent : StatEvent
+{
+    public float OldBaseValue;
+    public float NewBaseValue;
+    public StatBaseChangeEvent(Stat stat, float oldBaseValue, float newBaseValue) : base(stat)
+    {
+        OldBaseValue = oldBaseValue;
+        NewBaseValue = newBaseValue;
+    }
+}
+public class StatModifierChangeEvent : StatEvent
+{
+    public StatModifier Modifier;
+    public bool Removed; // if true, the modifier was removed. if false, the modifier was added or changed.
+    public StatModifierChangeEvent(Stat stat, StatModifier modifier, bool removed) : base(stat)
+    {
+        Modifier = modifier;
+        Removed = removed;
+    }
+}
+public class StatBoundsChangeEvent : StatEvent
+{
+    public float OldMinValue;
+    public float NewMinValue;
+    public float OldMaxValue;
+    public float NewMaxValue;
+    public StatBoundsChangeEvent(Stat stat, float oldMinValue, float newMinValue, float oldMaxValue, float newMaxValue) : base(stat)
+    {
+        OldMinValue = oldMinValue;
+        NewMinValue = newMinValue;
+        OldMaxValue = oldMaxValue;
+        NewMaxValue = newMaxValue;
+    }
+}
+public interface IStatEventHandler
+{
+    void OnStatChanged(StatEvent statEvent);
+}
 public class Stat : ISerializable
 {
+    public IStatEventHandler? Container;
 
     public string Id { get; }
     public string Name;
@@ -79,6 +127,7 @@ public class Stat : ISerializable
                 baseValue = Math.Max(baseValue, minValue);
             if (old == value)
                 return;
+            Container?.OnStatChanged(new StatBoundsChangeEvent(this, old, minValue, maxValue, maxValue));
             CalculateFinalValue();
         }
     }
@@ -96,6 +145,7 @@ public class Stat : ISerializable
                 baseValue = Math.Min(baseValue, maxValue);
             if (old == value)
                 return;
+            Container?.OnStatChanged(new StatBoundsChangeEvent(this, minValue, minValue, old, maxValue));
             CalculateFinalValue();
         }
     }
@@ -123,6 +173,7 @@ public class Stat : ISerializable
                 baseValue = Math.Max(baseValue, MinValue);
             if (old == value)
                 return;
+            Container?.OnStatChanged(new StatBaseChangeEvent(this, old, value));
             CalculateFinalValue();
         }
     }
@@ -173,6 +224,7 @@ public class Stat : ISerializable
         
         var mod = modifiers[id];
         modifiers.Remove(id);
+        Container?.OnStatChanged(new StatModifierChangeEvent(this, mod, true));
         CalculateFinalValue();
     }
     public void RemoveModifier(StatModifier modifier)
@@ -183,6 +235,7 @@ public class Stat : ISerializable
     public void SetModifier(StatModifier modifier)
     {
         modifiers[modifier.Id] = modifier;
+        Container?.OnStatChanged(new StatModifierChangeEvent(this, modifier, false));
         CalculateFinalValue();
     }
     public void SetModifier(string id, float value, StatModifierType type)

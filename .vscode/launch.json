@@ -23,7 +23,8 @@
             "cwd": "${workspaceFolder}/Client",
             "console": "internalConsole",
             "stopAtEntry": false,
-            "args": ["--path", "${workspaceFolder}/Client"]
+            "args": ["--path", "${workspaceFolder}/Client"],
+            "preLaunchTask": "build"
         }
     ]
 }

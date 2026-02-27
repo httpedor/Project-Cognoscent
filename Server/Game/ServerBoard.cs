@@ -50,7 +50,7 @@ public class ServerBoard : Board, ISerializable
         foreach (Entity entity in entityCache.Values)
         {
             entity.Tick();
-            if (entity.TryGetComponent<StatsContainer>(out var stats) && entity.ExistanceTicks % 20 == 0)
+            if ((entity.ExistanceTicks % 20 == 0 || TurnMode) && entity.TryGetComponent<StatsContainer>(out var stats))
             {
                 Manager.SendToBoard(new StatsUpdatePacket(stats), this);
             }
@@ -70,10 +70,11 @@ public class ServerBoard : Board, ISerializable
         handledEvents.Clear();
     }
 
-    public override void AddEntity(Entity entity)
+    public override void AddEntity(Entity entity, bool initialize = true)
     {
-        base.AddEntity(entity);
-        Network.Manager.SendToBoard(new EntityCreatePacket(this, entity), Name);
+        base.AddEntity(entity, initialize);
+        if (initialize)
+            Network.Manager.SendToBoard(new EntityCreatePacket(this, entity), Name);
     }
 
     public override void HandleEvent(ComponentEvent e)
@@ -92,6 +93,9 @@ public class ServerBoard : Board, ISerializable
                 {
                     (token.Floor as ServerFloor)?.UpdateEntityCollisionGrid(token);
                 }
+                break;
+            case StatsContainerEvent sce:
+                Network.Manager.SendToBoard(new StatsUpdatePacket((StatsContainer)sce.Component), this);
                 break;
             case FeatureAddedEvent fae:
                 Network.Manager.SendToBoard(

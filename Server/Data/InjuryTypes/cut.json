@@ -10,10 +10,26 @@
   "creations": [
     {
       "interval": 21600,
-      "code": "if (rand() < (0.1f * Severity)) new Injury(injuryTypes[\"infection\"], injury.Severity)"
+      "injury": {
+        "type": "infection",
+        "severity": {
+          "op": "mul",
+          "numbers": [
+            0.5,
+            "$0"
+          ]
+        }
+      },
+      "condition": {
+        "op": "rand",
+        "probability": {
+          "op": "mul",
+          "numbers": [
+            0.1,
+            "$0"
+          ]
+        }
+      }
     }
-  ],
-  "addChances": [
-    { "type": "Infecção", "severity": 1.0, "chance": 15.0 }
   ]
 }

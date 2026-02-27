@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "injury-type.schema.json",
+  "title": "InjuryType",
+  "description": "Schema for a compendium InjuryType entry (Rpg/Health/Injury.cs — InjuryType class). The compendium file should be a JSON object whose keys are InjuryType IDs.",
+  "$ref": "#/$defs/InjuryType",
+
+  "$defs": {
+    "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
+    "StringExpr":    { "$ref": "_expr.schema.json#/$defs/StringExpr" },
+    "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
+
+    "InjuryModel": {
+      "type": "object",
+      "description": "A builder for Injuries.",
+      "required": ["type", "severity"],
+      "properties": {
+        "type":     { "$ref": "#/$defs/StringExpr", "description": "A string that points to an InjuryType in the compendium"},
+        "severity": { "$ref": "#/$defs/NumberExpr", "description": "Severity of the injury (positive number)." }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "CreationEntry": {
+      "type": "object",
+      "description": "Every 'interval' seconds, if 'condition' is true, the specified 'injury' is created/applied.",
+      "required": ["condition", "injury", "interval"],
+      "properties": {
+        "condition": { "$ref": "#/$defs/ConditionExpr" },
+        "injury":    { "$ref": "#/$defs/InjuryModel" },
+        "interval":  {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds between each creation check."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "InjuryType": {
+      "type": "object",
+      "required": ["name", "destruction", "pain", "bleed", "overkillMin", "overkillMax"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the injury type (e.g. 'Cut', 'Burn')."
+        },
+        "destruction": {
+          "type": "string",
+          "description": "Translation key used when a body part is destroyed by this injury type."
+        },
+        "pain": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Pain value per point of severity."
+        },
+        "bleed": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Bleed rate per point of severity."
+        },
+        "overkillMin": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Minimum overkill percentage (0–1) needed to destroy the body part."
+        },
+        "overkillMax": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Overkill percentage (0–1) that guarantees body part destruction."
+        },
+        "heal": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Rate at which severity decreases naturally per second. Defaults to 0 if omitted."
+        },
+        "instakill": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "If true, this injury immediately incapacitates the body part (e.g. broken, missing). Defaults to false."
+        },
+        "creations": {
+          "type": "array",
+          "description": "List of injuries that can be periodically spawned as a consequence of this injury.",
+          "items": { "$ref": "#/$defs/CreationEntry" },
+          "default": []
+        },
+        "conversions": {
+          "type": "array",
+          "description": "List of injuries that can replace (convert) this injury over time if a condition is met.",
+          "items": { "$ref": "#/$defs/CreationEntry" },
+          "default": []
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}

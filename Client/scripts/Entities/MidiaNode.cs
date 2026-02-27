@@ -60,22 +60,15 @@ public partial class MidiaNode : Node2D
             {
                 if (value.Bytes.Length <= 0)
                     return;
-                
+
                 var img = new Image();
-                img.LoadPngFromBuffer(value.Bytes);
-                if (!img.IsEmpty())
+                var imageError = TryLoadImageFromBuffer(img, value.Bytes);
+
+                if (imageError == Error.Ok && !img.IsEmpty())
                     Sprite.Texture = ImageTexture.CreateFromImage(img);
                 else
                 {
-                    img.LoadJpgFromBuffer(value.Bytes);
-                    if (!img.IsEmpty())
-                        Sprite.Texture = ImageTexture.CreateFromImage(img);
-                    else
-                    {
-                        img.LoadWebpFromBuffer(value.Bytes);
-                        if (!img.IsEmpty())
-                            Sprite.Texture = ImageTexture.CreateFromImage(img);
-                    }
+                    GD.PushWarning($"Failed to decode image bytes for MidiaNode: {imageError}");
                 }
             }
             //TODO: Directional audio(or smth like that)
@@ -118,5 +111,44 @@ public partial class MidiaNode : Node2D
     public void SetTexture(Texture2D tex)
     {
         SetImage(tex);
+    }
+
+    private static Error TryLoadImageFromBuffer(Image image, byte[] bytes)
+    {
+        if (bytes.Length >= 8
+            && bytes[0] == 0x89
+            && bytes[1] == 0x50
+            && bytes[2] == 0x4E
+            && bytes[3] == 0x47
+            && bytes[4] == 0x0D
+            && bytes[5] == 0x0A
+            && bytes[6] == 0x1A
+            && bytes[7] == 0x0A)
+        {
+            return image.LoadPngFromBuffer(bytes);
+        }
+
+        if (bytes.Length >= 3
+            && bytes[0] == 0xFF
+            && bytes[1] == 0xD8
+            && bytes[2] == 0xFF)
+        {
+            return image.LoadJpgFromBuffer(bytes);
+        }
+
+        if (bytes.Length >= 12
+            && bytes[0] == 0x52
+            && bytes[1] == 0x49
+            && bytes[2] == 0x46
+            && bytes[3] == 0x46
+            && bytes[8] == 0x57
+            && bytes[9] == 0x45
+            && bytes[10] == 0x42
+            && bytes[11] == 0x50)
+        {
+            return image.LoadWebpFromBuffer(bytes);
+        }
+
+        return Error.FileUnrecognized;
     }
 }

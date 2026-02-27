@@ -64,8 +64,7 @@ public abstract class Board
         WasInitialized = true;
         foreach (var entity in entityCache.Values)
         {
-            foreach (var component in entity.Components)
-                component.OnReady();
+            entity.OnReady();
         }
     }
 
@@ -138,17 +137,41 @@ public abstract class Board
         }
     }
 
-    public virtual void AddEntity(Entity entity){
+    public virtual void AddEntity(Entity entity, bool initialize = true){
         if (entity.Board != null)
             entity.Board.RemoveEntity(entity);
         entityCache[entity.Id] = entity;
         entity.Board = this;
         if (entity.CreationTick == 0)
             entity.CreationTick = CurrentTick;
-        if (!entity.WasInitialized && WasInitialized)
+        if (initialize && !entity.WasInitialized && WasInitialized)
+        {
             entity.Initialize();
+            entity.OnReady();
+        }
 
         IndexEntity(entity);
+    }
+    public void AddEntities(IEnumerable<Entity> entities, bool initialize = true)
+    {
+        foreach (var entity in entities)
+            AddEntity(entity, false);
+        if (initialize)
+        {
+            LinkedList<Entity> intialized = new(entities);
+            foreach (var entity in entities)
+            {
+                if (!entity.WasInitialized)
+                {
+                    entity.Initialize();
+                    intialized.AddLast(entity);
+                }
+            }
+            foreach (var entity in intialized)
+            {
+                entity.OnReady();
+            }
+        }
     }
     
     public uint GetWhenToPause()
@@ -284,6 +307,10 @@ public abstract class Board
                     break;
                 }
         }
+    }
+    public virtual void HandleEvent(EntityEvent e)
+    {
+
     }
     public virtual void StartTurnMode()
     {

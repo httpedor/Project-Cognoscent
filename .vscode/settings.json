@@ -1,3 +1,30 @@
 {
-    "godotTools.editorPath.godot4": "c:\\Users\\theco\\Documents\\Godot\\Godot 4.exe"
+    "godotTools.editorPath.godot4": "c:\\Apps\\Godot\\Godot.exe",
+
+    "json.schemas": [
+        {
+            "fileMatch": ["Server/Data/Bodies/*.json"],
+            "url": "./schemas/body-model.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/Features/*.json"],
+            "url": "./schemas/feature.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/Skills/*.json"],
+            "url": "./schemas/skill.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/DamageTypes/*.json"],
+            "url": "./schemas/damage-type.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/InjuryTypes/*.json"],
+            "url": "./schemas/injury-type.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/SkillTrees/*.json"],
+            "url": "./schemas/skill-tree.schema.json"
+        }
+    ]
 }

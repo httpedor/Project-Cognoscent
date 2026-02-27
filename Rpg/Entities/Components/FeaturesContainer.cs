@@ -133,6 +133,7 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
 
     public override void ToBytes(Stream stream)
     {
+        base.ToBytes(stream);
         stream.WriteByte((byte)features.Count);
         foreach (var feature in features)
         {

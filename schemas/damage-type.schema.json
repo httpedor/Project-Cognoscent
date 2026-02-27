@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "damage-type.schema.json",
+  "title": "DamageType",
+  "description": "Schema for a compendium DamageType entry (Rpg/Health/DamageType.cs). The compendium file should be a JSON object whose keys are DamageType IDs.",
+  "$ref": "#/$defs/DamageType",
+
+  "$defs": {
+    "DamageType": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the damage type (e.g. 'Slash', 'Burn', 'Blunt')."
+        },
+        "parent": {
+          "type": ["string", "null"],
+          "description": "ID or name of the parent DamageType this type derives from. Used for inheritance checks via IsDerivedFrom(). Leave empty or null for root types."
+        },
+        "injury": {
+          "type": "string",
+          "description": "Compendium ID of the InjuryType this damage type causes by default. If omitted or not found, the compendium's default InjuryType is used."
+        },
+        "color": {
+          "type": "string",
+          "description": "Color used in UI for this damage type. Accepts '#RRGGBB' hex format or a .NET named color (e.g. 'Red', 'DarkOrange').",
+          "examples": ["#FF4400", "Red", "DarkOrange", "#8B0000"]
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Arbitrary tags for gameplay filtering (e.g. ['fire', 'elemental']).",
+          "default": []
+        }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}

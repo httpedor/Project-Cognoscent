@@ -2,7 +2,39 @@ using System.Collections;
 
 namespace Rpg.Entities.Components;
 
-public partial class StatsContainer : Component, IEnumerable<Stat>
+public class StatRef : ISerializable
+{
+    ComponentRef<StatsContainer> ComponentRef;
+    public string StatId;
+    public StatsContainer? Container => ComponentRef.Component;
+    public Stat? Stat => Container?.GetStat(StatId);
+    public StatRef(StatsContainer component, string statId)
+    {
+        ComponentRef = new ComponentRef<StatsContainer>(component);
+        StatId = statId;
+    }
+
+    public StatRef(Stream stream)
+    {
+        ComponentRef = new ComponentRef<StatsContainer>(stream);
+        StatId = stream.ReadString();
+    }
+
+    public void ToBytes(Stream stream)
+    {
+        ComponentRef.ToBytes(stream);
+        stream.WriteString(StatId);
+    }
+}
+public class StatsContainerEvent : ComponentEvent
+{
+    public StatEvent StatEvent;
+    public StatsContainerEvent(StatsContainer container, StatEvent statEvent) : base(container)
+    {
+        StatEvent = statEvent;
+    }
+}
+public partial class StatsContainer : Component, IEnumerable<Stat>, IStatEventHandler
 {
     protected Dictionary<string, Stat> stats = new Dictionary<string, Stat>();
     public IEnumerable<Stat> Stats => stats.Values.Distinct();
@@ -49,6 +81,7 @@ public partial class StatsContainer : Component, IEnumerable<Stat>
         {
             stats[alias] = stat;
         }
+        stat.Container = this;
         return stat;
     }
     public Stat CreateStatIfNotExists(Stat stat)
@@ -62,8 +95,9 @@ public partial class StatsContainer : Component, IEnumerable<Stat>
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteUInt16((ushort)stats.Count);
-        foreach (Stat stat in Stats)
+        var distinctStats = Stats.ToArray();
+        stream.WriteUInt16((ushort)distinctStats.Length);
+        foreach (Stat stat in distinctStats)
         {
             stat.ToBytes(stream);
         }
@@ -77,6 +111,13 @@ public partial class StatsContainer : Component, IEnumerable<Stat>
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    public void OnStatChanged(StatEvent statEvent)
+    {
+        //TODO: Relay these changes up, so server can broadcast packets
+        var eventArgs = new StatsContainerEvent(this, statEvent);
+        Entity.DispatchEvent(eventArgs);
     }
 }
 

@@ -44,25 +44,25 @@ public sealed class VarConditionExpr : Expr<bool>
 }
 public sealed class RandomConditionExpr : Expr<bool>
 {
-    public readonly float Probability; // 0.0 to 1.0
+    public readonly Expr<float> Probability; // 0.0 to 1.0
 
-    public RandomConditionExpr(float probability = 0.5f)
+    public RandomConditionExpr(Expr<float> probability)
     {
         Probability = probability;
     }
     public RandomConditionExpr(Stream stream)
     {
-        Probability = stream.ReadFloat();
+        Probability = BaseExpr.Deserialize<Expr<float>>(stream);
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteFloat(Probability);
+        Probability.ToBytes(stream);
     }
 
     public override bool Eval(EvalContext ctx)
     {
-        return new Random().NextDouble() < Probability;
+        return new Random().NextDouble() < Probability.Eval(ctx);
     }
 }
 public sealed class ConditionalExpr<T> : Expr<T>

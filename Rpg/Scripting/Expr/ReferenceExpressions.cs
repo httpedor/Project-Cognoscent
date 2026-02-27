@@ -13,6 +13,11 @@ public class CompendiumEntryExpr<T> : Expr<T?> where T : class
             cachedEntry = Compendium.GetEntry<T>(id);
         }
     }
+    public CompendiumEntryExpr(string id)
+    {
+        IdExpr = new StringLiteralExpr(id);
+        cachedEntry = Compendium.GetEntry<T>(id);
+    }
     public CompendiumEntryExpr(Stream stream)
     {
         IdExpr = BaseExpr.Deserialize<Expr<string>>(stream);

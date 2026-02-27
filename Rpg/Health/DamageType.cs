@@ -35,7 +35,7 @@ public partial class DamageType : ISerializable, ITaggable
         name,
         json.GetProperty("name").GetString() ?? name,
         null!,
-        !string.IsNullOrWhiteSpace(json.GetProperty("parent").GetString())
+        (json.TryGetProperty("parent", out JsonElement parentNode) && parentNode.ValueKind == JsonValueKind.String)
             ? FromName(json.GetProperty("parent").GetString()!)
             : null
     )

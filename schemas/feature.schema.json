@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "feature.schema.json",
+  "title": "Feature",
+  "description": "Schema for a compendium Feature entry (Rpg/Compendium/Features/Feature.cs). The compendium file should be a JSON object whose keys are feature IDs.",
+  "$ref": "#/$defs/Feature",
+
+  "$defs": {
+    "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
+    "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
+    "StatModifierType": { "$ref": "_expr.schema.json#/$defs/StatModifierType" },
+
+    "CommonFields": {
+      "description": "Fields shared by all feature types.",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "Display name of the feature."
+        },
+        "icon": {
+          "type": ["string", "null"],
+          "description": "Icon identifier."
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Description displayed in the UI."
+        }
+      }
+    },
+
+    "DoesGetAttackedBlock": {
+      "type": "object",
+      "description": "Overrides whether an entity with this feature can be attacked.",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason shown when the attack is blocked."
+        }
+      }
+    },
+
+    "DoesAttackBlock": {
+      "type": "object",
+      "description": "Overrides whether this entity can perform an attack.",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason shown when the attack is blocked."
+        }
+      }
+    },
+
+    "DoesExecuteSkillBlock": {
+      "type": "object",
+      "description": "Overrides whether this entity can execute a skill.",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason shown when skill execution is blocked."
+        }
+      }
+    },
+
+    "DamageModifierBlock": {
+      "type": "object",
+      "description": "Modifies incoming or outgoing damage.",
+      "properties": {
+        "formula": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Expression applied to damage."
+        }
+      }
+    },
+
+    "Feature": {
+      "type": "object",
+      "required": ["type", "name", "icon", "description"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["arbitrary", "attack", "damage_over_time", "simple", "condition", "arbitrary_condition"],
+          "description": "Feature subtype. Determines which class is instantiated."
+        },
+        "name": {
+          "type": ["string", "null"],
+          "description": "Display name."
+        },
+        "icon": {
+          "type": ["string", "null"],
+          "description": "Icon identifier."
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Description shown in the UI."
+        },
+
+        "damage_type": {
+          "type": "string",
+          "description": "[damage_over_time only] Name of the DamageType applied each interval."
+        },
+        "damage": {
+          "type": "number",
+          "description": "[damage_over_time only] Damage amount applied per interval."
+        },
+        "interval": {
+          "type": "integer",
+          "description": "[damage_over_time only] Tick interval between damage applications."
+        },
+
+        "doesGetAttacked": {
+          "$ref": "#/$defs/DoesGetAttackedBlock",
+          "description": "[arbitrary] Override for whether the entity can be attacked. 'reason' shown on block."
+        },
+        "doesAttack": {
+          "$ref": "#/$defs/DoesAttackBlock",
+          "description": "[arbitrary] Override for whether this entity can attack. 'reason' shown on block."
+        },
+        "doesExecuteSkill": {
+          "$ref": "#/$defs/DoesExecuteSkillBlock",
+          "description": "[arbitrary] Override for whether this entity can execute skills. 'reason' shown on block."
+        },
+        "receivingDamage": {
+          "$ref": "#/$defs/DamageModifierBlock",
+          "description": "[arbitrary] Modifier applied to damage received by this entity."
+        },
+        "attackingDamage": {
+          "$ref": "#/$defs/DamageModifierBlock",
+          "description": "[arbitrary] Modifier applied to damage dealt by this entity."
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "[arbitrary] Skill compendium IDs granted by this feature.",
+          "default": []
+        }
+      }
+    }
+  }
+}

@@ -92,6 +92,7 @@ public partial class CustomDataComponent : Component
 
     public override void ToBytes(Stream stream)
     {
+        base.ToBytes(stream);
         stream.WriteByte((byte)customData.Count);
         foreach (var pair in customData)
         {

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill.schema.json",
+  "title": "Skill",
+  "description": "Schema for a compendium Skill entry (Rpg/Compendium/Skills/Skill.cs + SkillExpressions.cs). The compendium file should be a JSON object whose keys are skill IDs.",
+  "$ref": "#/$defs/Skill",
+
+  "$defs": {
+    "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
+    "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
+    "StringExpr":    { "$ref": "_expr.schema.json#/$defs/StringExpr" },
+    "EffectExpr":    { "$ref": "_expr.schema.json#/$defs/EffectExpr" },
+    "ArgumentType":  { "$ref": "_expr.schema.json#/$defs/ArgumentType" },
+
+    "ArgumentSlot": {
+      "description": "A single argument slot: either one type string or an array of accepted types (the player can provide any of them).",
+      "oneOf": [
+        { "$ref": "#/$defs/ArgumentType" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ArgumentType" },
+          "minItems": 1
+        }
+      ]
+    },
+
+    "DamageBlock": {
+      "type": "object",
+      "description": "Describes the damage dealt by an attack skill.",
+      "required": ["amount", "type"],
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Damage amount expression."
+        },
+        "type": {
+          "$ref": "#/$defs/StringExpr",
+          "description": "DamageType compendium ID (may be a string literal or expression)."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "DoesHitBlock": {
+      "type": "object",
+      "description": "Determines whether the attack hits.",
+      "required": ["condition", "description"],
+      "properties": {
+        "condition": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "If false, the attack misses."
+        },
+        "description": {
+          "$ref": "#/$defs/StringExpr",
+          "description": "Human-readable reason shown when the attack misses."
+        }
+      },
+      "unevaluatedProperties": false
+    },
+
+    "Skill": {
+      "type": "object",
+      "required": ["type"],
+      "description": "A skill compendium entry. 'type' determines which subclass is instantiated.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["arbitrary", "attack"],
+          "description": "'arbitrary' for a general-purpose skill; 'attack' for an ArbitraryAttackSkill."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the skill.",
+          "default": ""
+        },
+        "description": {
+          "type": "string",
+          "description": "Description shown in the UI.",
+          "default": ""
+        },
+        "icon": {
+          "type": "string",
+          "description": "Icon identifier (typically filename without extension).",
+          "default": ""
+        },
+
+        "execute": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect evaluated on each execution tick."
+        },
+        "start": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect evaluated when the skill starts."
+        },
+        "cancel": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect evaluated when the skill is cancelled. Variables: [$0 = interrupted (bool)]."
+        },
+        "canCancel": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "Whether the skill can be cancelled by the user."
+        },
+        "canExecute": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "Whether the skill can be used at all (CanBeUsed check, evaluated on caller entity only)."
+        },
+        "condition": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "Arbitrary condition available for use in other expressions."
+        },
+        "canTarget": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "Whether a given target is a valid target for this skill."
+        },
+        "delay": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Tick delay before the skill executes after being used."
+        },
+        "cooldown": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "Tick cooldown after the skill finishes."
+        },
+        "duration": {
+          "$ref": "#/$defs/NumberExpr",
+          "description": "How many ticks the skill's execution lasts. Defaults to 1."
+        },
+        "layers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StringExpr" },
+          "description": "Skill layer identifiers that control visibility and grouping. Defaults to ['default']."
+        },
+        "arguments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ArgumentSlot" },
+          "description": "Ordered list of argument slots. Each slot is a type string or an array of accepted types."
+        },
+
+        "damage": {
+          "$ref": "#/$defs/DamageBlock",
+          "description": "Damage definition. Only meaningful for 'attack' type skills."
+        },
+        "doesHit": {
+          "$ref": "#/$defs/DoesHitBlock",
+          "description": "Hit condition and miss reason. Only meaningful for 'attack' type skills."
+        },
+        "onHit": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect evaluated when the attack hits. Only meaningful for 'attack' type skills."
+        },
+        "onAttack": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect evaluated when the attack resolves (hit or miss). Only meaningful for 'attack' type skills."
+        }
+      }
+    }
+  }
+}

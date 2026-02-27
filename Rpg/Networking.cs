@@ -205,7 +205,7 @@ public class BoardAddPacket : Packet
 
             for (int j = 0; j < floor.Size.X * floor.Size.Y; j++)
             {
-                floor.TileFlags[i] = stream.ReadUInt32();
+                floor.TileFlags[j] = stream.ReadUInt32();
             }
 
             floor.DefaultEntitySight = stream.ReadFloat();
@@ -421,20 +421,25 @@ public class CombatModePacket : Packet
 public class EntityCreatePacket : Packet
 {
     public readonly string BoardName;
-    public readonly Entity Entity;
+    public readonly Entity[] Entities;
 
     public override ProtocolId Id => ProtocolId.ENTITY_CREATE;
 
-    public EntityCreatePacket(Board board, Entity entity)
+    public EntityCreatePacket(Board board, params Entity[] entities)
     {
         BoardName = board.Name;
-        this.Entity = entity;
+        this.Entities = entities;
     }
 
     public EntityCreatePacket(Stream stream)
     {
         BoardName = stream.ReadString();
-        Entity = new Entity(stream);
+        Entities = [];
+        ushort count = stream.ReadUInt16();
+        for (int i = 0; i < count; i++)
+        {
+            Entities = Entities.Append(new Entity(stream)).ToArray();
+        }
     }
 
     public override void ToBytes(Stream stream)
@@ -442,7 +447,11 @@ public class EntityCreatePacket : Packet
         base.ToBytes(stream);
 
         stream.WriteString(BoardName);
-        Entity.ToBytes(stream);
+        stream.WriteUInt16((ushort)Entities.Length);
+        foreach (Entity entity in Entities)
+        {
+            entity.ToBytes(stream);
+        }
     }
 }
 
@@ -959,12 +968,13 @@ public class CompendiumUpdatePacket : Packet
         Remove = stream.ReadBoolean();
         RegistryName = stream.ReadString();
         DataName = stream.ReadString();
-        ulong count = stream.ReadUInt64();
-        if (!Remove)
+        if (Remove)
         {
             Json = null;
             return;
         }
+        
+        ulong count = stream.ReadUInt64();
         byte[] data = stream.ReadExactly((uint)count);
         string str = new (data.Select(b => (char)b).ToArray());
         var parsed = JsonDocument.Parse(str);
@@ -980,7 +990,7 @@ public class CompendiumUpdatePacket : Packet
         stream.WriteString(RegistryName);
         stream.WriteString(DataName);
 
-        if (Remove)
+        if (!Remove)
         {
             string str = Json!.Value.ToString();
             stream.WriteUInt64((ulong)str.Length);

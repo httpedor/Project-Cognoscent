@@ -1,0 +1,388 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "_expr.schema.json",
+  "title": "Shared expression definitions",
+  "description": "Reusable $defs for all expression types used by ExpressionCompiler.",
+  "$defs": {
+    "NumberExpr": {
+      "description": "A numeric expression (Expr<float>). Can be a constant, dice/range shorthand, indexed variable, or an object with an 'op' field.",
+      "oneOf": [
+        {
+          "type": "number",
+          "description": "Numeric constant, e.g. 3.5"
+        },
+        {
+          "type": "string",
+          "description": "Dice notation ('1d6', '2D8', '1-4', '3:6'), or indexed variable ('$0', '$1', ...).",
+          "examples": ["1d6", "2d8", "1-4", "3:6", "$0"]
+        },
+        {
+          "type": "object",
+          "required": ["op"],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": ["if", "lerp", "rand", "random", "range", "stat", "creature_stat", "entity_stat",
+                       "sum", "plus", "add", "addition", "+",
+                       "sub", "subtract", "minus", "subtraction", "-",
+                       "mul", "multiply", "times", "multiplication", "*",
+                       "div", "divide", "division", "/"]
+            }
+          },
+          "oneOf": [
+            {
+              "description": "Conditional: evaluates 'true' or 'false' expression depending on condition.",
+              "required": ["op", "condition", "true", "false"],
+              "properties": {
+                "op": { "const": "if" },
+                "condition": { "$ref": "#/$defs/ConditionExpr" },
+                "true": { "$ref": "#/$defs/NumberExpr" },
+                "false": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Linear interpolation between min and max by t (0-1).",
+              "required": ["op", "min", "max", "t"],
+              "properties": {
+                "op": { "enum": ["lerp"] },
+                "min": { "$ref": "#/$defs/NumberExpr" },
+                "max": { "$ref": "#/$defs/NumberExpr" },
+                "t": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Random value between min and max (inclusive).",
+              "required": ["op", "min", "max"],
+              "properties": {
+                "op": { "enum": ["rand", "random", "range"] },
+                "min": { "$ref": "#/$defs/NumberExpr" },
+                "max": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Looks up a stat value on an entity. Defaults to caller if entity is omitted, 0 if value is missing.",
+              "required": ["op", "stat"],
+              "properties": {
+                "op": { "enum": ["stat", "creature_stat", "entity_stat", "entitystat", "creaturestat"] },
+                "stat": { "type": "string", "description": "Stat ID to look up." },
+                "entity": { "$ref": "#/$defs/SelectorExpr" },
+                "default": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Sum of all numbers in the array.",
+              "required": ["op", "numbers"],
+              "properties": {
+                "op": { "enum": ["sum", "plus", "add", "addition", "+"] },
+                "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" } }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Subtracts each subsequent number from the first.",
+              "required": ["op", "numbers"],
+              "properties": {
+                "op": { "enum": ["sub", "subtract", "minus", "subtraction", "-"] },
+                "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" } }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Product of all numbers in the array.",
+              "required": ["op", "numbers"],
+              "properties": {
+                "op": { "enum": ["mul", "multiply", "times", "multiplication", "*"] },
+                "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" } }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Divides the first number by each subsequent one.",
+              "required": ["op", "numbers"],
+              "properties": {
+                "op": { "enum": ["div", "divide", "division", "/"] },
+                "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" } }
+              },
+              "unevaluatedProperties": false
+            }
+          ]
+        }
+      ]
+    },
+
+    "ConditionExpr": {
+      "description": "A boolean/condition expression (Expr<bool>).",
+      "oneOf": [
+        {
+          "type": "boolean",
+          "description": "Constant true or false."
+        },
+        {
+          "type": "null",
+          "description": "Equivalent to false."
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "description": "Probability check: 0–1 as a fraction, >1 treated as percentage divided by 100."
+        },
+        {
+          "type": "string",
+          "description": "Constant 'true'/'false', probability as 'N%', or indexed variable '$N'.",
+          "examples": ["true", "false", "50%", "$0"]
+        },
+        {
+          "type": "object",
+          "required": ["op"],
+          "properties": {
+            "op": { "type": "string" }
+          },
+          "oneOf": [
+            {
+              "description": "Conditional: condition picks which branch to evaluate.",
+              "required": ["op", "condition", "true", "false"],
+              "properties": {
+                "op": { "const": "if" },
+                "condition": { "$ref": "#/$defs/ConditionExpr" },
+                "true": { "$ref": "#/$defs/ConditionExpr" },
+                "false": { "$ref": "#/$defs/ConditionExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Logical AND of all conditions.",
+              "required": ["op", "conditions"],
+              "properties": {
+                "op": { "const": "and" },
+                "conditions": { "type": "array", "items": { "$ref": "#/$defs/ConditionExpr" } }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Logical OR of all conditions.",
+              "required": ["op", "conditions"],
+              "properties": {
+                "op": { "const": "or" },
+                "conditions": { "type": "array", "items": { "$ref": "#/$defs/ConditionExpr" } }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Logical NOT.",
+              "required": ["op", "condition"],
+              "properties": {
+                "op": { "const": "not" },
+                "condition": { "$ref": "#/$defs/ConditionExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Constant true.",
+              "required": ["op"],
+              "properties": { "op": { "const": "true" } },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Constant false.",
+              "required": ["op"],
+              "properties": { "op": { "const": "false" } },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Greater-than comparison.",
+              "required": ["op", "left", "right"],
+              "properties": {
+                "op": { "const": ">" },
+                "left": { "$ref": "#/$defs/NumberExpr" },
+                "right": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Greater-than-or-equal comparison (implemented as NOT less-than).",
+              "required": ["op", "left", "right"],
+              "properties": {
+                "op": { "const": ">=" },
+                "left": { "$ref": "#/$defs/NumberExpr" },
+                "right": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Less-than comparison.",
+              "required": ["op", "left", "right"],
+              "properties": {
+                "op": { "const": "<" },
+                "left": { "$ref": "#/$defs/NumberExpr" },
+                "right": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Less-than-or-equal comparison (implemented as NOT greater-than).",
+              "required": ["op", "left", "right"],
+              "properties": {
+                "op": { "const": "<=" },
+                "left": { "$ref": "#/$defs/NumberExpr" },
+                "right": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Equality comparison.",
+              "required": ["op", "left", "right"],
+              "properties": {
+                "op": { "enum": ["=", "=="] },
+                "left": { "$ref": "#/$defs/NumberExpr" },
+                "right": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Not-equal comparison.",
+              "required": ["op", "left", "right"],
+              "properties": {
+                "op": { "const": "!=" },
+                "left": { "$ref": "#/$defs/NumberExpr" },
+                "right": { "$ref": "#/$defs/NumberExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Random probability check. Defaults to 0.5 if 'probability' is omitted.",
+              "required": ["op"],
+              "properties": {
+                "op": { "enum": ["random", "rand"] },
+                "probability": { "$ref": "#/$defs/NumberExpr" } 
+              },
+              "unevaluatedProperties": false
+            }
+          ]
+        }
+      ]
+    },
+
+    "SelectorExpr": {
+      "description": "Selects an Entity (Expr<Entity?>). Can reference caller, target, target_part, or a variable.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["self", "caller", "target", "target_part"],
+          "description": "Named fixed selector."
+        },
+        {
+          "type": "string",
+          "pattern": "^\\$[0-9]+$",
+          "description": "Indexed variable, e.g. '$0'."
+        },
+        {
+          "type": ["null", "boolean"],
+          "enum": [null, false],
+          "description": "No entity / null selector."
+        },
+        {
+          "type": "object",
+          "required": ["op"],
+          "properties": {
+            "op": { "enum": ["self", "caller", "target", "target_part"] }
+          },
+          "oneOf": [
+            {
+              "description": "Conditional entity selector.",
+              "required": ["op", "condition", "true", "false"],
+              "properties": {
+                "op": { "const": "if" },
+                "condition": { "$ref": "#/$defs/ConditionExpr" },
+                "true": { "$ref": "#/$defs/SelectorExpr" },
+                "false": { "$ref": "#/$defs/SelectorExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "required": ["op"],
+              "properties": {
+                "op": { "enum": ["self", "caller", "target", "target_part"] }
+              },
+              "unevaluatedProperties": false
+            }
+          ]
+        }
+      ]
+    },
+
+    "StringExpr": {
+      "description": "A string expression (Expr<string>). Can be a literal, indexed variable, or a concat operation.",
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "String literal or '$N' indexed variable."
+        },
+        {
+          "type": "object",
+          "required": ["op"],
+          "oneOf": [
+            {
+              "description": "Conditional string expression.",
+              "required": ["op", "condition", "true", "false"],
+              "properties": {
+                "op": { "const": "if" },
+                "condition": { "$ref": "#/$defs/ConditionExpr" },
+                "true": { "$ref": "#/$defs/StringExpr" },
+                "false": { "$ref": "#/$defs/StringExpr" }
+              },
+              "unevaluatedProperties": false
+            },
+            {
+              "description": "Concatenate an array of string expressions.",
+              "required": ["op", "strings"],
+              "properties": {
+                "op": { "enum": ["concat", "add", "join"] },
+                "strings": { "type": "array", "items": { "$ref": "#/$defs/StringExpr" } }
+              },
+              "unevaluatedProperties": false
+            }
+          ]
+        }
+      ]
+    },
+
+    "EffectExpr": {
+      "description": "An effect expression (EffectExpr). Currently only no-op effects are supported; additional effects may be added via CompileEffectObj.",
+      "oneOf": [
+        {
+          "type": ["null", "boolean"],
+          "enum": [null, false],
+          "description": "No effect."
+        },
+        {
+          "type": "object",
+          "required": ["effect"],
+          "properties": {
+            "effect": {
+              "type": "string",
+              "enum": ["null", "nop", "noeffect", "no_effect"],
+              "description": "Named effect identifier."
+            }
+          },
+          "unevaluatedProperties": false
+        }
+      ]
+    },
+
+    "StatModifierType": {
+      "type": "string",
+      "enum": ["Flat", "FlatPostMods", "Percent", "Multiplier", "Capmax", "Capmin", "OverrideBase", "OverrideFinal"],
+      "description": "How the modifier value is applied to the stat. Case-insensitive at runtime."
+    },
+
+    "ArgumentType": {
+      "type": "string",
+      "enum": ["entity", "position", "bodypart", "item", "boolean"],
+      "description": "A skill argument type identifier."
+    }
+  }
+}

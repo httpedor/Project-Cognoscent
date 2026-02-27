@@ -101,11 +101,11 @@ public partial class VisionManager : SubViewport
                 lights[entry.Key].Position = point.Position.Left;
             else
             {
-                var token = point.Position.Right!;
+                var token = point.Position.Right;
                 if (token.Floor == null)
                     return;
                 point.Radius = Mathf.Max((token.Entity.Stats?.GetStatValue(CreatureStats.SIGHT) ?? 1f) * token.Floor.DefaultEntitySight, 0.75f);
-                lights[entry.Key].Position = board.GetTokenRenderer(token).Position;
+                lights[entry.Key].Position = board.GetEntityRenderer(token)!.Position;
                 if (token.FloorIndex != board.FloorIndex)
                 {
                     for (int i = board.FloorIndex; i > token.FloorIndex; i--)

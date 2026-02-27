@@ -27,6 +27,7 @@ public partial class Body : Component, ISerializable,
     private readonly Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
+    private readonly Dictionary<string, HashSet<BodyPart>> partsByTag = new();
     private readonly Dictionary<Injury, BodyPart> injuriesCache = new();
     private readonly HashSet<BodyPart> partsCache = new();
 
@@ -57,18 +58,14 @@ public partial class Body : Component, ISerializable,
         set
         {
             value.Body = this;
-            if (!WasInitialized)
-            {
-                field = value;
-                return;
-            }
             if (field != null)
             {
-                OnPartRemoved(field);
+                UnindexPart(field);
+                if (field.Body == this)
+                    field.Body = null;
             }
             field = value;
-            foreach (BodyPart child in field.AllChildren)
-                OnPartAdded(child);
+            IndexPart(field);
         }
     }
 
@@ -108,17 +105,23 @@ public partial class Body : Component, ISerializable,
     {
         base.OnInit(entity);
         statsCache = Stats.ToDictionary(stat => stat.Definition.Id, stat => stat);
+        var statsContainer = Entity.Stats;
+        if (statsContainer != null)
+        {
+            foreach (var stat in Stats)
+            {
+                statsContainer.CreateStat(stat.Definition);
+            }
+        }
         Context.Target = entity;
         Context.Caller = entity;
         Context.Board = entity.Board;
+        Context.Variables = new object[2];
     }
     public override void OnReady()
     {
-        OnPartAdded(Root);
-        foreach (var part in Root.AllChildren)
-        {
-            OnPartAdded(part);
-        }
+        base.OnReady();
+        IndexPart(Root);
     }
 
     public void OnTick()
@@ -133,6 +136,7 @@ public partial class Body : Component, ISerializable,
             var injury = oldInjury;
             if (Entity.ExistanceTicks % 50 == 0)
             {
+                Context.Variables[0] = injury.Severity;
                 injury = new Injury { Type = oldInjury.Type, Severity = oldInjury.Severity - oldInjury.Type.NaturalHeal.Eval(Context) };
                 if (injury.Severity <= 0)
                 {
@@ -146,18 +150,20 @@ public partial class Body : Component, ISerializable,
             }
             foreach (var creation in injury.Type.InjuryCreations)
             {
+                Context.Variables[0] = injury.Severity;
                 if (Entity.ExistanceTicks % creation.interval == 0 && creation.condition.Eval(Context))
                 {
-                    part.AddInjury(creation.injury);
+                    part.AddInjury(creation.injuryModel.Eval(Context));
                 }
             }
 
             foreach (var conversion in injury.Type.InjuryConversions)
             {
+                Context.Variables[0] = injury.Severity;
                 if (Entity.ExistanceTicks % conversion.interval == 0 && conversion.condition.Eval(Context))
                 {
                     part.RemoveInjury(injury);
-                    part.AddInjury(conversion.injury);
+                    part.AddInjury(conversion.injuryModel.Eval(Context));
                 }
             }
         }
@@ -181,7 +187,7 @@ public partial class Body : Component, ISerializable,
         }
     }
 
-    public void OnPartAdded(BodyPart part)
+    public void IndexPart(BodyPart part)
     {
         partsCache.Add(part);
         foreach (string slot in part.EquipmentSlots)
@@ -197,12 +203,21 @@ public partial class Body : Component, ISerializable,
         if (!partsByGroup.ContainsKey(part.Group))
             partsByGroup[part.Group] = new HashSet<BodyPart>();
         partsByGroup[part.Group].Add(part);
+        foreach (var tag in ((ITaggable)part).Tags)
+        {
+            if (!partsByTag.ContainsKey(tag))
+                partsByTag[tag] = new HashSet<BodyPart>();
+            partsByTag[tag].Add(part);
+        }
         foreach (var injury in part.Injuries)
         {
             injuriesCache[injury] = part;
         }
         if (part.IsAlive)
             ApplyPartToOwner(part);
+        
+        foreach (var child in part.Children)
+            IndexPart(child);
     }
 
     public void UnapplyPartToOwner(BodyPart part)
@@ -222,21 +237,37 @@ public partial class Body : Component, ISerializable,
         }
     }
 
-    public void OnPartRemoved(BodyPart part)
+    public void UnindexPart(BodyPart part)
     {
         partsCache.Remove(part);
         foreach (string slot in part.EquipmentSlots)
-            equipmentSlots[slot].Remove(part);
+        {
+            if (equipmentSlots.TryGetValue(slot, out HashSet<BodyPart>? partsSet))
+                partsSet.Remove(part);
+        }
         partsCovered.Remove(part);
-        partsByName[part.Name].Remove(part);
-        if (partsByName[part.Name].Count == 0)
-            partsByName.Remove(part.Name);
-        partsByGroup[part.Group].Remove(part);
-        UnapplyPartToOwner(part);
+        if (partsByName.TryGetValue(part.Name, out HashSet<BodyPart>? partsSetByName))
+        {
+            partsSetByName.Remove(part);
+            if (partsSetByName.Count == 0)
+                partsByName.Remove(part.Name);
+        }
+        if (partsByGroup.TryGetValue(part.Group, out HashSet<BodyPart>? partsSetByGroup))
+            partsSetByGroup.Remove(part);
+        foreach (var tag in ((ITaggable)part).Tags)
+        {
+            if (partsByTag.TryGetValue(tag, out HashSet<BodyPart>? partsSetByTag))
+            {
+                partsSetByTag.Remove(part);
+                if (partsSetByTag.Count == 0)
+                    partsByTag.Remove(tag);
+            }
+        }
         foreach (var injury in part.Injuries)
             injuriesCache.Remove(injury);
+        UnapplyPartToOwner(part);
         foreach (var child in part.Children)
-            OnPartRemoved(child);
+            UnindexPart(child);
     }
 
     public void HandleEvent(BodyPartDiedEvent ev)
@@ -306,6 +337,20 @@ public partial class Body : Component, ISerializable,
     {
         if (partsByGroup.TryGetValue(group, out HashSet<BodyPart>? onGroup))
             return onGroup;
+        return Array.Empty<BodyPart>();
+    }
+
+    public IEnumerable<BodyPart> GetPartsWithTag(string tag)
+    {
+        if (partsByTag.TryGetValue(tag, out HashSet<BodyPart>? onTag))
+            return onTag;
+        return Array.Empty<BodyPart>();
+    }
+
+    public IEnumerable<BodyPart> GetPartsWithName(string name)
+    {
+        if (partsByName.TryGetValue(name, out HashSet<BodyPart>? withName))
+            return withName;
         return Array.Empty<BodyPart>();
     }
 

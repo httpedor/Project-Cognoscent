@@ -309,7 +309,8 @@ public partial class InputManager : SubViewportContainer
 							token.Position = new System.Numerics.Vector3(board.CurrentFloor.PixelToWorld(new System.Numerics.Vector2(Mathf.Floor(pos.X), Mathf.Floor(pos.Y))), board.FloorIndex);
 							token.Midia = img;
 						}
-						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, ent));
+						var entities = entWithBody.Component.Parts.Select(p => p.Entity).Append(ent).ToArray();
+						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, entities));
 					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<BodyModel>().ToArray(), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
 				});
 				ContextMenu.AddOption(board.TurnMode ? "Sair do modo de turnos" : "Entrar no modo de turnos", _ =>
@@ -585,7 +586,7 @@ public partial class InputManager : SubViewportContainer
 					}
 
 					entityNode.OnClick();
-					entityNode.GetViewport().SetInputAsHandled();
+					GetViewport().SetInputAsHandled();
 				}
 				AcceptEvent();
 			}

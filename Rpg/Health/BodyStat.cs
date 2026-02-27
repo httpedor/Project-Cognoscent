@@ -7,6 +7,28 @@ using Rpg.Scripting;
 public class BodyStat : ISerializable
 {
     //TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
+    public class StatThreshold : ISerializable
+    {
+        public Expr<bool> Condition;
+        public EffectExpr Effect;
+
+        public StatThreshold(Expr<bool> condition, EffectExpr effect)
+        {
+            Condition = condition;
+            Effect = effect;
+        }
+        public StatThreshold(Stream stream)
+        {
+            Condition = BaseExpr.Deserialize<Expr<bool>>(stream);
+            Effect = BaseExpr.Deserialize<EffectExpr>(stream);
+        }
+
+        public void ToBytes(Stream stream)
+        {
+            Condition.ToBytes(stream);
+            Effect.ToBytes(stream);
+        }
+    }
     public class StatDependency : ISerializable
     {
         public string StatName;
@@ -43,7 +65,13 @@ public class BodyStat : ISerializable
     /// </summary>
     public StatDependency[]? Dependencies;
     /// <summary>
-    /// Either the name of the stat that defines the regeneration rate, or a Expr<float> value.
+    /// Thresholds that trigger effects when certain conditions are met. For example, if the stat drops below a certain value, it could apply a debuff to the entity.
+    /// Args passed to expressions:
+    /// $0 - Current stat value
+    /// </summary>
+    public StatThreshold[]? Thresholds;
+    /// <summary>
+    /// A Expr<float> value which defines the regeneration rate of this stat.
     /// </summary>
     public Expr<float>? Regen;
     /// <summary>
