@@ -291,8 +291,7 @@
           "$ref": "#/$defs/BodyPartModel",
           "description": "The root body part (typically 'Torso' or 'Body'). All other parts are children of this."
         }
-      },
-      "unevaluatedProperties": false
+      }
     }
   }
 }

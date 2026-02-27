@@ -33,8 +33,7 @@
           "description": "Arbitrary tags for gameplay filtering (e.g. ['fire', 'elemental']).",
           "default": []
         }
-      },
-      "unevaluatedProperties": false
+      }
     }
   }
 }
