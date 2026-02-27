@@ -36,4 +36,13 @@
     <!-- Run via dotnet run to avoid path/quoting/env issues -->
     <Exec Command="$(DotNetExe) run --no-build --project $(PacketTsGenProj) -c $(Configuration) -- $(RpgDll) $(TsOutPath)" ContinueOnError="WarnAndContinue" />
   </Target>
+
+  <!-- Write the auto-generated expression JSON schema to disk after build -->
+  <Target Name="WriteExprSchema" AfterTargets="Build" Condition="'$(IsCrossTargetingBuild)' != 'true'">
+    <PropertyGroup>
+      <_ExprSchemaPath>$(MSBuildProjectDirectory)\..\schemas\_expr.schema.json</_ExprSchemaPath>
+    </PropertyGroup>
+    <Message Text="[Rpg] Writing expression schema to $(_ExprSchemaPath) ..." Importance="High" />
+    <Exec Command="dotnet run --no-build --project $(MSBuildProjectDirectory)\..\Tools\ExprSchemaWriter\ExprSchemaWriter.csproj -c $(Configuration) -- $(_ExprSchemaPath)" ContinueOnError="WarnAndContinue" />
+  </Target>
 </Project>

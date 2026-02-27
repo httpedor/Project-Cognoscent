@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Rpg.Scripting;
 
 public sealed class GreaterThanConditionExpr : Expr<bool>
@@ -10,6 +12,22 @@ public sealed class GreaterThanConditionExpr : Expr<bool>
         Left = left;
         Right = right;
     }
+
+    [ExprOp(ExprCategory.Condition, ">")]
+    [ExprParam("left", "numberExpr", Required = true)]
+    [ExprParam("right", "numberExpr", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new GreaterThanConditionExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
+
+    [ExprOp(ExprCategory.Condition, "<=")]
+    [ExprParam("left", "numberExpr", Required = true)]
+    [ExprParam("right", "numberExpr", Required = true)]
+    public static Expr<bool> CompileLte(JsonElement obj)
+        => new NotConditionExpr(new GreaterThanConditionExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("right"))));
     public GreaterThanConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -37,6 +55,22 @@ public sealed class LessThanConditionExpr : Expr<bool>
         Left = left;
         Right = right;
     }
+
+    [ExprOp(ExprCategory.Condition, "<")]
+    [ExprParam("left", "numberExpr", Required = true)]
+    [ExprParam("right", "numberExpr", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new LessThanConditionExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
+
+    [ExprOp(ExprCategory.Condition, ">=")]
+    [ExprParam("left", "numberExpr", Required = true)]
+    [ExprParam("right", "numberExpr", Required = true)]
+    public static Expr<bool> CompileGte(JsonElement obj)
+        => new NotConditionExpr(new LessThanConditionExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("right"))));
     public LessThanConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -64,6 +98,14 @@ public sealed class EqualConditionExpr : Expr<bool>
         Left = left;
         Right = right;
     }
+
+    [ExprOp(ExprCategory.Condition, "=", "==")]
+    [ExprParam("left", "numberExpr", Required = true)]
+    [ExprParam("right", "numberExpr", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new EqualConditionExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
     public EqualConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -91,6 +133,14 @@ public sealed class NotEqualConditionExpr : Expr<bool>
         Left = left;
         Right = right;
     }
+
+    [ExprOp(ExprCategory.Condition, "!=")]
+    [ExprParam("left", "numberExpr", Required = true)]
+    [ExprParam("right", "numberExpr", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new NotEqualConditionExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
     public NotEqualConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);

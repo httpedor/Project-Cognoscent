@@ -234,6 +234,29 @@
         "onChange": {
           "$ref": "#/$defs/EffectExpr",
           "description": "Effect evaluated whenever this stat's value changes."
+        },
+        "thresholds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["condition", "effect"],
+            "properties": {
+              "condition": {
+                "$ref": "#/$defs/ConditionExpr",
+                "description": "Condition evaluated against the entity's current state. If true, the threshold's effect is applied."
+              },
+              "effect": {
+                "$ref": "#/$defs/EffectExpr",
+                "description": "Effect applied when the condition is met."
+              },
+              "reverse": {
+                "$ref": "#/$defs/EffectExpr",
+                "description": "Optional effect to unapply when the condition is no longer met (e.g. if the stat goes back above a health threshold)."
+              }
+            },
+            "unevaluatedProperties": false
+          },
+          "description": "List of conditional effects that apply when the stat reaches certain thresholds (e.g. apply 'Bleeding' feature when health drops below 30%)."
         }
       }
     },

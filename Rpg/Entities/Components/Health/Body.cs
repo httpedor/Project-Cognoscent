@@ -19,7 +19,8 @@ public partial class Body : Component, ISerializable,
     ComponentEventHandler<ItemHeldEvent>,
     ComponentEventHandler<ItemUnheldEvent>,
     ComponentEventHandler<ItemEquippedEvent>,
-    ComponentEventHandler<ItemUnequippedEvent>
+    ComponentEventHandler<ItemUnequippedEvent>,
+    ComponentEventHandler<StatsContainerEvent>
 {
     public readonly EvalContext Context = new EvalContext();
     public BodyModel? Model { get; init; }
@@ -488,6 +489,31 @@ public partial class Body : Component, ISerializable,
                 foreach (Skill skill in provider.GetSkillsFor(executor))
                 {
                     yield return skill;
+                }
+            }
+        }
+    }
+
+    public void HandleEvent(StatsContainerEvent componentEvent)
+    {
+        var bodyStat = statsCache.GetValueOrDefault(componentEvent.StatEvent.Stat.Id);
+        if (bodyStat != null)
+        {
+            if (bodyStat.OnChange != null)
+            {
+                Context.Variables[0] = componentEvent.StatEvent.Stat.FinalValue;
+                bodyStat.OnChange.Eval(Context);
+            }
+            if (bodyStat.Thresholds != null && bodyStat.Thresholds.Length > 0)
+            {
+                Context.Variables[0] = componentEvent.StatEvent.Stat.FinalValue;
+                foreach (var threshold in bodyStat.Thresholds)
+                {
+
+                    if (threshold.Condition.Eval(Context))
+                    {
+                        threshold.Effect.Eval(Context);
+                    }
                 }
             }
         }

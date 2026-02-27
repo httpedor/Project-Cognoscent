@@ -1,9 +1,16 @@
+using System.Text.Json;
+
 namespace Rpg.Scripting;
 
 public sealed class AndConditionExpr : Expr<bool>
 {
     public readonly Expr<bool>[] Args;
     public AndConditionExpr(Expr<bool>[] args) => Args = args;
+
+    [ExprOp(ExprCategory.Condition, "and")]
+    [ExprParam("conditions", "conditionExpr[]", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new AndConditionExpr(ExpressionCompiler.CompileArgsAs<Expr<bool>>(obj.GetProperty("conditions")));
     public AndConditionExpr(Stream stream)
     {
         int length = stream.ReadInt32();
@@ -31,6 +38,11 @@ public sealed class OrConditionExpr : Expr<bool>
 {
     public readonly Expr<bool>[] Args;
     public OrConditionExpr(Expr<bool>[] args) => Args = args;
+
+    [ExprOp(ExprCategory.Condition, "or")]
+    [ExprParam("conditions", "conditionExpr[]", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new OrConditionExpr(ExpressionCompiler.CompileArgsAs<Expr<bool>>(obj.GetProperty("conditions")));
     public OrConditionExpr(Stream stream)
     {
         int length = stream.ReadInt32();
@@ -58,6 +70,11 @@ public sealed class NotConditionExpr : Expr<bool>
 {
     public readonly Expr<bool> Arg;
     public NotConditionExpr(Expr<bool> arg) => Arg = arg;
+
+    [ExprOp(ExprCategory.Condition, "not")]
+    [ExprParam("condition", "conditionExpr", Required = true)]
+    public static Expr<bool> CompileOp(JsonElement obj)
+        => new NotConditionExpr(ExpressionCompiler.CompileCondition(obj.GetProperty("condition")));
     public NotConditionExpr(Stream stream)
     {
         Arg = (Expr<bool>)BaseExpr.Deserialize(stream);

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 
 namespace Rpg.Scripting;
@@ -13,6 +14,22 @@ public sealed class StatExpr : Expr<float>
         StatName = statName;
         DefaultValue = defaultValue;
         Target = target;
+    }
+
+    [ExprOp(ExprCategory.Number, "stat", "creature_stat", "entity_stat", "entitystat", "creaturestat")]
+    [ExprParam("stat", "string", Required = true, Description = "Name of the stat to read")]
+    [ExprParam("entity", "selectorExpr", Description = "Entity to read stat from (defaults to caller)")]
+    [ExprParam("default", "numberExpr", Description = "Default value if stat not found (defaults to 0)")]
+    public static Expr<float> CompileOp(JsonElement obj)
+    {
+        string statName = obj.GetProperty("stat").GetString()!;
+        Expr<Entity?> entityExpr = obj.TryGetProperty("entity", out var entityElement)
+            ? ExpressionCompiler.CompileSelector(entityElement)
+            : new CallerSelectorExpr();
+        Expr<float> defaultValue = obj.TryGetProperty("default", out var defaultElement)
+            ? ExpressionCompiler.CompileNumber(defaultElement)
+            : new ConstNumberExpr(0);
+        return new StatExpr(statName, entityExpr, defaultValue);
     }
     public StatExpr(Stream stream)
     {

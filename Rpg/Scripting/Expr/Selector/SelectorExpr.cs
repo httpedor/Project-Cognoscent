@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 
 namespace Rpg.Scripting;
@@ -6,6 +7,10 @@ public sealed class CallerSelectorExpr : Expr<Entity?>
 {
     public CallerSelectorExpr(){}
     public CallerSelectorExpr(Stream stream){}
+
+    [ExprOp(ExprCategory.Selector, "caller", "self")]
+    public static Expr<Entity?> CompileOp(JsonElement obj) => new CallerSelectorExpr();
+
     public override Entity? Eval(EvalContext ctx)
     {
         return ctx.Caller;
@@ -15,6 +20,10 @@ public sealed class TargetSelectorExpr : Expr<Entity?>
 {
     public TargetSelectorExpr(){}
     public TargetSelectorExpr(Stream stream){}
+
+    [ExprOp(ExprCategory.Selector, "target")]
+    public static Expr<Entity?> CompileOp(JsonElement obj) => new TargetSelectorExpr();
+
     public override Entity? Eval(EvalContext ctx)
     {
         return ctx.Target;
@@ -24,6 +33,10 @@ public sealed class TargetPartSelectorExpr : Expr<Entity?>
 {
     public TargetPartSelectorExpr(){}
     public TargetPartSelectorExpr(Stream stream){}
+
+    [ExprOp(ExprCategory.Selector, "target_part")]
+    public static Expr<Entity?> CompileOp(JsonElement obj) => new TargetPartSelectorExpr();
+
     public override Entity? Eval(EvalContext ctx)
     {
             return ctx.TargetPart;

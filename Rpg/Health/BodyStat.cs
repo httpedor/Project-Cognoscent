@@ -11,22 +11,29 @@ public class BodyStat : ISerializable
     {
         public Expr<bool> Condition;
         public EffectExpr Effect;
+        public EffectExpr? UnapplyEffect;
 
-        public StatThreshold(Expr<bool> condition, EffectExpr effect)
+        public StatThreshold(Expr<bool> condition, EffectExpr effect, EffectExpr? unapplyEffect = null)
         {
             Condition = condition;
             Effect = effect;
+            UnapplyEffect = unapplyEffect;
         }
         public StatThreshold(Stream stream)
         {
             Condition = BaseExpr.Deserialize<Expr<bool>>(stream);
             Effect = BaseExpr.Deserialize<EffectExpr>(stream);
+            if (stream.ReadBoolean())
+                UnapplyEffect = BaseExpr.Deserialize<EffectExpr>(stream);
         }
 
         public void ToBytes(Stream stream)
         {
             Condition.ToBytes(stream);
             Effect.ToBytes(stream);
+            stream.WriteBoolean(UnapplyEffect != null);
+            if (UnapplyEffect != null)
+                UnapplyEffect.ToBytes(stream);
         }
     }
     public class StatDependency : ISerializable

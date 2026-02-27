@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Rpg.Scripting;
 
 public sealed class LerpExpr : Expr<float>
@@ -12,6 +14,16 @@ public sealed class LerpExpr : Expr<float>
         Max = max;
         T = t;
     }
+
+    [ExprOp(ExprCategory.Number, "lerp")]
+    [ExprParam("min", "numberExpr", Required = true)]
+    [ExprParam("max", "numberExpr", Required = true)]
+    [ExprParam("t", "numberExpr", Required = true, Description = "Interpolation factor (0-1)")]
+    public static Expr<float> CompileOp(JsonElement obj)
+        => new LerpExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("min")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("max")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("t")));
     public LerpExpr(Stream stream)
     {
         Min = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -44,6 +56,14 @@ public sealed class RangeExpr : Expr<float>
         Min = min;
         Max = max;
     }
+
+    [ExprOp(ExprCategory.Number, "rand", "random", "range")]
+    [ExprParam("min", "numberExpr", Required = true)]
+    [ExprParam("max", "numberExpr", Required = true)]
+    public static Expr<float> CompileOp(JsonElement obj)
+        => new RangeExpr(
+            ExpressionCompiler.CompileNumber(obj.GetProperty("min")),
+            ExpressionCompiler.CompileNumber(obj.GetProperty("max")));
     public RangeExpr(Stream stream)
     {
         Min = (Expr<float>)BaseExpr.Deserialize(stream);

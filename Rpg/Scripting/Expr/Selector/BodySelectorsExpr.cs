@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 
 namespace Rpg.Scripting;
@@ -11,6 +12,14 @@ public class BodyPartSelectorByTagExpr : Expr<Entity?>
         Target = target;
         Tag = tag;
     }
+
+    [ExprOp(ExprCategory.Selector, "part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    [ExprParam("tag", "stringExpr", Required = true)]
+    public static Expr<Entity?> CompileOp(JsonElement obj)
+        => new BodyPartSelectorByTagExpr(
+            ExpressionCompiler.CompileSelector(obj.GetProperty("target")),
+            ExpressionCompiler.CompileString(obj.GetProperty("tag")));
     public BodyPartSelectorByTagExpr(Stream stream)
     {
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
@@ -43,6 +52,14 @@ public class BodyPartSelectorByNameExpr : Expr<Entity?>
         Target = target;
         Name = name;
     }
+
+    [ExprOp(ExprCategory.Selector, "part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    [ExprParam("name", "stringExpr", Required = true)]
+    public static Expr<Entity?> CompileOp(JsonElement obj)
+        => new BodyPartSelectorByNameExpr(
+            ExpressionCompiler.CompileSelector(obj.GetProperty("target")),
+            ExpressionCompiler.CompileString(obj.GetProperty("name")));
     public BodyPartSelectorByNameExpr(Stream stream)
     {
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
@@ -75,6 +92,14 @@ public class BodyPartSelectorByPathExpr : Expr<Entity?>
         Target = target;
         Path = path;
     }
+
+    [ExprOp(ExprCategory.Selector, "part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    [ExprParam("path", "stringExpr", Required = true)]
+    public static Expr<Entity?> CompileOp(JsonElement obj)
+        => new BodyPartSelectorByPathExpr(
+            ExpressionCompiler.CompileSelector(obj.GetProperty("target")),
+            ExpressionCompiler.CompileString(obj.GetProperty("path")));
     public BodyPartSelectorByPathExpr(Stream stream)
     {
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);

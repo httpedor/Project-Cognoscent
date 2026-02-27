@@ -484,6 +484,7 @@ public class BodyModel
                         }
                         var conditionEl = thresholdEl.GetPropertyOrNull("condition");
                         var effectEl = thresholdEl.GetPropertyOrNull("effect");
+                        var unapplyEl = thresholdEl.GetPropertyOrNull("reverse");
                         if (!conditionEl.HasValue || !effectEl.HasValue)
                         {
                             Logger.LogWarning($"Invalid threshold entry for stat {statName}: missing 'condition' or 'effect' property");
@@ -491,17 +492,19 @@ public class BodyModel
                         }
                         Expr<bool> condition = ExpressionCompiler.CompileCondition(conditionEl.Value);
                         EffectExpr effect;
+                        EffectExpr? unapplyEffect = null;
 
                         if (effectEl.Value.ValueKind == JsonValueKind.String && Compendium.EntryExists<Feature>(effectEl.Value.GetString()!))
-                        {
                             effect = new AddFeatureEffect(new CompendiumEntryExpr<Feature>(effectEl.Value.GetString()!), new TargetSelectorExpr());
-                        }
                         else
-                        {
                             effect = ExpressionCompiler.CompileEffect(effectEl.Value);
-                        }
 
-                        thresholds.Add(new BodyStat.StatThreshold(condition, effect));
+                        if (unapplyEl.HasValue && unapplyEl.Value.ValueKind == JsonValueKind.String && Compendium.EntryExists<Feature>(unapplyEl.Value.GetString()!))
+                            unapplyEffect = new RemoveFeatureEffect(new CompendiumEntryExpr<Feature>(unapplyEl.Value.GetString()!), new TargetSelectorExpr());
+                        else if (unapplyEl.HasValue)
+                            unapplyEffect = ExpressionCompiler.CompileEffect(unapplyEl.Value);
+
+                        thresholds.Add(new BodyStat.StatThreshold(condition, effect, unapplyEffect));
                     }
                 }
                 Stats[statName] = new StatConfig

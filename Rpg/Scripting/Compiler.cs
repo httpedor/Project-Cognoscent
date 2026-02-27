@@ -78,7 +78,7 @@ public sealed class EvalContext
 //TODO: Use this in all stuff in the compendium
 public static class ExpressionCompiler
 {
-    private static T[] CompileArgsAs<T>(JsonElement array) where T : BaseExpr
+    public static T[] CompileArgsAs<T>(JsonElement array) where T : BaseExpr
     {
         var list = new List<T>();
         foreach (var el in array.EnumerateArray())
@@ -92,6 +92,12 @@ public static class ExpressionCompiler
                     ?? throw new Exception("Compiled expression is not of the expected type.");
             else if (typeof(T).IsAssignableTo(typeof(Expr<bool>)))
                 compiled = CompileCondition(el) as T
+                    ?? throw new Exception("Compiled expression is not of the expected type.");
+            else if (typeof(T).IsAssignableTo(typeof(Expr<string>)))
+                compiled = CompileString(el) as T
+                    ?? throw new Exception("Compiled expression is not of the expected type.");
+            else if (typeof(T).IsAssignableTo(typeof(Expr<Entity?>)))
+                compiled = CompileSelector(el) as T
                     ?? throw new Exception("Compiled expression is not of the expected type.");
             else
                 throw new Exception("Unsupported expression type for compilation.");
@@ -173,72 +179,12 @@ public static class ExpressionCompiler
     }
     private static Expr<float> CompileNumberObj(JsonElement obj, string op)
     {
-        switch (op)
-        {
-            case "lerp":
-                return new LerpExpr(
-                    CompileNumber(obj.GetProperty("min")),
-                    CompileNumber(obj.GetProperty("max")),
-                    CompileNumber(obj.GetProperty("t"))
-                );
-            case "rand":
-            case "random":
-            case "range":
-                return new RangeExpr(
-                    CompileNumber(obj.GetProperty("min")),
-                    CompileNumber(obj.GetProperty("max"))
-                );
-            case "creature_stat":
-            case "entity_stat":
-            case "entitystat":
-            case "creaturestat":
-            case "stat":
-            {
-                string statName = obj.GetProperty("stat").GetString()!;
-                Expr<Entity?> entityName = obj.TryGetProperty("entity", out var entityNameElement) ? CompileSelector(entityNameElement) : new CallerSelectorExpr();
-                Expr<float> defaultValue = obj.TryGetProperty("default", out var defaultValueElement) ? CompileNumber(defaultValueElement) : new ConstNumberExpr(0);
-                return new StatExpr(statName, entityName, defaultValue);
-            }
+        if (op is "run_script" or "runscript" or "invoke_script" or "invoke" or "invokescript" or "script")
+            throw new NotSupportedException("Script invocation must be handled outside the expression system.");
 
-            case "sum":
-            case "plus":
-            case "add":
-            case "addition":
-            case "+":
-                return new AddExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
-
-            case "sub":
-            case "subtract":
-            case "minus":
-            case "subtraction":
-            case "-":
-                return new SubExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
-
-            case "mul":
-            case "multiply":
-            case "times":
-            case "multiplication":
-            case "*":
-                return new MulExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
-
-            case "div":
-            case "divide":
-            case "division":
-            case "/":
-                return new DivExpr(CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
-
-            case "run_script":
-            case "runscript":
-            case "invoke_script":
-            case "invoke":
-            case "invokescript":
-            case "script":
-                throw new NotSupportedException(
-                    "Script invocation must be handled outside the expression system.");
-
-            default:
-                throw new Exception("Unknown operation: " + op);
-        }
+        var result = ExprRegistry.CompileNumber(obj, op);
+        if (result != null) return result;
+        throw new Exception("Unknown number operation: " + op);
     }
     public static EffectExpr CompileEffect(JsonElement element)
     {
@@ -273,106 +219,9 @@ public static class ExpressionCompiler
     }
     private static EffectExpr CompileEffectObj(JsonElement obj, string effectName)
     {
-        switch (effectName)
-        {
-            case "null":
-            case "nop":
-            case "noeffect":
-            case "no_effect":
-                return new NoEffectExpr();
-            case "add_feature":
-            case "addfeature":
-            case "add_feat":
-            case "add_condition":
-            case "addcondition":
-                var feature = CompileCompendiumEntry<Feature>(obj.GetProperty("feature"));
-                var selector = CompileSelector(obj.GetProperty("target"));
-                if (obj.TryGetProperty("ticks", out var ticksElement))
-                {
-                    var ticks = CompileNumber(ticksElement);
-                    return new AddConditionEffect(feature.IdExpr.Eval(new EvalContext()), selector, ticks);
-                }
-                return new AddFeatureEffect(
-                    feature,
-                    selector
-                );
-            case "composite":
-                {
-                    var effects = CompileArgsAs<EffectExpr>(obj.GetProperty("effects"));
-                    return new CompositeEffectExpr(effects);
-                }
-            case "remove_feature":
-            case "removefeature":
-            case "remove_feat":
-                return new RemoveFeatureEffect(
-                    CompileCompendiumEntry<Feature>(obj.GetProperty("feature")),
-                    CompileSelector(obj.GetProperty("target"))
-                );
-            case "setstat":
-            case "set_stat":
-                {
-                    string statName = obj.GetProperty("stat").GetString()!;
-                    var value = CompileNumber(obj.GetProperty("value"));
-                    var target = CompileSelector(obj.GetProperty("target"));
-                    return new SetStatEffect(statName, target, value);
-                }
-            case "addstat":
-            case "add_stat":
-                {
-                    string statName = obj.GetProperty("stat").GetString()!;
-                    var value = CompileNumber(obj.GetProperty("value"));
-                    var target = CompileSelector(obj.GetProperty("target"));
-                    return new SetStatEffect(statName, target, new AddExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
-                }
-            case "substat":
-            case "sub_stat":
-            case "remove_stat":
-            case "removestat":
-                {
-                    string statName = obj.GetProperty("stat").GetString()!;
-                    var value = CompileNumber(obj.GetProperty("value"));
-                    var target = CompileSelector(obj.GetProperty("target"));
-                    return new SetStatEffect(statName, target, new SubExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
-                }
-            case "mulstat":
-            case "mul_stat":
-                {
-                    string statName = obj.GetProperty("stat").GetString()!;
-                    var value = CompileNumber(obj.GetProperty("value"));
-                    var target = CompileSelector(obj.GetProperty("target"));
-                    return new SetStatEffect(statName, target, new MulExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
-                }
-            case "divstat":
-            case "div_stat":
-                {
-                    string statName = obj.GetProperty("stat").GetString()!;
-                    var value = CompileNumber(obj.GetProperty("value"));
-                    var target = CompileSelector(obj.GetProperty("target"));
-                    return new SetStatEffect(statName, target, new DivExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
-                }
-            case "add_injury":
-            case "addinjury":
-            case "injury":
-            case "hurt":
-                return new AddInjuryEffect(
-                    new InjuryModel(obj.GetProperty("injury")),
-                     CompileSelector(obj.GetProperty("target"))
-                );
-            case "heal_injury":
-            case "healinjury":
-                {
-                    var injuryType = CompileCompendiumEntry<InjuryType>(obj.GetProperty("injury"));
-                    var target = CompileSelector(obj.GetProperty("target"));
-                    if (obj.TryGetProperty("amount", out var amountElement))
-                    {
-                        var amount = CompileNumber(amountElement);
-                        return new HealInjuryTypeEffect(injuryType, amount, target);
-                    }
-                    return new HealInjuryTypeEffect(injuryType, target);
-                }
-            default:
-                throw new Exception("Unknown effect: " + effectName);
-        }
+        var result = ExprRegistry.CompileEffect(obj, effectName);
+        if (result != null) return result;
+        throw new Exception("Unknown effect: " + effectName);
     }
 
     public static Expr<bool> CompileCondition(JsonElement element)
@@ -445,58 +294,9 @@ public static class ExpressionCompiler
     }
     public static Expr<bool> CompileConditionObj(JsonElement obj, string op)
     {
-        var left = obj.GetProperty("left");
-        var right = obj.GetProperty("right");
-        switch (op)
-        {
-            case "and":
-                return new AndConditionExpr(CompileArgsAs<Expr<bool>>(obj.GetProperty("conditions")));
-            case "or":
-                return new OrConditionExpr(CompileArgsAs<Expr<bool>>(obj.GetProperty("conditions")));
-            case "not":
-                return new NotConditionExpr(
-                    CompileCondition(obj.GetProperty("condition")));
-            case "true":
-                return new ConstConditionExpr(true);
-            case "false":
-                return new ConstConditionExpr(false);
-            case ">":
-                return new GreaterThanConditionExpr(
-                    CompileNumber(left),
-                    CompileNumber(right));
-            case ">=":
-                return new NotConditionExpr(
-                    new LessThanConditionExpr(
-                        CompileNumber(left),
-                        CompileNumber(right)));
-            case "<":
-                return new LessThanConditionExpr(
-                    CompileNumber(left),
-                    CompileNumber(right));
-            case "<=":
-                return new NotConditionExpr(
-                    new GreaterThanConditionExpr(
-                        CompileNumber(left),
-                        CompileNumber(right)));
-            case "=":
-            case "==":
-                return new EqualConditionExpr(
-                    CompileNumber(left),
-                    CompileNumber(right));
-            case "!=":
-                return new NotEqualConditionExpr(
-                    CompileNumber(left),
-                    CompileNumber(right));
-            case "random":
-            case "rand":
-                {
-                    Expr<float> probability = obj.TryGetProperty("probability", out var probElem) ? CompileNumber(probElem) : new ConstNumberExpr(0.5f);
-                    return new RandomConditionExpr(probability);
-                }
-
-            default:
-                throw new Exception("Unknown condition operation: " + op);
-        }
+        var result = ExprRegistry.CompileCondition(obj, op);
+        if (result != null) return result;
+        throw new Exception("Unknown condition operation: " + op);
     }
 
     public static Expr<Entity?> CompileSelector(JsonElement element)
@@ -546,42 +346,9 @@ public static class ExpressionCompiler
     }
     public static Expr<Entity?> CompileSelectorObj(JsonElement obj, string selectorName)
     {
-        switch (selectorName.ToLower())
-        {
-            case "caller":
-            case "self":
-                return new CallerSelectorExpr();
-            case "target":
-                return new TargetSelectorExpr();
-            case "target_part":
-                return new TargetPartSelectorExpr();
-            case "part_by_name":
-            case "bp_by_name":
-            case "bodypart_by_name":
-            case "body_part_by_name":
-                return new BodyPartSelectorByNameExpr(
-                    CompileSelector(obj.GetProperty("target")),
-                    CompileString(obj.GetProperty("name"))
-                );
-            case "part_by_path":
-            case "bp_by_path":
-            case "bodypart_by_path":
-            case "body_part_by_path":
-                return new BodyPartSelectorByPathExpr(
-                    CompileSelector(obj.GetProperty("target")),
-                    CompileString(obj.GetProperty("path"))
-                );
-            case "part_by_tag":
-            case "bp_by_tag":
-            case "bodypart_by_tag":
-            case "body_part_by_tag":
-                return new BodyPartSelectorByTagExpr(
-                    CompileSelector(obj.GetProperty("target")),
-                    CompileString(obj.GetProperty("tag"))
-                );
-            default:
-                throw new Exception("Unknown selector: " + selectorName);
-        }
+        var result = ExprRegistry.CompileSelector(obj, selectorName.ToLower());
+        if (result != null) return result;
+        throw new Exception("Unknown selector: " + selectorName);
     }
     public static Expr<string> CompileString(JsonElement element)
     {
@@ -619,15 +386,9 @@ public static class ExpressionCompiler
     }
     private static Expr<string> CompileStringObj(JsonElement obj, string op)
     {
-        switch (op)
-        {
-            case "concat":
-            case "add":
-            case "join":
-                return new StringConcatExpr(CompileArgsAs<Expr<string>>(obj.GetProperty("strings")));
-            default:
-                throw new Exception("Unknown string operation: " + op);
-        }
+        var result = ExprRegistry.CompileString(obj, op);
+        if (result != null) return result;
+        throw new Exception("Unknown string operation: " + op);
     }
 
     public static CompendiumEntryExpr<T> CompileCompendiumEntry<T>(JsonElement element) where T : class

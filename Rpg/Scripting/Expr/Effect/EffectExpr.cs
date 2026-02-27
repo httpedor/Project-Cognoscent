@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 
 namespace Rpg.Scripting;
@@ -18,6 +19,10 @@ public sealed class NoEffectExpr : EffectExpr
 {
     public NoEffectExpr() {}
     public NoEffectExpr(Stream stream) {}
+
+    [ExprOp(ExprCategory.Effect, "null", "nop", "noeffect", "no_effect")]
+    public static EffectExpr CompileOp(JsonElement obj) => new NoEffectExpr();
+
     public override void Eval(EvalContext ctx)
     {
     }
@@ -26,6 +31,11 @@ public sealed class CompositeEffectExpr : EffectExpr
 {
     public readonly EffectExpr[] Effects;
     public CompositeEffectExpr(EffectExpr[] effects) => Effects = effects;
+
+    [ExprOp(ExprCategory.Effect, "composite")]
+    [ExprParam("effects", "effectExpr[]", Required = true)]
+    public static EffectExpr CompileOp(JsonElement obj)
+        => new CompositeEffectExpr(ExpressionCompiler.CompileArgsAs<EffectExpr>(obj.GetProperty("effects")));
     public CompositeEffectExpr(Stream stream)
     {
         int length = stream.ReadInt32();

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 using Rpg.Health;
 using Rpg.Skills;
@@ -74,6 +75,11 @@ public sealed class StringConcatExpr : Expr<string>
     {
         Parts = parts;
     }
+
+    [ExprOp(ExprCategory.String, "concat", "add", "join")]
+    [ExprParam("strings", "stringExpr[]", Required = true)]
+    public static Expr<string> CompileOp(JsonElement obj)
+        => new StringConcatExpr(ExpressionCompiler.CompileArgsAs<Expr<string>>(obj.GetProperty("strings")));
     public StringConcatExpr(Stream stream)
     {
         int partCount = stream.ReadByte();

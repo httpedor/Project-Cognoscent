@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 
 namespace Rpg.Scripting;
@@ -12,6 +13,66 @@ public class SetStatEffect : EffectExpr
         StatName = statName;
         Target = target;
         Value = value;
+    }
+
+    [ExprOp(ExprCategory.Effect, "setstat", "set_stat")]
+    [ExprParam("stat", "string", Required = true, Description = "Name of the stat to set")]
+    [ExprParam("value", "numberExpr", Required = true)]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileSetStat(JsonElement obj)
+    {
+        string statName = obj.GetProperty("stat").GetString()!;
+        var value = ExpressionCompiler.CompileNumber(obj.GetProperty("value"));
+        var target = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        return new SetStatEffect(statName, target, value);
+    }
+
+    [ExprOp(ExprCategory.Effect, "addstat", "add_stat")]
+    [ExprParam("stat", "string", Required = true)]
+    [ExprParam("value", "numberExpr", Required = true)]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileAddStat(JsonElement obj)
+    {
+        string statName = obj.GetProperty("stat").GetString()!;
+        var value = ExpressionCompiler.CompileNumber(obj.GetProperty("value"));
+        var target = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        return new SetStatEffect(statName, target, new AddExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
+    }
+
+    [ExprOp(ExprCategory.Effect, "substat", "sub_stat", "remove_stat", "removestat")]
+    [ExprParam("stat", "string", Required = true)]
+    [ExprParam("value", "numberExpr", Required = true)]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileSubStat(JsonElement obj)
+    {
+        string statName = obj.GetProperty("stat").GetString()!;
+        var value = ExpressionCompiler.CompileNumber(obj.GetProperty("value"));
+        var target = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        return new SetStatEffect(statName, target, new SubExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
+    }
+
+    [ExprOp(ExprCategory.Effect, "mulstat", "mul_stat")]
+    [ExprParam("stat", "string", Required = true)]
+    [ExprParam("value", "numberExpr", Required = true)]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileMulStat(JsonElement obj)
+    {
+        string statName = obj.GetProperty("stat").GetString()!;
+        var value = ExpressionCompiler.CompileNumber(obj.GetProperty("value"));
+        var target = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        return new SetStatEffect(statName, target, new MulExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
+    }
+
+    [ExprOp(ExprCategory.Effect, "divstat", "div_stat")]
+    [ExprParam("stat", "string", Required = true)]
+    [ExprParam("value", "numberExpr", Required = true)]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileDivStat(JsonElement obj)
+    {
+        string statName = obj.GetProperty("stat").GetString()!;
+        var value = ExpressionCompiler.CompileNumber(obj.GetProperty("value"));
+        var target = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        return new SetStatEffect(statName, target, new DivExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
     }
     public override void Eval(EvalContext ctx)
     {

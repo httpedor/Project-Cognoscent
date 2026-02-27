@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 using Rpg.Features;
 
@@ -11,6 +12,26 @@ public class AddFeatureEffect : EffectExpr
     {
         FeatureName = feature;
         Target = target;
+    }
+
+    /// <summary>
+    /// Compiles add_feature / add_condition effect from JSON.
+    /// If "ticks" is present, creates an AddConditionEffect instead.
+    /// </summary>
+    [ExprOp(ExprCategory.Effect, "add_feature", "addfeature", "add_feat", "add_condition", "addcondition")]
+    [ExprParam("feature", "stringExpr", Required = true, Description = "Compendium feature ID")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    [ExprParam("ticks", "numberExpr", Description = "Duration in ticks (creates a timed condition)")]
+    public static EffectExpr CompileOp(JsonElement obj)
+    {
+        var feature = ExpressionCompiler.CompileCompendiumEntry<Feature>(obj.GetProperty("feature"));
+        var selector = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        if (obj.TryGetProperty("ticks", out var ticksElement))
+        {
+            var ticks = ExpressionCompiler.CompileNumber(ticksElement);
+            return new AddConditionEffect(feature.IdExpr.Eval(new EvalContext()), selector, ticks);
+        }
+        return new AddFeatureEffect(feature, selector);
     }
     public AddFeatureEffect(Stream stream)
     {
@@ -46,6 +67,14 @@ public class RemoveFeatureEffect : EffectExpr
         FeatureName = featureName;
         Target = target;
     }
+
+    [ExprOp(ExprCategory.Effect, "remove_feature", "removefeature", "remove_feat")]
+    [ExprParam("feature", "stringExpr", Required = true, Description = "Compendium feature ID to remove")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileOp(JsonElement obj)
+        => new RemoveFeatureEffect(
+            ExpressionCompiler.CompileCompendiumEntry<Feature>(obj.GetProperty("feature")),
+            ExpressionCompiler.CompileSelector(obj.GetProperty("target")));
     public RemoveFeatureEffect(Stream stream)
     {
         FeatureName = (CompendiumEntryExpr<Feature>)BaseExpr.Deserialize(stream);

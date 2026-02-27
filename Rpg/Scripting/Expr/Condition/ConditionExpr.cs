@@ -1,9 +1,17 @@
+using System.Text.Json;
+
 namespace Rpg.Scripting;
 
 public sealed class ConstConditionExpr : Expr<bool>
 {
     public readonly bool Value;
     public ConstConditionExpr(bool value) => Value = value;
+
+    [ExprOp(ExprCategory.Condition, "true")]
+    public static Expr<bool> CompileTrue(JsonElement obj) => new ConstConditionExpr(true);
+
+    [ExprOp(ExprCategory.Condition, "false")]
+    public static Expr<bool> CompileFalse(JsonElement obj) => new ConstConditionExpr(false);
     public ConstConditionExpr(Stream stream)
     {
         Value = stream.ReadBoolean();
@@ -49,6 +57,16 @@ public sealed class RandomConditionExpr : Expr<bool>
     public RandomConditionExpr(Expr<float> probability)
     {
         Probability = probability;
+    }
+
+    [ExprOp(ExprCategory.Condition, "random", "rand")]
+    [ExprParam("probability", "numberExpr", Description = "Probability value 0-1 (defaults to 0.5)")]
+    public static Expr<bool> CompileOp(JsonElement obj)
+    {
+        Expr<float> probability = obj.TryGetProperty("probability", out var probElem)
+            ? ExpressionCompiler.CompileNumber(probElem)
+            : new ConstNumberExpr(0.5f);
+        return new RandomConditionExpr(probability);
     }
     public RandomConditionExpr(Stream stream)
     {

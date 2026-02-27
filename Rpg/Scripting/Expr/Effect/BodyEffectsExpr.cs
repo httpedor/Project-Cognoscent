@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Rpg.Entities;
 using Rpg.Health;
 
@@ -12,6 +13,14 @@ public class AddInjuryEffect : EffectExpr
         InjuryModel = model;
         Target = target;
     }
+
+    [ExprOp(ExprCategory.Effect, "add_injury", "addinjury", "injury", "hurt")]
+    [ExprParam("injury", "string", Required = true, Description = "Injury model definition")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    public static EffectExpr CompileOp(JsonElement obj)
+        => new AddInjuryEffect(
+            new InjuryModel(obj.GetProperty("injury")),
+            ExpressionCompiler.CompileSelector(obj.GetProperty("target")));
     public AddInjuryEffect(Stream stream)
     {
         InjuryModel = new InjuryModel(stream);
@@ -51,6 +60,22 @@ public class HealInjuryTypeEffect : EffectExpr
         InjuryType = injuryType;
         Amount = null;
         Target = target;
+    }
+
+    [ExprOp(ExprCategory.Effect, "heal_injury", "healinjury")]
+    [ExprParam("injury", "stringExpr", Required = true, Description = "Injury type compendium ID")]
+    [ExprParam("target", "selectorExpr", Required = true)]
+    [ExprParam("amount", "numberExpr", Description = "Amount to heal (omit to remove entirely)")]
+    public static EffectExpr CompileOp(JsonElement obj)
+    {
+        var injuryType = ExpressionCompiler.CompileCompendiumEntry<InjuryType>(obj.GetProperty("injury"));
+        var target = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        if (obj.TryGetProperty("amount", out var amountElement))
+        {
+            var amount = ExpressionCompiler.CompileNumber(amountElement);
+            return new HealInjuryTypeEffect(injuryType, amount, target);
+        }
+        return new HealInjuryTypeEffect(injuryType, target);
     }
     public HealInjuryTypeEffect(Stream stream)
     {
