@@ -60,6 +60,7 @@ public class StatJson
     [JsonPropertyName("name")] public string? Name;
     [JsonPropertyName("onChange")] public JsonElement? OnChange;
     [JsonPropertyName("thresholds")] public List<JsonElement>? Thresholds;
+    [JsonPropertyName("local")] public bool IsLocal;
 }
 
 public class BodyJson
@@ -69,6 +70,7 @@ public class BodyJson
     [JsonPropertyName("features")] public List<string>? Features { get; set; }
     [JsonPropertyName("stats")] public Dictionary<string, StatJson>? Stats { get; set; }
     [JsonPropertyName("root")] public BodyPartJson? Root { get; set; }
+    [JsonPropertyName("tags")] public List<string>? Tags { get; set; }
 }
 
 public class BodyPartModel
@@ -80,7 +82,6 @@ public class BodyPartModel
         public JsonElement? AtZeroJson;
         public bool StandaloneHpOnly;
         public StatModifierType Operation = StatModifierType.Flat;
-        public bool ApplyToOwner = true;
     }
 
     public sealed class DamageModifierConfig
@@ -172,7 +173,6 @@ public class BodyPartModel
                     AtZeroJson = stat.AtZero ?? JsonDocument.Parse("0").RootElement,
                     StandaloneHpOnly = stat.StandaloneHPOnly,
                     Operation = JsonHelpers.ParseOp(stat.Operation, StatModifierType.Flat),
-                    ApplyToOwner = true
                 };
 
                 if (!ProvidedStats.TryGetValue(cfg.StatName, out var list))
@@ -280,14 +280,14 @@ public class BodyPartModel
         Metadata = jsonModel.Metadata;
     }
 
-    public EntityWith<BodyPart> Build()
+    public EntityWith<BodyPart> Build(BodyModel body)
     {
         int maxHealth = MaxHealthJson != null ? JsonHelpers.GetInt(MaxHealthJson.Value) : 1;
 
         // Build children first
         var childParts = new List<BodyPart>(Children.Count);
         foreach (var child in Children)
-            childParts.Add(child.Build().Component);
+            childParts.Add(child.Build(body).Component);
 
         // Construct the BodyPart entity
         Entity bpEntity = new Entity(Name);
@@ -321,12 +321,14 @@ public class BodyPartModel
         // Apply per-part stat modifiers
         foreach (var provided in ProvidedStats)
         {
+            var bodyStat = body.Stats.GetValueOrDefault(provided.Key);
+            var applyToOwner = bodyStat == null || !bodyStat.IsLocal;
             var mods = new List<BodyPart.BodyPartStat>(provided.Value.Count);
             foreach (var cfg in provided.Value)
             {
                 float atFull = cfg.AtFullJson != null ? JsonHelpers.GetFloat(cfg.AtFullJson.Value) : 0;
                 float atZero = cfg.AtZeroJson != null ? JsonHelpers.GetFloat(cfg.AtZeroJson.Value) : 0;
-                mods.Add(new BodyPart.BodyPartStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, cfg.ApplyToOwner));
+                mods.Add(new BodyPart.BodyPartStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, applyToOwner));
             }
             if (mods.Count > 0)
                 ret.ProvidedStats[provided.Key] = mods.ToArray();
@@ -376,12 +378,13 @@ public class BodyModel
         public string? Name;
         public JsonElement? OnChange;
         public List<BodyStat.StatThreshold> Thresholds = new();
+        public bool IsLocal;
     }
     private JsonElement originalJson;
 
 
     public string Name = null!;
-    public bool IsHumanoid;
+    public List<string> Tags = new();
     public List<Feature> Features = new();
     public Dictionary<string, StatConfig> Stats = new();
     public BodyPartModel Root = null!;
@@ -392,7 +395,7 @@ public class BodyModel
         if (jsonModel == null) throw new Exception("Failed to deserialize BodyJson");
 
         Name = jsonModel.Name ?? "unnamed";
-        IsHumanoid = jsonModel.IsHumanoid;
+        Tags = jsonModel.Tags ?? new List<string>();
         if (jsonModel.Root == null) throw new Exception("Root is required");
         var rootElement = JsonDocument.Parse(JsonSerializer.Serialize(jsonModel.Root)).RootElement;
         Root = new BodyPartModel(rootElement);
@@ -515,6 +518,7 @@ public class BodyModel
                     OverCap = statJson.OverCap,
                     UnderCap = statJson.UnderCap,
                     Aliases = statJson.Aliases?.ToArray() ?? Array.Empty<string>(),
+                    
                     Vital = statJson.Vital,
                     MaxDependencyName = maxDep,
                     MinDependencyName = minDep,
@@ -523,7 +527,8 @@ public class BodyModel
                     GroupEffectiveness = groupEffectiveness,
                     Name = statJson.Name,
                     OnChange = statJson.OnChange,
-                    Thresholds = thresholds
+                    Thresholds = thresholds,
+                    IsLocal = statJson.IsLocal
                 };
             }
         }
@@ -536,7 +541,7 @@ public class BodyModel
 
     public EntityWith<Body> Build()
     {
-        BodyPart rootPart = Root.Build().Component;
+        BodyPart rootPart = Root.Build(this).Component;
         var entity = new Entity(Name);
         entity.AddComponent(new StatsContainer() { Entity = entity });
         entity.AddComponent(new FeaturesContainer() { Entity = entity });
@@ -562,7 +567,9 @@ public class BodyModel
             {
                 Vital = cfg.Vital,
                 MaxDependencyName = cfg.MaxDependencyName,
-                MinDependencyName = cfg.MinDependencyName
+                MinDependencyName = cfg.MinDependencyName,
+                IsLocal = cfg.IsLocal,
+                Thresholds = cfg.Thresholds.ToArray()
             };
 
             if (cfg.RegenJson != null)
@@ -579,11 +586,12 @@ public class BodyModel
             statsList.Add(entry);
         }
 
-        var body = new Body(Name, rootPart, IsHumanoid, this)
+        var body = new Body(Name, rootPart, this)
         {
             Entity = entity,
             Features = Features.ToArray(),
-            Stats = statsList.ToArray()
+            Stats = statsList.ToArray(),
+            Tags = new HashSet<string>(Tags)
         };
         entity.AddComponent(body);
 

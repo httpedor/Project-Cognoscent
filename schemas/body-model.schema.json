@@ -211,6 +211,10 @@
           "description": "If true, the entity dies (or similar) when this stat reaches its minimum.",
           "default": false
         },
+        "local": {
+          "type": "boolean",
+          "description": "If true, this stat is calculated only on each individual group, and does not represent something that runs through the whole body"
+        },
         "regen": {
           "$ref": "#/$defs/NumberExpr",
           "description": "Amount regenerated (or drained if negative) per tick. Omit for no passive regen."
@@ -270,10 +274,11 @@
           "type": ["string", "null"],
           "description": "Human-readable name of this body model (e.g. 'Human', 'Horse')."
         },
-        "humanoid": {
-          "type": "boolean",
-          "description": "Whether this body model is treated as humanoid (affects various gameplay systems).",
-          "default": false
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of tags that apply to this body model (e.g. 'humanoid', 'large', 'flying').",
+          "default": []
         },
         "features": {
           "type": "array",

@@ -9,7 +9,7 @@ namespace Rpg.Entities.Components.Health;
 
 //TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
 
-public partial class Body : Component, ISerializable,
+public partial class Body : Component, ISerializable, ITaggable,
     ITickableComponent,
     ISkillProvider,
     ComponentEventHandler<BodyPartInjuryAddedEvent>,
@@ -41,12 +41,6 @@ public partial class Body : Component, ISerializable,
     public bool IsConscious;
     public bool IsDead => !IsAlive;
 
-    public bool IsHumanoid
-    {
-        get;
-        private set;
-    }
-
     public string Name
     {
         get;
@@ -71,10 +65,11 @@ public partial class Body : Component, ISerializable,
     }
 
     public IEnumerable<BodyPart> Parts => partsCache;
+    public HashSet<string> Tags = new();
+    HashSet<string> ITaggable.Tags {get => Tags; set => Tags = value;}
 
-    public Body(string name, BodyPart root, bool isHumanoid = false, BodyModel? model = null) : base()
+    public Body(string name, BodyPart root, BodyModel? model = null) : base()
     {
-        IsHumanoid = isHumanoid;
         Name = name;
         Root = root;
         Model = model;
@@ -83,7 +78,7 @@ public partial class Body : Component, ISerializable,
     public Body(Stream stream) : base(stream)
     {
         Name = stream.ReadString();
-        IsHumanoid = stream.ReadByte() != 0;
+        this.LoadTags(stream);
         int count = stream.ReadByte();
         Stats = new BodyStat[count];
         // read stat definitions
@@ -204,7 +199,7 @@ public partial class Body : Component, ISerializable,
         if (!partsByGroup.ContainsKey(part.Group))
             partsByGroup[part.Group] = new HashSet<BodyPart>();
         partsByGroup[part.Group].Add(part);
-        foreach (var tag in ((ITaggable)part).Tags)
+        foreach (var tag in part.Tags)
         {
             if (!partsByTag.ContainsKey(tag))
                 partsByTag[tag] = new HashSet<BodyPart>();
@@ -255,7 +250,7 @@ public partial class Body : Component, ISerializable,
         }
         if (partsByGroup.TryGetValue(part.Group, out HashSet<BodyPart>? partsSetByGroup))
             partsSetByGroup.Remove(part);
-        foreach (var tag in ((ITaggable)part).Tags)
+        foreach (var tag in part.Tags)
         {
             if (partsByTag.TryGetValue(tag, out HashSet<BodyPart>? partsSetByTag))
             {
@@ -317,7 +312,7 @@ public partial class Body : Component, ISerializable,
     {
         base.ToBytes(stream);
         stream.WriteString(Name);
-        stream.WriteByte(IsHumanoid ? (byte)1 : (byte)0);
+        ((ITaggable)this).SaveTags(stream);
         stream.WriteByte((byte)Stats.Length);
         foreach (var statDef in Stats)
             statDef.ToBytes(stream);
@@ -355,18 +350,65 @@ public partial class Body : Component, ISerializable,
         return Array.Empty<BodyPart>();
     }
 
-    public float GetStatByGroup(string group, string stat, float? baseValue = null)
+    public float GetLocalStat(string group, string stat, float? baseValue = null)
     {
-        var baseVal = baseValue ?? Entity.Stats?.GetStat(stat)?.BaseValue ?? 0;
         List<StatModifier> statMods = new();
+        var bodyStat = statsCache.GetValueOrDefault(stat);
+
+        //Base value is either passed as parameter, or 0
+        var baseVal = baseValue ?? 0;
+        var stats = Entity.Stats;
+
+        // If the BodyStat is local, "copy" stat from the body to use as base, since it acts like "global" modifiers for the local stats
+        // This means that if it isn't a local stat, the local stat will be calculated alone isolated from the body stat
+        if (bodyStat != null && bodyStat.IsLocal && stats != null)
+        {
+            var statInstance = stats.GetStat(stat);
+            if (statInstance != null)
+            {
+                statMods.AddRange(statInstance.GetModifiers());
+            }
+
+            // If base value is not provided, use the BodyStat's
+            // Again, this only happens for local stats, if this isn't a local stat, the base value will be 0 if not provided
+            if (baseValue == null)
+            {
+                if (statInstance != null)
+                    baseVal = statInstance.BaseValue;
+                else
+                    baseVal = bodyStat.Definition.BaseValue;
+            }
+        }
+        
+        // Add the actual local modifiers from this group of body parts
         foreach (BodyPart part in GetPartsOnGroup(group))
         {
             if (!part.ProvidedStats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
                 continue;
-            statMods.AddRange(partStat.Where(mod => mod.appliesToOwner).Select(mod => mod.CalculateFor(part)));
+            statMods.AddRange(partStat.Where(mod => mod.isLocal).Select(mod => mod.CalculateFor(part)));
         }
-        if (statsCache.TryGetValue(stat, out BodyStat? statEntry) && statEntry.GroupEffectiveness.TryGetValue(group, out float effectiveness))
+
+        //Apply dependencies for this BodyStat if any
+        if (stats != null)
+        {
+            foreach (var dep in bodyStat?.Dependencies ?? Array.Empty<BodyStat.StatDependency>())
+            {
+                var depStat = stats.GetStat(dep.StatName);
+                if (depStat != null && dep.ModifierValue != null && dep.ModifierType != null)
+                {
+                    Context.Variables[0] = depStat.FinalValue;
+                    var modValue = dep.ModifierValue.Eval(Context);
+                    var modType = dep.ModifierType.Eval(Context);
+                    statMods.Add(new StatModifier(dep.ModifierId, modValue, modType));
+                }
+            }
+        }
+
+        // Finally, apply group effectiveness if defined for this BodyStat
+        if (bodyStat != null && bodyStat.GroupEffectiveness.TryGetValue(group, out float effectiveness))
             statMods.Add(new StatModifier( "body_part_group_effectiveness", effectiveness - 1, StatModifierType.Multiplier));
+
+        // Return the final calculated stat value after applying modifiers to the base value
         return Stat.ApplyModifiers(statMods, baseVal);
     }
 
@@ -494,19 +536,21 @@ public partial class Body : Component, ISerializable,
         }
     }
 
-    public void HandleEvent(StatsContainerEvent componentEvent)
+    public void HandleEvent(StatsContainerEvent ev)
     {
-        var bodyStat = statsCache.GetValueOrDefault(componentEvent.StatEvent.Stat.Id);
+        var bodyStat = statsCache.GetValueOrDefault(ev.StatEvent.Stat.Id);
+        var stat = ev.StatEvent.Stat;
+        var statVal = stat.FinalValue;
         if (bodyStat != null)
         {
             if (bodyStat.OnChange != null)
             {
-                Context.Variables[0] = componentEvent.StatEvent.Stat.FinalValue;
+                Context.Variables[0] = statVal;
                 bodyStat.OnChange.Eval(Context);
             }
             if (bodyStat.Thresholds != null && bodyStat.Thresholds.Length > 0)
             {
-                Context.Variables[0] = componentEvent.StatEvent.Stat.FinalValue;
+                Context.Variables[0] = statVal;
                 foreach (var threshold in bodyStat.Thresholds)
                 {
 
@@ -516,6 +560,11 @@ public partial class Body : Component, ISerializable,
                     }
                 }
             }
+            if (bodyStat.Vital && statVal <= stat.MinValue)
+            {
+                IsAlive = false;
+            }
+
         }
     }
 }

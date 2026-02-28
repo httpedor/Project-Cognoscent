@@ -39,6 +39,7 @@ public class BodyStat : ISerializable
     public class StatDependency : ISerializable
     {
         public string StatName;
+        public string ModifierId => "dep-" + StatName;
         public Expr<float> ModifierValue;
         public EnumExpr<StatModifierType> ModifierType;
 
@@ -93,11 +94,17 @@ public class BodyStat : ISerializable
     /// If true, the stat is considered vital. If a vital stat reaches 0, the entity may die.
     /// </summary>
     public bool Vital = false;
+    /// <summary>
+    /// If this stat is calculated only on each individual group, and does not represent something that runs through the whole body
+    /// </summary>
+    public bool IsLocal = false;
     public Dictionary<string, float> GroupEffectiveness = new();
     /// <summary>
     /// Code to execute when the stat changes. The parameters are the old and new values.
     /// </summary>
     public EffectExpr? OnChange;
+    // Caching this to avoid allocating a new EvalContext every tick. The context's Variables[0] will be set to the current value of the dependent stat when evaluating dependencies.
+    private EvalContext context = null!;
 
     public BodyStat(Stat def)
     {
@@ -106,6 +113,15 @@ public class BodyStat : ISerializable
 
     public void Tick(Body body)
     {
+        if (context == null)
+        {
+            context = new EvalContext(0, 0)
+            {
+                Target = body.Entity,
+                Caller = body.Entity,
+                Board = body.Entity.Board
+            };
+        }
         var statName = Definition.Name;
         var stats = body.Entity.Stats;
         if (stats == null) return;
@@ -126,22 +142,19 @@ public class BodyStat : ISerializable
             stat.BaseValue = Math.Clamp(stat.BaseValue + (regenAmount * (1/50f)), stat.MinValue, stat.MaxValue);
         }
 
-        if (Dependencies != null)
+        // Don't apply dependencies for local stats, since local stats on the body act as "globals" for the body parts
+        //  and dependencies should be applied on the body parts themselves when needed.
+        if (Dependencies != null && !IsLocal)
         {
             foreach (var dep in Dependencies)
             {
                 var depStat = stats.GetStat(dep.StatName);
                 if (depStat != null && dep.ModifierValue != null && dep.ModifierType != null)
                 {
-                    var ctx = new EvalContext(depStat.FinalValue)
-                    {
-                        Target = body.Entity,
-                        Caller = body.Entity,
-                        Board = body.Entity.Board
-                    };
-                    var modValue = dep.ModifierValue.Eval(ctx);
-                    var modType = dep.ModifierType.Eval(ctx);
-                    stat.SetModifier(dep.StatName, modValue, modType);
+                    context.Variables[0] = depStat.FinalValue;
+                    var modValue = dep.ModifierValue.Eval(context);
+                    var modType = dep.ModifierType.Eval(context);
+                    stat.SetModifier(dep.ModifierId, modValue, modType);
                 }
             }
         }

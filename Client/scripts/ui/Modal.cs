@@ -5,6 +5,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using Godot;
@@ -13,6 +15,7 @@ using Rpg.Entities;
 using Rpg.Entities.Components;
 using Rpg.Health;
 using TTRpgClient.scripts;
+using TTRpgClient.scripts.ui;
 
 public static class Modal
 {
@@ -807,4 +810,28 @@ public static class Modal
         GameManager.Instance.AddChild(dialog);
         dialog.PopupCentered();
     }*/
+
+    /// <summary>
+    /// Opens a visual node-based expression editor for a single expression field.
+    /// </summary>
+    /// <param name="title">Window title.</param>
+    /// <param name="exprType">Expression type: "number", "bool", "effect", "selector", "string".</param>
+    /// <param name="existingJson">Existing JSON expression to load (null to start empty).</param>
+    /// <param name="onSave">Called with the new JSON expression when saved, or null if cancelled.</param>
+    public static void OpenExpressionEditor(string title, string exprType, JsonElement? existingJson, Action<JsonElement?> onSave)
+    {
+        ExpressionEditorWindow.Open(title, exprType, existingJson, onSave);
+    }
+
+    /// <summary>
+    /// Opens a multi-field visual node-based expression editor (one tab per expression field).
+    /// </summary>
+    /// <param name="title">Window title.</param>
+    /// <param name="fields">Fields to show tabs for.</param>
+    /// <param name="sourceJson">The full JSON object containing the expression fields.</param>
+    /// <param name="onSave">Called with the updated JSON object when saved.</param>
+    public static void OpenExpressionEditorMulti(string title, ExpressionEditorWindow.ExprFieldInfo[] fields, JsonElement sourceJson, Action<JsonObject> onSave)
+    {
+        ExpressionEditorWindow.OpenMultiField(title, fields, sourceJson, onSave);
+    }
 }

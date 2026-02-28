@@ -95,6 +95,6 @@ public sealed class GroupStatExpr : Expr<float>
                 return defaultValue;
         }
         
-        return body.GetStatByGroup(GroupName, StatName, defaultValue);
+        return body.GetLocalStat(GroupName, StatName, defaultValue);
     }
 }

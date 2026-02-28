@@ -215,6 +215,22 @@
             "maxHealth": 30,
             "group": "upper-left",
             "name": "Braço Esquerdo",
+            "providedStats": [
+              {
+                "atFull": 0,
+                "atZero": -0.1,
+                "operation": "Percent",
+                "stat": "agility",
+                "standaloneHPOnly": true
+              },
+              {
+                "atFull": 20,
+                "atZero": 0,
+                "operation": "Flat",
+                "stat": "strength",
+                "standaloneHPOnly": true
+              }
+            ],
             "children": [
               {
                 "area": 0.15,
@@ -364,22 +380,6 @@
             ],
             "slots": [
               "arm"
-            ],
-            "providedStats": [
-              {
-                "atFull": 0,
-                "atZero": -0.1,
-                "operation": "Percent",
-                "stat": "agility",
-                "standaloneHPOnly": true
-              },
-              {
-                "atFull": 0,
-                "atZero": 20,
-                "operation": "Flat",
-                "stat": "strength",
-                "standaloneHPOnly": true
-              }
             ]
           }
         ],

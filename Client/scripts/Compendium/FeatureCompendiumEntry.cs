@@ -30,7 +30,28 @@ public partial class FeatureCompendiumEntry : CompendiumEntry
         {
             case "arbitrary":
             {
-                base.OnClick();
+                // Open multitab expression editor for arbitrary features
+                var fields = new ExpressionEditorWindow.ExprFieldInfo[]
+                {
+                    new() { JsonKey = "tick", DisplayName = "On Tick", ExprType = "effect" },
+                    new() { JsonKey = "enable", DisplayName = "On Enable", ExprType = "effect" },
+                    new() { JsonKey = "disable", DisplayName = "On Disable", ExprType = "effect" },
+                    new() { JsonKey = "attacked", DisplayName = "On Attacked", ExprType = "effect" },
+                    new() { JsonKey = "attack", DisplayName = "On Attack", ExprType = "effect" },
+                    new() { JsonKey = "executeSkill", DisplayName = "On Execute Skill", ExprType = "effect" },
+                    new() { JsonKey = "injured", DisplayName = "On Injured", ExprType = "effect" },
+                    new() { JsonKey = "receivingDamage", DisplayName = "Receiving Damage", ExprType = "number" },
+                    new() { JsonKey = "attackingDamage", DisplayName = "Attacking Damage", ExprType = "number" },
+                    new() { JsonKey = "doesGetAttacked", DisplayName = "Does Get Attacked", ExprType = "bool" },
+                    new() { JsonKey = "doesAttack", DisplayName = "Does Attack", ExprType = "bool" },
+                    new() { JsonKey = "doesExecuteSkill", DisplayName = "Does Execute Skill", ExprType = "bool" },
+                    new() { JsonKey = "toggleable", DisplayName = "Toggleable", ExprType = "bool" },
+                };
+                Modal.OpenExpressionEditorMulti($"Feature: {entryId}", fields, json,
+                    (result) =>
+                    {
+                        NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, result.ToElement()));
+                    });
                 break;
             }
             case "damage_over_time":

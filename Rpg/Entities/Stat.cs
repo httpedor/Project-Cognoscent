@@ -286,6 +286,11 @@ public class Stat : ISerializable
         return modifiers.Values;
     }
 
+    public StatModifier? GetModifier(string id)
+    {
+        return modifiers.ContainsKey(id) ? modifiers[id] : null;
+    }
+
     public Stat Clone()
     {
         var ret = new Stat(Id, baseValue, MinValue, MaxValue, OverCap, UnderCap);

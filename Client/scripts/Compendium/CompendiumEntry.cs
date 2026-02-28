@@ -14,6 +14,7 @@ public partial class CompendiumEntry : Control, IContextMenuProvider
             "Midia" => new MidiaCompendiumEntry(entryId, entry),
             "Notes" => new NoteCompendiumEntry(entryId, entry),
             "Features" => new FeatureCompendiumEntry(entryId, entry),
+            "Skills" => new SkillCompendiumEntry(entryId, entry),
             _ => new CompendiumEntry(folder, entryId, entry)
         };
     }

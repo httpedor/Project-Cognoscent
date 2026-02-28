@@ -39,14 +39,14 @@ public class BodyPartDiedEvent(BodyPart bodyPart) : BodyPartEvent(bodyPart)
 }
 public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable, IItemHolder, ISkillProvider
 {
-    public readonly struct BodyPartStat(float atFull, float atZero, StatModifierType op, bool sho, bool ato)
+    public readonly struct BodyPartStat(float atFull, float atZero, StatModifierType op, bool sho, bool local)
         : ISerializable
     {
         public readonly float atFull = atFull;
         public readonly float atZero = atZero;
         public readonly StatModifierType op = op;
         public readonly bool standaloneHealthOnly = sho;
-        public readonly bool appliesToOwner = ato;
+        public readonly bool isLocal = local;
 
         public BodyPartStat(Stream stream) : this(stream.ReadFloat(), stream.ReadFloat(), (StatModifierType)stream.ReadByte(), stream.ReadByte() == 1, stream.ReadByte() == 1)
         {
@@ -58,7 +58,7 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             stream.WriteFloat(atZero);
             stream.WriteByte((byte)op);
             stream.WriteByte((byte)(standaloneHealthOnly ? 1 : 0));
-            stream.WriteByte((byte)(appliesToOwner ? 1 : 0));
+            stream.WriteByte((byte)(isLocal ? 1 : 0));
         }
 
         public StatModifier CalculateFor(BodyPart target, string? name = null)
@@ -227,6 +227,11 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
     /// Tags associated with this body part.
     /// </summary>
     private HashSet<string> tags = new();
+    public HashSet<string> Tags
+    {
+        get => tags;
+        set => tags = value;
+    }
     HashSet<string> ITaggable.Tags
     {
         get => tags;
@@ -432,8 +437,8 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             int i = 0;
             foreach (BodyPartStat mod in entry.Value)
             {
-                if (!mod.appliesToOwner) continue;
-                stat.SetModifier(mod.CalculateFor(this, Entity.Id + "_mod" + i));
+                if (mod.isLocal)
+                    stat.SetModifier(mod.CalculateFor(this, Entity.Id + "_mod" + i));
                 i++;
             }
         }
@@ -452,7 +457,7 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             int i = 0;
             foreach (BodyPartStat mod in entry.Value)
             {
-                if (!mod.appliesToOwner) continue;
+                if (!mod.isLocal) continue;
                 stat.RemoveModifier(Entity.Id + "_mod" + i);
                 i++;
             }
@@ -624,6 +629,21 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             Entity.DispatchEvent(ev);
             OwnerEntity?.DispatchEvent(ev);
         }
+    }
+    
+    public float GetLocalStat(string statName)
+    {
+        //If no body, only this body part's stats apply, so calculate them manually.
+        var body = OwnerEntity?.Body;
+        if (body == null)
+        {
+            var stats = ProvidedStats.GetValueOrDefault(statName);
+            if (stats == null)
+                return 0;
+            var mods = stats.Where(stat => stat.isLocal).Select(stat => stat.CalculateFor(this)).ToArray();
+            return Stat.ApplyModifiers(mods);
+        }
+        return body.GetLocalStat(Group, statName);
     }
     
     public override void ToBytes(Stream stream)
