@@ -577,7 +577,7 @@ public class BodyModel
             if (cfg.MinVal != null)
                 minVal = cfg.MinVal.Eval();
 
-            var stat = new Stat(statName, baseVal, maxVal, minVal, cfg.OverCap, cfg.UnderCap)
+            var stat = new Stat(statName, baseVal, minVal, maxVal, cfg.OverCap, cfg.UnderCap)
             {
                 Aliases = cfg.Aliases,
                 Name = cfg.Name ?? statName

@@ -70,7 +70,10 @@ public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable
             else
                 hpPercentage = target.Health/target.MaxHealth;
 
-            return new StatModifier(name, RpgMath.Lerp(atZero, atFull, (float)hpPercentage), op);
+            return new StatModifier(name, RpgMath.Lerp(atZero, atFull, (float)hpPercentage), op)
+            {
+                DisplayName = target.Name
+            };
         }
     }
 

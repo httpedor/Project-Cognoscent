@@ -168,7 +168,7 @@ public abstract partial class Component : ISerializable
 
     public virtual void Destroy()
     {
-        Entity.RemoveComponent(Component.GetComponentId(GetType()));
+        Entity.RemoveComponent(GetId());
     }
 
     /// <summary>

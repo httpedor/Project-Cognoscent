@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ComponentGenerator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d939facf113a41d57ceb584df61c7456d2c6df4b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+832d093df152b94f808b157b9c1c8e4a334567bb")]
 [assembly: System.Reflection.AssemblyProductAttribute("ComponentGenerator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ComponentGenerator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

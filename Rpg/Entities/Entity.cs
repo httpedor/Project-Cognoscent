@@ -317,6 +317,7 @@ public partial class Entity : ISerializable
             current.Value.Destroy();
             current = current.Next;
         }
+        Board.RemoveEntity(this);
     }
     public virtual void ToBytes(Stream stream)
     {

@@ -41,6 +41,8 @@ public partial class Body : Component, ISerializable, ITaggable,
     public bool IsConscious;
     public bool IsDead => !IsAlive;
 
+    public IEnumerable<string> Groups => partsByGroup.Keys;
+
     public string Name
     {
         get;
@@ -319,6 +321,17 @@ public partial class Body : Component, ISerializable, ITaggable,
         SaveComponentRef<BodyPart>(stream, Root);
     }
 
+    public override void Destroy()
+    {
+        base.Destroy();
+
+        foreach (var part in Parts)
+        {
+            UnindexPart(part);
+            part.Entity.Destroy();
+        }
+    }
+
     public IEnumerable<BodyPart> GetPartsThatCanEquip(string slot)
     {
         return equipmentSlots.TryGetValue(slot, out HashSet<BodyPart>? partsSet) ? partsSet : Array.Empty<BodyPart>();
@@ -350,7 +363,7 @@ public partial class Body : Component, ISerializable, ITaggable,
         return Array.Empty<BodyPart>();
     }
 
-    public float GetLocalStat(string group, string stat, float? baseValue = null)
+    public float GetLocalStat(string group, string stat, out List<StatModifier> modifiers, out float baseUsed, float? baseValue = null)
     {
         List<StatModifier> statMods = new();
         var bodyStat = statsCache.GetValueOrDefault(stat);
@@ -399,17 +412,29 @@ public partial class Body : Component, ISerializable, ITaggable,
                     Context.Variables[0] = depStat.FinalValue;
                     var modValue = dep.ModifierValue.Eval(Context);
                     var modType = dep.ModifierType.Eval(Context);
-                    statMods.Add(new StatModifier(dep.ModifierId, modValue, modType));
+                    statMods.Add(new StatModifier(dep.ModifierId, modValue, modType)
+                    {
+                        DisplayName = "Dependency on " + depStat.Name
+                    });
                 }
             }
         }
 
         // Finally, apply group effectiveness if defined for this BodyStat
         if (bodyStat != null && bodyStat.GroupEffectiveness.TryGetValue(group, out float effectiveness))
-            statMods.Add(new StatModifier( "body_part_group_effectiveness", effectiveness - 1, StatModifierType.Multiplier));
+            statMods.Add(new StatModifier( "body_part_group_effectiveness", effectiveness - 1, StatModifierType.Multiplier)
+            {
+                DisplayName = "Group Effectiveness"
+            });
 
         // Return the final calculated stat value after applying modifiers to the base value
+        modifiers = statMods;
+        baseUsed = baseVal;
         return Stat.ApplyModifiers(statMods, baseVal);
+    }
+    public float GetLocalStat(string group, string stat, float? baseValue = null)
+    {
+        return GetLocalStat(group, stat, out var _ignored, out var _ignored2, baseValue);
     }
 
     public IEnumerable<EquipmentProperty> GetCoveringEquipment(BodyPart bp)

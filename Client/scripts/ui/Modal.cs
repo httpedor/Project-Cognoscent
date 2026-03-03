@@ -136,20 +136,21 @@ public static class Modal
                 te.TextChanged += () => callback(te.Text);
                 return te;
             }
-            case string[] strings:
+            case IEnumerable<string> strings:
             {
                 var ob = new OptionButton
                 {
                     AllowReselect = true
                 };
                 ob.GetPopup().AlwaysOnTop = true;
-                for (int j = 0; j < strings.Length; j++)
+                foreach (var str in strings)
                 {
-                    ob.AddItem(strings[j], j);
+                    ob.AddItem(str);
                 }
                 ob.ItemSelected += id => {
-                    callback(strings[id]);
+                    callback(ob.GetItemText((int)id));
                 };
+                callback(strings.First());
                 return ob;
             }
             case float f:

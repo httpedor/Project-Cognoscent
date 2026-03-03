@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.Globalization;
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using Rpg;
 using Rpg.Entities;
@@ -757,8 +758,8 @@ public sealed class Command
             {
                 var board = args.Get<ServerBoard>(0);
                 var ent = args.Get<Entity>(1);
-                board.RemoveEntity(ent.Id);
-                return "Entity removed.";
+                ent.Destroy();
+                return "Entity destroyed.";
             })
             .Register();
 
@@ -926,14 +927,44 @@ public sealed class Command
                 string ret = "";
                 foreach (var stat in holder.Stats)
                 {
-                    ret += $"{stat.Id} - {stat.FinalValue} ({stat.BaseValue}); ";
+                    ret += $"{stat.Id} - {stat.FinalValue} (base:{stat.BaseValue}); ";
                     var mods = stat.GetModifiers().ToList();
                     ret += $"{mods.Count} mods: ";
                     foreach (var mod in mods)
-                        ret += $"({mod.Id},{mod.Type},{mod.Value}), ";
+                        ret += $"({mod.Id},{mod.Type},{mod.Value},{mod.DisplayName}), ";
                     ret += "\n";
                 }
                 return string.IsNullOrEmpty(ret) ? "No stats." : ret;
+            })
+            .Register();
+        Define("localstats")
+            .Desc("Calculate local stats from a body's groups")
+            .Alias("lstat", "groupstat")
+            .Arg<ServerBoard>("board")
+            .ComponentArg<Body>("body")
+            .Runs(args =>
+            {
+                var body = args.Get<Body>(1);
+                var ret = new StringBuilder();
+                foreach (var stat in body.Stats)
+                {
+                    if (!stat.IsLocal)
+                        continue;
+                    ret.Append(stat.Id).Append($"(base = {body.Entity.Stats!.GetStat(stat.Id)!.BaseValue}):").AppendLine();
+                    foreach (var group in body.Groups)
+                    {
+                        ret.Append("  ").Append(group).Append(": ");
+                        var statVal = body.GetLocalStat(group, stat.Id, out var mods, out var baseUsed);
+                        ret.Append(statVal).Append(" -");
+                        foreach (var mod in mods)
+                        {
+                            ret.Append($" ({mod.Id},{mod.DisplayName},{mod.Value},{mod.Type})");
+                        }
+                        ret.AppendLine();
+                    }
+                }
+
+                return ret.ToString();
             })
             .Register();
 

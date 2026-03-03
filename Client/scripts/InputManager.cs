@@ -311,7 +311,7 @@ public partial class InputManager : SubViewportContainer
 						}
 						var entities = entWithBody.Component.Parts.Select(p => p.Entity).Append(ent).ToArray();
 						NetworkManager.Instance.SendPacket(new EntityCreatePacket(board, entities));
-					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<BodyModel>().ToArray(), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
+					}, ("Nome", "Nome1", null), ("Corpo", Compendium.GetEntryNames<BodyModel>(false), null), ("Imagem", new Midia(), (obj) => obj is Midia { Type: MidiaType.Image or MidiaType.Video}));
 				});
 				ContextMenu.AddOption(board.TurnMode ? "Sair do modo de turnos" : "Entrar no modo de turnos", _ =>
 				{

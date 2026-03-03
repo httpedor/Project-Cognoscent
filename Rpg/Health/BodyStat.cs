@@ -68,6 +68,7 @@ public class BodyStat : ISerializable
     /// The base definition of the stat.
     /// </summary>
     public Stat Definition;
+    public string Id => Definition.Id;
     /// <summary>
     /// Dependencies that modify this stat based on other stats.
     /// </summary>
@@ -135,6 +136,12 @@ public class BodyStat : ISerializable
             if (depStat != null)
                 stat.MaxValue = depStat.FinalValue;
         }
+        if (!string.IsNullOrEmpty(MinDependencyName))
+        {
+            var depStat = stats.GetStat(MinDependencyName);
+            if (depStat != null)
+                stat.MinValue = depStat.FinalValue;
+        }
 
         if (Regen != null)
         {
@@ -154,7 +161,7 @@ public class BodyStat : ISerializable
                     context.Variables[0] = depStat.FinalValue;
                     var modValue = dep.ModifierValue.Eval(context);
                     var modType = dep.ModifierType.Eval(context);
-                    stat.SetModifier(dep.ModifierId, modValue, modType);
+                    stat.SetModifier(dep.ModifierId, modValue, modType, "Dependência de " + depStat);
                 }
             }
         }
@@ -168,6 +175,9 @@ public class BodyStat : ISerializable
             Regen = BaseExpr.Deserialize<Expr<float>>(stream);
         if (stream.ReadBoolean())
             MaxDependencyName = stream.ReadString();
+        if (stream.ReadBoolean())
+            MinDependencyName = stream.ReadString();
+        IsLocal = stream.ReadBoolean();
         Vital = stream.ReadBoolean();
         int depCount = stream.ReadByte();
         if (depCount > 0)
@@ -187,11 +197,15 @@ public class BodyStat : ISerializable
         {
             Regen.ToBytes(stream);
         }
-        stream.WriteBoolean(!string.IsNullOrEmpty(MaxDependencyName));
-        if (!string.IsNullOrEmpty(MaxDependencyName))
-        {
+        var hasMaxDep = !string.IsNullOrEmpty(MaxDependencyName);
+        stream.WriteBoolean(hasMaxDep);
+        if (hasMaxDep)
             stream.WriteString(MaxDependencyName!);
-        }
+        var hasMinDep = !string.IsNullOrEmpty(MinDependencyName);
+        stream.WriteBoolean(hasMinDep);
+        if (hasMinDep)
+            stream.WriteString(MinDependencyName!);
+        stream.WriteBoolean(IsLocal);
         stream.WriteBoolean(Vital);
         stream.WriteByte((byte)(Dependencies?.Length ?? 0));
         if (Dependencies != null)

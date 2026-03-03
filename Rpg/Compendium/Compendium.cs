@@ -265,11 +265,14 @@ public static class Compendium
         return fd.Entries.Keys.ToArray();
     }
 
-    public static IEnumerable<string> GetEntryNames<T>()
+    public static IEnumerable<string> GetEntryNames<T>(bool base_included = true)
     {
         string folder = GetFolderName<T>();
         if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
-        return fd.Entries.Keys.ToArray();
+        if (base_included)
+            return fd.Entries.Keys;
+        else
+            return fd.Entries.Keys.Where(key => !key.EndsWith("base"));
     }
 
     public static IEnumerable<T> GetEntries<T>() where T : class

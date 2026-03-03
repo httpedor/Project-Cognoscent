@@ -21,6 +21,7 @@ public enum StatModifierType
 public class StatModifier : ISerializable
 {
     public readonly string Id;
+    public string? DisplayName;
     public float Value;
     public StatModifierType Type;
 
@@ -36,6 +37,10 @@ public class StatModifier : ISerializable
         Id = stream.ReadString();
         Value = stream.ReadFloat();
         Type = (StatModifierType)stream.ReadByte();
+        if (stream.ReadBoolean())
+        {
+            DisplayName = stream.ReadString();
+        }
     }
 
     public StatModifier(JsonObject json, string defId = "")
@@ -50,6 +55,21 @@ public class StatModifier : ISerializable
         stream.WriteString(Id);
         stream.WriteFloat(Value);
         stream.WriteByte((byte)Type);
+        if (DisplayName != null)
+        {
+            stream.WriteBoolean(true);
+            stream.WriteString(DisplayName);
+        }
+        else
+            stream.WriteBoolean(false);
+    }
+
+    public StatModifier Clone(string? newId = null, string? newDisplay = null)
+    {
+        return new StatModifier(newId ?? Id, Value, Type)
+        {
+            DisplayName = newDisplay ?? DisplayName
+        };
     }
 
     public static implicit operator StatModifier((string id, float value, StatModifierType type) tuple)
@@ -238,9 +258,12 @@ public class Stat : ISerializable
         Container?.OnStatChanged(new StatModifierChangeEvent(this, modifier, false));
         CalculateFinalValue();
     }
-    public void SetModifier(string id, float value, StatModifierType type)
+    public void SetModifier(string id, float value, StatModifierType type, string? displayName = null)
     {
-        SetModifier(new StatModifier(id, value, type));
+        SetModifier(new StatModifier(id, value, type)
+        {
+            DisplayName = displayName
+        });
     }
     public void AddModifier(string id, float value, StatModifierType type)
     {
