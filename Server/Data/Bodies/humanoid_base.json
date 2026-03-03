@@ -1,5 +1,5 @@
 {
   "parent": "living_base",
-  "humanoid": true,
-  "icon": "humanoid"
+  "icon": "humanoid",
+  "tags": ["humanoid"]
 }

@@ -7,16 +7,15 @@
 
   "$defs": {
     "DamageType": {
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
+      ],
       "type": "object",
       "required": ["name"],
       "properties": {
         "name": {
           "type": "string",
           "description": "Human-readable name of the damage type (e.g. 'Slash', 'Burn', 'Blunt')."
-        },
-        "parent": {
-          "type": ["string", "null"],
-          "description": "ID or name of the parent DamageType this type derives from. Used for inheritance checks via IsDerivedFrom(). Leave empty or null for root types."
         },
         "injury": {
           "type": "string",
@@ -29,7 +28,7 @@
         },
         "tags": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "$ref": "_tags.schema.json#/$defs/DamageTypeTag" },
           "description": "Arbitrary tags for gameplay filtering (e.g. ['fire', 'elemental']).",
           "default": []
         }

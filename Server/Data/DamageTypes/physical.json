@@ -2,5 +2,6 @@
   "default": true,
   "name": "Físico",
   "injury": "generic",
-  "color": "#808080"
+  "color": "#808080",
+  "tags": ["physical"]
 }

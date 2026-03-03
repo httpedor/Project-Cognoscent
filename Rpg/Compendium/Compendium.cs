@@ -320,16 +320,11 @@ public static class Compendium
         return EntryExists<T>(name, includeBase);
     }
     
-    public static T GetDefaultEntry<T>() where T : class
+    public static T? GetDefaultEntry<T>() where T : class
     {
         string folder = GetFolderName<T>();
         if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + typeof(T));
-        foreach (var entry in fd.Entries)
-        {
-            if (entry.Value.IsBase && entry.Value.Loaded is T t)
-                return t;
-        }
-        throw new Exception("No default entry found for type: " + typeof(T));
+        return GetEntry<T>(fd.Default) ?? throw new Exception("Default entry not found for type: " + typeof(T));
     }
     
     public static string GetFolderName<T>()

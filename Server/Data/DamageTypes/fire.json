@@ -1,5 +1,6 @@
 {
   "name": "Fogo",
   "injury": "burn",
-  "color": "DarkOrange"
+  "color": "DarkOrange",
+  "tags": ["thermal"]
 }

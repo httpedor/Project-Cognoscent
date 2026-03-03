@@ -5,7 +5,7 @@ namespace Rpg.Scripting;
 public sealed class AddExpr : Expr<float>
 {
     public readonly Expr<float>[] Args;
-    public AddExpr(Expr<float>[] args) => Args = args;
+    public AddExpr(params Expr<float>[] args) => Args = args;
 
     [ExprOp(ExprCategory.Number, "sum", "plus", "add", "addition", "+")]
     [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to sum")]
@@ -37,7 +37,7 @@ public sealed class AddExpr : Expr<float>
 public sealed class SubExpr : Expr<float>
 {
     public readonly Expr<float>[] Args;
-    public SubExpr(Expr<float>[] args) => Args = args;
+    public SubExpr(params Expr<float>[] args) => Args = args;
 
     [ExprOp(ExprCategory.Number, "sub", "subtract", "minus", "subtraction", "-")]
     [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to subtract sequentially")]
@@ -69,7 +69,7 @@ public sealed class SubExpr : Expr<float>
 public sealed class MulExpr : Expr<float>
 {
     public readonly Expr<float>[] Args;
-    public MulExpr(Expr<float>[] args) => Args = args;
+    public MulExpr(params Expr<float>[] args) => Args = args;
 
     [ExprOp(ExprCategory.Number, "mul", "multiply", "times", "multiplication", "*")]
     [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to multiply")]
@@ -100,7 +100,7 @@ public sealed class MulExpr : Expr<float>
 public sealed class DivExpr : Expr<float>
 {
     public readonly Expr<float>[] Args;
-    public DivExpr(Expr<float>[] args) => Args = args;
+    public DivExpr(params Expr<float>[] args) => Args = args;
 
     [ExprOp(ExprCategory.Number, "div", "divide", "division", "/")]
     [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to divide sequentially")]

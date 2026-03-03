@@ -6,7 +6,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Server", "Server\Server.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rpg", "Rpg\Rpg.csproj", "{ECDA591E-2954-4150-9779-E62EC17B7C00}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TraitGenerator", "TraitGenerator\TraitGenerator\TraitGenerator.csproj", "{D1F124C8-92FB-4622-9D9B-435CF68EA978}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ComponentGenerator", "Tools\ComponentGenerator\ComponentGenerator.csproj", "{D1F124C8-92FB-4622-9D9B-435CF68EA978}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -98,3 +98,59 @@ public sealed class GroupStatExpr : Expr<float>
         return body.GetLocalStat(GroupName, StatName, defaultValue);
     }
 }
+
+public sealed class StatMinExpr : Expr<float>
+{
+    public readonly string StatName;
+    public readonly Expr<Entity?> Target;
+
+    public StatMinExpr(string statName, Expr<Entity?> target)
+    {
+        StatName = statName;
+        Target = target;
+    }
+    public StatMinExpr(Stream stream)
+    {
+        StatName = stream.ReadString();
+        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
+    }
+
+    public override float Eval(EvalContext ctx)
+    {
+        var entity = Target.Eval(ctx);
+        if (entity == null)
+            return 0;
+        var stats = entity.Stats;
+        if (stats == null)
+            return 0;
+        return stats.GetStat(StatName)?.MinValue ?? 0;
+    }
+}
+
+public sealed class StatMaxExpr : Expr<float>
+{
+    public readonly string StatName;
+    public readonly Expr<Entity?> Target;
+
+    public StatMaxExpr(string statName, Expr<Entity?> target)
+    {
+        StatName = statName;
+        Target = target;
+    }
+    public StatMaxExpr(Stream stream)
+    {
+        StatName = stream.ReadString();
+        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
+    }
+
+    public override float Eval(EvalContext ctx)
+    {
+        var entity = Target.Eval(ctx);
+        if (entity == null)
+            return 0;
+        var stats = entity.Stats;
+        if (stats == null)
+            return 0;
+        return stats.GetStat(StatName)?.MaxValue ?? 0;
+    }
+}

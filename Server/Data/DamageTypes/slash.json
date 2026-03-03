@@ -1,5 +1,6 @@
 {
   "name": "Corte",
-  "parent": "sharp",
-  "injury": "cut"
+  "injury": "cut",
+  "color": "#808080",
+  "tags": ["physical", "sharp"]
 }

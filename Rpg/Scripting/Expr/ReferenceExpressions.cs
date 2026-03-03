@@ -57,6 +57,11 @@ public class EnumExpr<T> : Expr<T> where T : struct, Enum
             }
         }
     }
+    public EnumExpr(T value)
+    {
+        ValueExpr = new StringLiteralExpr(value.ToString());
+        cachedValue = value;
+    }
     public EnumExpr(Stream stream)
     {
         ValueExpr = BaseExpr.Deserialize<Expr<string>>(stream);

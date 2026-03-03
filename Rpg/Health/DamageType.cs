@@ -15,29 +15,21 @@ public partial class DamageType : ISerializable, ITaggable
         Color is Color c
             ? $"[color=#{c.R:X2}{c.G:X2}{c.B:X2}]{Name}[/color]"
             : Name;
-    public DamageType? Parent { get; private set; }
     public HashSet<string> Tags = new();
     HashSet<string> ITaggable.Tags { get => Tags; set => Tags = value; }
 
     public readonly Func<DamageInstance, BodyPart, Injury> InjuryResolver;
-    private DamageType(string id, string name, Func<DamageInstance, BodyPart, Injury> injuryResolver, DamageType? parent)
+    private DamageType(string id, string name, Func<DamageInstance, BodyPart, Injury> injuryResolver)
     {
         Id = id;
         Name = name;
         InjuryResolver = injuryResolver;
-        Parent = parent;
-
-        if (Color == null)
-            Color = parent?.Color;
     }
 
     public DamageType(string name, JsonElement json) : this(
         name,
         json.GetProperty("name").GetString() ?? name,
-        null!,
-        (json.TryGetProperty("parent", out JsonElement parentNode) && parentNode.ValueKind == JsonValueKind.String)
-            ? FromName(json.GetProperty("parent").GetString()!)
-            : null
+        null!
     )
     {
         var defInjury = Compendium.GetDefaultEntry<InjuryType>();
@@ -75,16 +67,6 @@ public partial class DamageType : ISerializable, ITaggable
         {
             this.LoadTags(tagsArr);
         }
-    }
-
-    public bool IsDerivedFrom(DamageType dt)
-    {
-        if (Parent == null)
-            return false;
-        if (Parent == dt)
-            return true;
-
-        return Parent.IsDerivedFrom(dt);
     }
 
     public void ToBytes(Stream stream)

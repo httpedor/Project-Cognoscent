@@ -1,5 +1,6 @@
 {
   "name": "Contusão",
-  "parent": "physical",
-  "injury": "bruise"
+  "injury": "bruise",
+  "color": "#808080",
+  "tags": ["physical"]
 }

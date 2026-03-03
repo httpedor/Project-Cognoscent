@@ -5,21 +5,55 @@
     "area": 1,
     "maxHealth": 40,
     "name": "Torso",
+    "tags": [
+      "bone"
+    ],
+    "slots": [
+      "back",
+      "chest",
+      "waist"
+    ],
     "children": [
       {
         "area": 0.075,
         "maxHealth": 25,
         "name": "Pescoço",
+        "slots": [
+          "neck"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -1,
+            "operation": "Percent",
+            "stat": "blood_flow",
+            "standaloneHPOnly": false
+          },
+          {
+            "atFull": 0,
+            "atZero": -1,
+            "operation": "Percent",
+            "stat": "respiration",
+            "standaloneHPOnly": false
+          }
+        ],
         "children": [
           {
             "area": 3,
             "maxHealth": 25,
             "name": "Cabeça",
+            "slots": [
+              "head"
+            ],
             "children": [
               {
                 "area": 0.9,
                 "maxHealth": 25,
                 "name": "Crânio",
+                "tags": [
+                  "IsHard",
+                  "Internal"
+                ],
                 "children": [
                   {
                     "area": 0.8,
@@ -38,10 +72,6 @@
                       }
                     ]
                   }
-                ],
-                "tags": [
-                  "IsHard",
-                  "Internal"
                 ]
               },
               {
@@ -145,6 +175,19 @@
                 "area": 0.1,
                 "maxHealth": 20,
                 "name": "Mandíbula",
+                "tags": [
+                  "IsHard",
+                  "overlaps"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.8,
+                    "operation": "Percent",
+                    "stat": "social",
+                    "standaloneHPOnly": true
+                  }
+                ],
                 "children": [
                   {
                     "area": 0.01,
@@ -163,44 +206,9 @@
                       }
                     ]
                   }
-                ],
-                "tags": [
-                  "IsHard",
-                  "overlaps"
-                ],
-                "providedStats": [
-                  {
-                    "atFull": 0,
-                    "atZero": -0.8,
-                    "operation": "Percent",
-                    "stat": "social",
-                    "standaloneHPOnly": true
-                  }
                 ]
               }
-            ],
-            "slots": [
-              "head"
             ]
-          }
-        ],
-        "slots": [
-          "neck"
-        ],
-        "providedStats": [
-          {
-            "atFull": 0,
-            "atZero": -1,
-            "operation": "Percent",
-            "stat": "blood_flow",
-            "standaloneHPOnly": false
-          },
-          {
-            "atFull": 0,
-            "atZero": -1,
-            "operation": "Percent",
-            "stat": "respiration",
-            "standaloneHPOnly": false
           }
         ]
       },
@@ -209,6 +217,21 @@
         "maxHealth": 30,
         "group": "upper-left",
         "name": "Ombro Esquerdo",
+        "tags": [
+          "bone"
+        ],
+        "slots": [
+          "shoulder"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -0.1,
+            "operation": "Percent",
+            "stat": "agility",
+            "standaloneHPOnly": true
+          }
+        ],
         "children": [
           {
             "area": 1.5,
@@ -231,12 +254,45 @@
                 "standaloneHPOnly": true
               }
             ],
+            "tags": [
+              "bone"
+            ],
+            "slots": [
+              "arm"
+            ],
             "children": [
               {
                 "area": 0.15,
                 "maxHealth": 20,
                 "group": "upper-left",
                 "name": "Mão Esquerda",
+                "tags": [
+                  "bone"
+                ],
+                "skills": [
+                  "punch"
+                ],
+                "slots": [
+                  "wrist",
+                  "hand",
+                  "hold"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "agility",
+                    "standaloneHPOnly": true
+                  },
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "strength",
+                    "standaloneHPOnly": true
+                  }
+                ],
                 "children": [
                   {
                     "area": 0.06,
@@ -345,7 +401,66 @@
                       }
                     ]
                   }
-                ],
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "area": 0.12,
+        "maxHealth": 30,
+        "group": "upper-right",
+        "name": "Ombro Direito",
+        "tags": [
+          "bone"
+        ],
+        "slots": [
+          "shoulder"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -0.1,
+            "operation": "Percent",
+            "stat": "agility",
+            "standaloneHPOnly": true
+          }
+        ],
+        "children": [
+          {
+            "area": 1.5,
+            "maxHealth": 30,
+            "group": "upper-right",
+            "name": "Braço Direito",
+            "tags": [
+              "bone"
+            ],
+            "slots": [
+              "arm"
+            ],
+            "providedStats": [
+              {
+                "atFull": 0,
+                "atZero": -0.1,
+                "operation": "Percent",
+                "stat": "agility",
+                "standaloneHPOnly": true
+              },
+              {
+                "atFull": 0,
+                "atZero": 20,
+                "operation": "Flat",
+                "stat": "strength",
+                "standaloneHPOnly": true
+              }
+            ],
+            "children": [
+              {
+                "area": 0.15,
+                "maxHealth": 20,
+                "group": "upper-right",
+                "name": "Mão Direita",
                 "tags": [
                   "bone"
                 ],
@@ -372,50 +487,7 @@
                     "stat": "strength",
                     "standaloneHPOnly": true
                   }
-                ]
-              }
-            ],
-            "tags": [
-              "bone"
-            ],
-            "slots": [
-              "arm"
-            ]
-          }
-        ],
-        "tags": [
-          "bone"
-        ],
-        "slots": [
-          "shoulder"
-        ],
-        "providedStats": [
-          {
-            "atFull": 0,
-            "atZero": -0.1,
-            "operation": "Percent",
-            "stat": "agility",
-            "standaloneHPOnly": true
-          }
-        ]
-      },
-      {
-        "area": 0.12,
-        "maxHealth": 30,
-        "group": "upper-right",
-        "name": "Ombro Direito",
-        "children": [
-          {
-            "area": 1.5,
-            "maxHealth": 30,
-            "group": "upper-right",
-            "name": "Braço Direito",
-            "children": [
-              {
-                "area": 0.15,
-                "maxHealth": 20,
-                "group": "upper-right",
-                "name": "Mão Direita",
+                ],
                 "children": [
                   {
                     "area": 0.06,
@@ -512,73 +584,9 @@
                       }
                     ]
                   }
-                ],
-                "tags": [
-                  "bone"
-                ],
-                "skills": [
-                  "punch"
-                ],
-                "slots": [
-                  "wrist",
-                  "hand",
-                  "hold"
-                ],
-                "providedStats": [
-                  {
-                    "atFull": 0,
-                    "atZero": -0.1,
-                    "operation": "Percent",
-                    "stat": "agility",
-                    "standaloneHPOnly": true
-                  },
-                  {
-                    "atFull": 0,
-                    "atZero": -0.1,
-                    "operation": "Percent",
-                    "stat": "strength",
-                    "standaloneHPOnly": true
-                  }
                 ]
               }
-            ],
-            "tags": [
-              "bone"
-            ],
-            "slots": [
-              "arm"
-            ],
-            "providedStats": [
-              {
-                "atFull": 0,
-                "atZero": -0.1,
-                "operation": "Percent",
-                "stat": "agility",
-                "standaloneHPOnly": true
-              },
-              {
-                "atFull": 0,
-                "atZero": 20,
-                "operation": "Flat",
-                "stat": "strength",
-                "standaloneHPOnly": true
-              }
             ]
-          }
-        ],
-        "tags": [
-          "bone"
-        ],
-        "slots": [
-          "shoulder"
-        ],
-        "providedStats": [
-          {
-            "atFull": 0,
-            "atZero": -0.1,
-            "operation": "Percent",
-            "stat": "agility",
-            "standaloneHPOnly": true
           }
         ]
       },
@@ -628,7 +636,7 @@
             "atFull": 0,
             "atZero": -0.25,
             "operation": "Percent",
-            "stat": "blood flow",
+            "stat": "blood_flow",
             "standaloneHPOnly": false
           }
         ]
@@ -645,7 +653,7 @@
             "atFull": 0,
             "atZero": -0.25,
             "operation": "Percent",
-            "stat": "blood flow",
+            "stat": "blood_flow",
             "standaloneHPOnly": false
           }
         ]
@@ -662,7 +670,7 @@
             "atFull": 1,
             "atZero": 0,
             "operation": "Flat",
-            "stat": "blood flow",
+            "stat": "blood_flow",
             "standaloneHPOnly": false
           }
         ]
@@ -672,6 +680,22 @@
         "maxHealth": 30,
         "group": "lower-right",
         "name": "Perna Direita",
+        "tags": [
+          "bone"
+        ],
+        "skills": [],
+        "slots": [
+          "leg"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -0.35,
+            "operation": "Percent",
+            "stat": "movement",
+            "standaloneHPOnly": false
+          }
+        ],
         "children": [
           {
             "area": 0.1,
@@ -694,7 +718,13 @@
               }
             ]
           }
-        ],
+        ]
+      },
+      {
+        "area": 0.25,
+        "maxHealth": 30,
+        "group": "lower-left",
+        "name": "Perna Esquerda",
         "tags": [
           "bone"
         ],
@@ -710,13 +740,7 @@
             "stat": "movement",
             "standaloneHPOnly": false
           }
-        ]
-      },
-      {
-        "area": 0.25,
-        "maxHealth": 30,
-        "group": "lower-left",
-        "name": "Perna Esquerda",
+        ],
         "children": [
           {
             "area": 0.1,
@@ -739,32 +763,8 @@
               }
             ]
           }
-        ],
-        "tags": [
-          "bone"
-        ],
-        "skills": [],
-        "slots": [
-          "leg"
-        ],
-        "providedStats": [
-          {
-            "atFull": 0,
-            "atZero": -0.35,
-            "operation": "Percent",
-            "stat": "movement",
-            "standaloneHPOnly": false
-          }
         ]
       }
-    ],
-    "tags": [
-      "bone"
-    ],
-    "slots": [
-      "back",
-      "chest",
-      "waist"
     ]
   }
 }

@@ -73,6 +73,9 @@
     },
 
     "Feature": {
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
+      ],
       "type": "object",
       "required": ["type", "name", "icon", "description"],
       "properties": {

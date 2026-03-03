@@ -4,9 +4,6 @@ namespace TTRpgClient.scripts.ui;
 
 public partial class MainMenu : Control
 {
-    [Export] private NetworkManager networkManager;
-    [Export] private GameManager gameManager;
-
     private Label errorLabel;
 
     public override void _Ready()
@@ -31,8 +28,8 @@ public partial class MainMenu : Control
 
         var ipAddress = split[0];
         var port = split[1].ToInt();
-        gameManager._username = username;
-        var err = networkManager.ConnectToHost(ipAddress, port);
+        GameManager.Username = username;
+        var err = NetworkManager.Instance.ConnectToHost(ipAddress, port);
         if (err != Error.Ok)
             errorLabel.Text = $"Error connecting: {err}";
         else

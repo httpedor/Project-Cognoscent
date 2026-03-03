@@ -59,6 +59,9 @@
     },
 
     "Skill": {
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
+      ],
       "type": "object",
       "required": ["type"],
       "description": "A skill compendium entry. 'type' determines which subclass is instantiated.",
@@ -82,6 +85,12 @@
           "type": "string",
           "description": "Icon identifier (typically filename without extension).",
           "default": ""
+        },
+        "tags": {
+          "type": "array",
+          "items": { "$ref": "_tags.schema.json#/$defs/SkillTag" },
+          "description": "Gameplay tags for filtering (e.g. ['melee', 'magic']).",
+          "default": []
         },
 
         "execute": {

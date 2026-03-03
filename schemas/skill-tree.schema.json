@@ -26,6 +26,9 @@
 
   "$defs": {
     "SkillTreeEntry": {
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
+      ],
       "type": "object",
       "description": "A single node in the skill tree. Must have 'enabled' and at least one of 'name'/'feature'/'skill'.",
       "required": ["enabled"],

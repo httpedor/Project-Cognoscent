@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "_tags.schema.json",
+  "title": "Tags",
+  "description": "Auto-generated tag enums extracted from *Tags static classes in the Rpg assembly.",
+  "$defs": {
+    "BodyTag": {
+      "type": "string",
+      "enum": [
+        "biped",
+        "flying",
+        "humanoid",
+        "quadruped"
+      ],
+      "description": "Known tags for Body."
+    },
+    "BodyPartTag": {
+      "type": "string",
+      "enum": [
+        "hard",
+        "internal",
+        "limb"
+      ],
+      "description": "Known tags for BodyPart."
+    },
+    "DamageTypeTag": {
+      "type": "string",
+      "enum": [
+        "physical",
+        "sharp",
+        "thermal"
+      ],
+      "description": "Known tags for DamageType."
+    },
+    "InjuryTypeTag": {
+      "type": "string",
+      "enum": [
+        "exposed"
+      ],
+      "description": "Known tags for InjuryType."
+    },
+    "SkillTag": {
+      "type": "string",
+      "enum": [
+        "magic",
+        "melee",
+        "projectile",
+        "unparryable"
+      ],
+      "description": "Known tags for Skill."
+    }
+  }
+}

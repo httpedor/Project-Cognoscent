@@ -1,0 +1,11 @@
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\bin\Debug\netstandard2.1\ComponentGenerator.deps.json
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\bin\Debug\netstandard2.1\ComponentGenerator.dll
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\bin\Debug\netstandard2.1\ComponentGenerator.pdb
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.csproj.AssemblyReference.cache
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.AssemblyInfoInputs.cache
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.AssemblyInfo.cs
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.csproj.CoreCompileInputs.cache
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.sourcelink.json
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.dll
+c:\Users\theco\OneDrive\Documentos\Programas\Godot\TTRpg\Tools\ComponentGenerator\obj\Debug\netstandard2.1\ComponentGenerator.pdb

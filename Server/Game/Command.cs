@@ -498,16 +498,8 @@ public sealed class Command
     /// </summary>
     private static bool MatchesCandidate(string candidate, string token)
     {
-        if (candidate.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+        if (candidate.Contains(token, StringComparison.OrdinalIgnoreCase))
             return true;
-
-        int colon = candidate.IndexOf(':');
-        if (colon >= 0 && colon < candidate.Length - 1)
-        {
-            var namePart = candidate.AsSpan(colon + 1);
-            if (namePart.StartsWith(token, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
 
         return false;
     }
@@ -675,7 +667,9 @@ public sealed class Command
         Define("uvttload")
             .Desc("Loads a board from a UVTT file. Mode: new (default) or append.")
             .Alias("loaduvtt", "uvtt")
-            .Arg<string>("file")
+            .Arg<string>("file", () => Directory.EnumerateFiles(".")
+                .Where(file => file.EndsWith("json") || file.EndsWith("uvtt"))
+                .Select(file => file.Substring(2)))
             .OptArg<string>("mode", () => ["new", "append"])
             .OptArg<string>("board")
             .Runs(args =>
@@ -921,7 +915,6 @@ public sealed class Command
             })
             .Register();
 
-        // ---- entitystats: uses StatsContainer component arg directly ----
         Define("entitystats")
             .Desc("Lists entity stats.")
             .Alias("liststats", "stats")

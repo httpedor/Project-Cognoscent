@@ -17,14 +17,15 @@
       "aliases": [
         "agi",
         "agilidade",
-        "agi"
+        "agility"
       ],
       "base": 25,
       "dependsOn": {
         "consciousness": 0.15,
         "blood_flow": 0.5,
         "respiration": 0.5
-      }
+      },
+      "local": true
     },
     "dexterity": {
       "aliases": [
@@ -32,10 +33,11 @@
         "destreza",
         "des"
       ],
-      "base": 25,
+      "base": 10,
       "dependsOn": {
         "consciousness": 1,
-        "respiration": 0.5
+        "respiration": 0.5,
+        "perception": 1
       }
     },
     "intelligence": {
@@ -71,7 +73,22 @@
       ],
       "base": 5,
       "dependsOn": {
-        "agility": "((x-25f)/7f, StatModifierType.Flat)"
+        "agility": {
+          "value": {
+            "op": "div",
+            "numbers": [
+              {
+                "op": "sub",
+                "numbers": [
+                  "$0",
+                  25
+                ]
+              },
+              7
+            ]
+          },
+          "type": "Flat"
+        }
       }
     },
     "sight": {
@@ -82,16 +99,43 @@
     },
     "perception": {
       "dependsOn": {
-        "sight": 0.8,
-        "hearing": 0.2,
-        "dexterity": "(x, StatModifierType.Flat)"
+        "sight": 0.9,
+        "hearing": 0.1,
+        "consciousness": 0.75
       },
       "max": 1
+    },
+    "pain_sensitivity": {
+      "base": 0,
+      "max": 1,
+      "min": -1
     },
     "pain": {
       "max": 1,
       "dependsOn": {
-        "constitution": "(-((x-25f)/100f), StatModifierType.Percent)"
+        "constitution": {
+          // (con - 25) / 100, inverted so that higher constitution means less pain
+          "value": {
+            "op": "mul",
+            "numbers": [
+              -1,
+              {
+                "op": "div",
+                "numbers": [
+                  {
+                    "op": "sub",
+                    "numbers": [
+                      "$0",
+                      25
+                    ]
+                  },
+                  100
+                ]
+              }
+            ]
+          },
+          "type": "Percent"
+        }
       }
     },
     "respiration": {
@@ -107,7 +151,38 @@
     "consciousness": {
       "dependsOn": {
         "oxygenation": 0.75,
-        "pain": "(x \u003c\u003d 0.1f ? 0f : -(x-0.1f/2.25f), StatModifierType.Percent)"
+        "pain": {
+          // If pain is above 0.1, consciousness starts to drop, reaching 0 at pain 2.35 (which is above the max of 1, so it will never reach 0 just from pain, but it will get close)
+          "value": {
+            "op": "if",
+            "condition": {
+              "op": "<=",
+              "left": "$0",
+              "right": 0.1
+            },
+            "true": 0,
+            "false": {
+              "op": "mul",
+              "numbers": [
+                -1,
+                {
+                  "op": "div",
+                  "numbers": [
+                    {
+                      "op": "sub",
+                      "numbers": [
+                        "$0",
+                        0.1
+                      ]
+                    },
+                    2.25
+                  ]
+                }
+              ]
+            }
+          },
+          "type": "Percent"
+        }
       },
       "overCap": false,
       "max": 1,

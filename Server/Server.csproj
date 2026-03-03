@@ -11,7 +11,7 @@
     <PackageReference Include="Terminal.Gui" Version="1.19.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Tools\ComponentGenerator\ComponentGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>

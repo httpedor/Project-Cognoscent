@@ -1,4 +1,5 @@
 using Godot;
+using Rpg;
 using Rpg.Entities.Components.Health;
 using System;
 using TTRpgClient.scripts.ui;
@@ -65,7 +66,7 @@ public partial class BodyInspector : Control
 			field = value;
 			humanoidBodySelector.Visible = false;
 			if (Body == null) return;
-			if (Body.IsHumanoid)
+			if (Body.Is(BodyTags.Humanoid))
 				humanoidBodySelector.Visible = true;
 		}
 	}
@@ -170,7 +171,7 @@ public partial class BodyInspector : Control
 		Body = body;
 		Visible = true;
 
-		if (body.IsHumanoid)
+		if (body.Is(BodyTags.Humanoid))
 			humanoidBodySelector.Visible = true;
 		else
 			humanoidBodySelector.Visible = false;

@@ -11,7 +11,7 @@ using CreationEntry = (Expr<bool> condition, InjuryModel injuryModel, float inte
 //TODO: Injury treatments. For example, bandaged, cooled, disinfected, etc.
 // Each injury type can then interpret these treatments differently.
 // E.g: A burn might need to be cooled to heal faster, or bandaged to reduce infection chance. Or a cut might need to be bandaged to reduce bleeding.
-public class InjuryType : ISerializable
+public class InjuryType : ISerializable, ITaggable
 {
     public readonly string Id;
     /// <summary>
@@ -53,6 +53,9 @@ public class InjuryType : ISerializable
     /// This is used in the last damage applied to the part befored it died is this
     /// </summary>
     public readonly string DestructionTranslation;
+    public HashSet<string> Tags = new();
+
+    HashSet<string> ITaggable.Tags { get => Tags; set => Tags = value; }
 
     public InjuryType(string id, JsonElement json)
     {
@@ -119,6 +122,9 @@ public class InjuryType : ISerializable
             }
             InjuryConversions = conversions.ToImmutableArray();
         }
+
+        if (json.TryGetProperty("tags", out var tagsArr) && tagsArr.ValueKind == JsonValueKind.Array)
+            this.LoadTags(tagsArr);
     }
 
     public void ToBytes(Stream stream)
@@ -150,11 +156,11 @@ public class InjuryModel
     public Expr<float> Severity;
     public InjuryModel(JsonElement json)
     {
-        if (!json.TryGetProperty("type", out var typeEl) || typeEl.ValueKind != JsonValueKind.String)
-            throw new Exception("InjuryModel deserialization requires a 'type' property of type string.");
+        if (!json.TryGetProperty("type", out var typeEl))
+            throw new Exception("InjuryModel deserialization requires a 'type' property.");
         Type = new CompendiumEntryExpr<InjuryType>(ExpressionCompiler.CompileString(typeEl));
-        if (!json.TryGetProperty("severity", out var severityEl) || severityEl.ValueKind != JsonValueKind.Number)
-            throw new Exception("InjuryModel deserialization requires a 'severity' property of type number.");
+        if (!json.TryGetProperty("severity", out var severityEl))
+            throw new Exception("InjuryModel deserialization requires a 'severity' property.");
         Severity = ExpressionCompiler.CompileNumber(severityEl);
     }
 

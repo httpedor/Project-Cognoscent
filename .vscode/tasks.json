@@ -8,18 +8,35 @@
 			"args": [
 				"build",
 				"${workspaceFolder}/TTRpgClient.sln",
+				"/p:GenerateTsPackets=false",
+				"/p:GenerateSchema=false",
 				"/property:GenerateFullPaths=false"
 			],
 			"problemMatcher": "$msCompile"
 		},
 		{
-			"label": "build (tsgen)",
+			"label": "Generate TS Packets",
 			"command": "dotnet",
 			"type": "process",
 			"args": [
 				"build",
 				"${workspaceFolder}/TTRpgClient.sln",
 				"/p:GenerateTsPackets=true",
+				"/p:GenerateSchema=false",
+				"/property:GenerateFullPaths=true"
+			],
+			"problemMatcher": "$msCompile",
+			"group": "build"
+		},
+		{
+			"label": "Generate Schemas",
+			"command": "dotnet",
+			"type": "process",
+			"args": [
+				"build",
+				"${workspaceFolder}/TTRpgClient.sln",
+				"/p:GenerateSchema=true",
+				"/p:GenerateTsPackets=false",
 				"/property:GenerateFullPaths=true"
 			],
 			"problemMatcher": "$msCompile",
@@ -36,18 +53,6 @@
 				"${workspaceFolder}/TTRpgClient.sln"
 			],
 			"problemMatcher": "$msCompile"
-		},
-		{
-			"label": "tsgen",
-			"type": "shell",
-			"command": "dotnet",
-			"args": [
-				"run",
-				"--project",
-				"c:\\Users\\pedro.alvares\\RiderProjects\\Project-Cognoscent\\Tools\\PacketTsGen\\PacketTsGen.csproj"
-			],
-			"isBackground": false,
-			"problemMatcher": []
 		},
 		{
 			"label": "build web",

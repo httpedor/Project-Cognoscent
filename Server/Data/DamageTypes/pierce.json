@@ -1,5 +1,6 @@
 {
   "name": "Perfuração",
-  "parent": "sharp",
-  "injury": "pierce"
+  "injury": "pierce",
+  "color": "#808080",
+  "tags": ["physical", "sharp"]
 }

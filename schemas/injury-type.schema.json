@@ -38,6 +38,9 @@
     },
 
     "InjuryType": {
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
+      ],
       "type": "object",
       "required": ["name", "destruction", "pain", "bleed", "overkillMin", "overkillMax"],
       "properties": {
@@ -83,6 +86,12 @@
           "type": "array",
           "description": "List of injuries that can replace (convert) this injury over time if a condition is met.",
           "items": { "$ref": "#/$defs/CreationEntry" },
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": { "$ref": "_tags.schema.json#/$defs/InjuryTypeTag" },
+          "description": "Gameplay tags for filtering.",
           "default": []
         }
       }

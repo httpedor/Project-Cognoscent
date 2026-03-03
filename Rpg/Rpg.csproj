@@ -14,14 +14,15 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.3" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TraitGenerator\TraitGenerator\TraitGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Tools\ComponentGenerator\ComponentGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <PropertyGroup>
     <!-- Allow disabling via /p:GenerateTsPackets=false to avoid recursion in child builds -->
     <GenerateTsPackets Condition="'$(GenerateTsPackets)' == ''">true</GenerateTsPackets>
+    <GenerateSchema Condition="'$(GenerateSchema)' == ''">true</GenerateSchema>
   </PropertyGroup>
   <!-- Generate TS only when the output is missing or older than the RPG assembly -->
-  <Target Name="GenerateTsPackets" AfterTargets="Build" Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true'" Inputs="$(TargetPath)" Outputs="$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts">
+  <Target Name="GenerateTsPackets" AfterTargets="Build" Condition="'$(GenerateTsPackets)' == 'true' and '$(IsCrossTargetingBuild)' != 'true' and '$(SkipRpgPostBuild)' != 'true'" Inputs="$(TargetPath)" Outputs="$(MSBuildProjectDirectory)\..\WebFrontend\src\networking.generated.ts">
     <PropertyGroup>
       <DotNetExe>$(DotNetHostPath)</DotNetExe>
       <DotNetExe Condition="'$(DotNetExe)' == ''">dotnet</DotNetExe>
@@ -37,12 +38,15 @@
     <Exec Command="$(DotNetExe) run --no-build --project $(PacketTsGenProj) -c $(Configuration) -- $(RpgDll) $(TsOutPath)" ContinueOnError="WarnAndContinue" />
   </Target>
 
-  <!-- Write the auto-generated expression JSON schema to disk after build -->
-  <Target Name="WriteExprSchema" AfterTargets="Build" Condition="'$(IsCrossTargetingBuild)' != 'true'">
+  <!-- Write the auto-generated expression + tag JSON schemas to disk after build -->
+  <Target Name="WriteSchemas" AfterTargets="Build" Condition="'$(GenerateSchema)' == 'true' and '$(IsCrossTargetingBuild)' != 'true' and '$(SkipRpgPostBuild)' != 'true'">
     <PropertyGroup>
+      <_SchemaWriterProj>$(MSBuildProjectDirectory)\..\Tools\SchemaWriter\SchemaWriter.csproj</_SchemaWriterProj>
       <_ExprSchemaPath>$(MSBuildProjectDirectory)\..\schemas\_expr.schema.json</_ExprSchemaPath>
+      <_TagsSchemaPath>$(MSBuildProjectDirectory)\..\schemas\_tags.schema.json</_TagsSchemaPath>
     </PropertyGroup>
-    <Message Text="[Rpg] Writing expression schema to $(_ExprSchemaPath) ..." Importance="High" />
-    <Exec Command="dotnet run --no-build --project $(MSBuildProjectDirectory)\..\Tools\ExprSchemaWriter\ExprSchemaWriter.csproj -c $(Configuration) -- $(_ExprSchemaPath)" ContinueOnError="WarnAndContinue" />
+    <Message Text="[Rpg] Writing schemas to $(_ExprSchemaPath) and $(_TagsSchemaPath) ..." Importance="High" />
+    <Exec Command="dotnet build $(_SchemaWriterProj) -c $(Configuration) /p:SkipRpgPostBuild=true" ContinueOnError="WarnAndContinue" />
+    <Exec Command="dotnet run --no-build --project $(_SchemaWriterProj) -c $(Configuration) -- $(_ExprSchemaPath) $(_TagsSchemaPath)" ContinueOnError="WarnAndContinue" />
   </Target>
 </Project>

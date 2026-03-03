@@ -26,5 +26,8 @@
             "fileMatch": ["Server/Data/SkillTrees/*.json"],
             "url": "./schemas/skill-tree.schema.json"
         }
-    ]
+    ],
+    "files.associations": {
+        "**/Data/**/*.json": "jsonc"
+    }
 }

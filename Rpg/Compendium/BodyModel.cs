@@ -366,8 +366,8 @@ public class BodyModel
         public Expr<float>? BaseVal;
         public Expr<float>? MaxVal;
         public Expr<float>? MinVal;
-        public bool OverCap = true;
-        public bool UnderCap = true;
+        public bool OverCap = false;
+        public bool UnderCap = false;
         public string[] Aliases = Array.Empty<string>();
         public bool Vital;
         public string? MaxDependencyName;
@@ -437,10 +437,29 @@ public class BodyModel
                         
                         if (valElement.ValueKind == JsonValueKind.Number)
                         {
+                            // This will be:
+                            // -((1 - ((newVal - depStat.MinValue) / (depStat.MaxValue - depStat.MinValue))) * weight)
+                            Expr<float> expr = new MulExpr(
+                                new SubExpr(
+                                    new ConstNumberExpr(1),
+                                    new DivExpr(
+                                        new SubExpr(
+                                            new VarNumberExpr(0),
+                                            new StatMinExpr(depName, new CallerSelectorExpr())
+                                        ),
+                                        new SubExpr(
+                                            new StatMaxExpr(depName, new CallerSelectorExpr()),
+                                            new StatMinExpr(depName, new CallerSelectorExpr())
+                                        )
+                                    )
+                                ),
+                                new ConstNumberExpr((float)valElement.GetDouble()),
+                                new ConstNumberExpr(-1)
+                            );
                             dependsOn.Add(new BodyStat.StatDependency(
                                 depName,
-                                ExpressionCompiler.CompileNumber(valElement),
-                                new EnumExpr<StatModifierType>(new StringLiteralExpr("Percent"))
+                                expr,
+                                new EnumExpr<StatModifierType>(StatModifierType.Percent)
                             ));
                         }
                         else if (valElement.ValueKind == JsonValueKind.Object)

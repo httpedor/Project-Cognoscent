@@ -360,6 +360,7 @@ public partial class InputManager : SubViewportContainer
 
 		ContextMenu.Show();
 	}
+	//FIXME: THis ain't working
 	private void HandleMovement(ClientBoard board, Token? token)
 	{
 		var move_dir = new Vector2();

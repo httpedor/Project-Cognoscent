@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compendium-entry.schema.json",
+  "title": "CompendiumEntry",
+  "description": "Base schema for compendium entries. Provides optional parent inheritance and default flag.",
+
+  "$defs": {
+    "Entry": {
+      "type": "object",
+      "properties": {
+        "parent": {
+          "type": "string",
+          "description": "ID of another entry in the same compendium from which this entry inherits."
+        },
+        "default": {
+          "type": "boolean",
+          "description": "If true, this entry is considered the default for its category."
+        }
+      },
+      "unevaluatedProperties": true
+    }
+  }
+}

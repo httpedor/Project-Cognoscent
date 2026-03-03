@@ -115,7 +115,7 @@
         },
         "tags": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "$ref": "_tags.schema.json#/$defs/BodyPartTag" },
           "description": "Arbitrary tags for gameplay filtering.",
           "default": []
         },
@@ -192,13 +192,13 @@
         },
         "overCap": {
           "type": "boolean",
-          "description": "Whether the stat can exceed 'max'. Defaults to true (capped).",
-          "default": true
+          "description": "Whether the stat can exceed 'max'. Defaults to false (uncapped).",
+          "default": false
         },
         "underCap": {
           "type": "boolean",
-          "description": "Whether the stat can go below 'min'. Defaults to true (capped).",
-          "default": true
+          "description": "Whether the stat can go below 'min'. Defaults to false (uncapped).",
+          "default": false
         },
         "aliases": {
           "type": "array",
@@ -221,8 +221,21 @@
         },
         "dependsOn": {
           "type": "object",
-          "description": "Makes this stat's effective max or min depend on other stats. Keys are stat IDs, values are NumberExprs.",
-          "additionalProperties": { "$ref": "#/$defs/NumberExpr" },
+          "description": "Makes this stat's effective max or min depend on other stats. Keys are stat IDs, values can be a number (treated as a weight based on the ratio of the dependency stat, e.g: if the dependency is 75 and it's max is 100, and the weight is 1, this stat will have a -25% debuff) or an object containing a 'value' NumberExpr and a 'type' enum specifying the StatModifierType. The dependency stat's value is always passed as $0",
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "number"},
+              {
+                "type": "object",
+                "required": ["value","type"],
+                "properties": {
+                  "value": { "$ref": "#/$defs/NumberExpr" },
+                  "type": { "$ref": "#/$defs/StatModifierType" }
+                },
+                "unevaluatedProperties": false
+              }
+            ]
+          },
           "default": {}
         },
         "groupEffectiveness": {
@@ -266,8 +279,10 @@
     },
 
     "BodyModel": {
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
+      ],
       "type": "object",
-      "required": ["root"],
       "description": "Full body model for an entity.",
       "properties": {
         "name": {
@@ -276,7 +291,7 @@
         },
         "tags": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": { "$ref": "_tags.schema.json#/$defs/BodyTag" },
           "description": "List of tags that apply to this body model (e.g. 'humanoid', 'large', 'flying').",
           "default": []
         },
