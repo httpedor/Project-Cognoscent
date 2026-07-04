@@ -51,7 +51,6 @@ public static class Game
                 client.SendBoard(board);
         }
         
-        const int timePerTick = (int)(1f/50 * 1000); // 20 ms, this means 50tps
         Task.Run(async () => {
             var sw = new Stopwatch();
             while (_boards.ContainsKey(board.Name))
@@ -65,11 +64,11 @@ public static class Game
                 long elapsed = sw.ElapsedMilliseconds;
                 sw.Reset();
 
-                if (elapsed > timePerTick)
+                if (elapsed > Physics.MillisPerTick)
                     Logger.LogWarning("Tick took " + elapsed + "ms");
 
-                if (elapsed < timePerTick)
-                    await Task.Delay(timePerTick - (int)elapsed);
+                if (elapsed < Physics.MillisPerTick)
+                    await Task.Delay((int)(Physics.MillisPerTick - elapsed));
             }
         });
     }

@@ -16,7 +16,7 @@ public enum ExprCategory
     Number,
     Condition,
     Effect,
-    Selector,
+    Entity,
     String,
     Utility
 }
@@ -250,30 +250,30 @@ public partial class ExprNodeEditor : GraphEdit
             outputs: [("effect", "effect")],
             properties: [("feature", "string", "")]));
 
-        // === SELECTOR ===
-        RegisterDef(new("self_selector", "Self / Caller", ExprCategory.Selector, "References the entity executing the expression.",
-            outputs: [("entity", "selector")]));
+        // === ENTITY ===
+        RegisterDef(new("self_selector", "Self / Caller", ExprCategory.Entity, "References the entity executing the expression.",
+            outputs: [("entity", "entity")]));
 
-        RegisterDef(new("target_selector", "Target", ExprCategory.Selector, "References the target entity.",
-            outputs: [("entity", "selector")]));
+        RegisterDef(new("target_selector", "Target", ExprCategory.Entity, "References the target entity.",
+            outputs: [("entity", "entity")]));
 
-        RegisterDef(new("target_part_selector", "Target Part", ExprCategory.Selector, "References the targeted body part.",
-            outputs: [("entity", "selector")]));
+        RegisterDef(new("target_part_selector", "Target Part", ExprCategory.Entity, "References the targeted body part.",
+            outputs: [("entity", "entity")]));
 
-        RegisterDef(new("var_selector", "Variable (Entity)", ExprCategory.Selector, "Read an entity variable by index.",
-            outputs: [("entity", "selector")],
+        RegisterDef(new("var_selector", "Variable (Entity)", ExprCategory.Entity, "Read an entity variable by index.",
+            outputs: [("entity", "entity")],
             properties: [("index", "int", "0")]));
 
-        RegisterDef(new("no_entity", "No Entity (null)", ExprCategory.Selector, "Null entity reference.",
-            outputs: [("entity", "selector")]));
+        RegisterDef(new("no_entity", "No Entity (null)", ExprCategory.Entity, "Null entity reference.",
+            outputs: [("entity", "entity")]));
 
-        RegisterDef(new("body_part_by_tag", "Body Part by Tag", ExprCategory.Selector, "Find body part by tag.",
-            inputs: [("entity", "selector"), ("tag", "string")],
-            outputs: [("part", "selector")]));
+        RegisterDef(new("body_part_by_tag", "Body Part by Tag", ExprCategory.Entity, "Find body part by tag.",
+            inputs: [("entity", "entity"), ("tag", "string")],
+            outputs: [("part", "entity")]));
 
-        RegisterDef(new("body_part_by_name", "Body Part by Name", ExprCategory.Selector, "Find body part by name.",
-            inputs: [("entity", "selector"), ("name", "string")],
-            outputs: [("part", "selector")]));
+        RegisterDef(new("body_part_by_name", "Body Part by Name", ExprCategory.Entity, "Find body part by name.",
+            inputs: [("entity", "entity"), ("name", "string")],
+            outputs: [("part", "entity")]));
 
         // === STRING ===
         RegisterDef(new("const_string", "String Literal", ExprCategory.String, "A constant string value.",

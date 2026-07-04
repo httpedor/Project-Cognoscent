@@ -12,15 +12,17 @@
 /dataSources/
 /dataSources.local.xml
 /.idea/
+
+#Bin and Obj files
 /Rpg/obj/
 /Rpg/bin/
 /Server/obj/
 /Server/bin/
 /Client/obj/
 /Client/bin/
-/TraitGenerator/obj/
-/TraitGenerator/bin/
-/TraitGenerator/TraitGenerator/obj/
-/TraitGenerator/TraitGenerator/bin/
+/Tools/ComponentGenerator/obj/
+/Tools/ComponentGenerator/bin/
 /Tools/PacketTsGen/bin/
 /Tools/PacketTsGen/obj/
+/Tools/SchemaWriter/bin
+/Tools/SchemaWriter/obj

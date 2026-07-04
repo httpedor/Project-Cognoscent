@@ -33,6 +33,7 @@ public partial class DamageType : ISerializable, ITaggable
     )
     {
         var defInjury = Compendium.GetDefaultEntry<InjuryType>();
+        //TODO: This can be more customizable now that the Expr system is in place
         if (json.TryGetProperty("injury", out JsonElement injuryNode) && injuryNode.ValueKind == JsonValueKind.String)
         {
             string injuryStr = injuryNode.GetString()!;

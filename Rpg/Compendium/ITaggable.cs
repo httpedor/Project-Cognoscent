@@ -87,3 +87,20 @@ public class Tag<T> where T : ITaggable
         Name = name;
     }
 }
+
+/*public class CompositeTag<T> where T : ITaggable
+{
+    public enum Operator
+    {
+        And,
+        Or
+    }
+    public IEnumerable<Tag<T>> SubTags;
+    public Operator SubTagOperator;
+
+    public CompositeTag(IEnumerable<Tag<T>> subTags, Operator subTagOperator)
+    {
+        SubTags = subTags;
+        SubTagOperator = subTagOperator;
+    }
+}*/

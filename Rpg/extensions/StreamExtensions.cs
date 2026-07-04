@@ -176,6 +176,103 @@ public static class StreamExtensions
         stream.Write(BitConverter.GetBytes(value));
     }
 
+    public static void WriteObject(this Stream stream, object obj)
+    {
+        stream.WriteString(obj.GetType().AssemblyQualifiedName);
+        if (obj is ISerializable serializable)
+        {
+            serializable.ToBytes(stream);
+        }
+        else
+        {
+            switch (obj)
+            {
+                case string s:
+                    stream.WriteString(s);
+                    break;
+                case int i:
+                    stream.WriteInt32(i);
+                    break;
+                case long l:
+                    stream.WriteInt64(l);
+                    break;
+                case short sh:
+                    stream.WriteInt16(sh);
+                    break;
+                case float f:
+                    stream.WriteFloat(f);
+                    break;
+                case double d:
+                    stream.WriteDouble(d);
+                    break;
+                case bool b:
+                    stream.WriteBoolean(b);
+                    break;
+                case byte by:
+                    stream.WriteByte(by);
+                    break;
+                case ushort us:
+                    stream.WriteUInt16(us);
+                    break;
+                case uint ui:
+                    stream.WriteUInt32(ui);
+                    break;
+                case ulong ul:
+                    stream.WriteUInt64(ul);
+                    break;
+                case Vector2 v2:
+                    stream.WriteVec2(v2);
+                    break;
+                case Vector3 v3:
+                    stream.WriteVec3(v3);
+                    break;
+                default:
+                    throw new Exception($"Object of type {obj.GetType().Name} is not serializable");
+            }
+        }
+    }
+    public static object ReadObject(this Stream stream)
+    {
+        string typeName = stream.ReadString();
+        Type type = Type.GetType(typeName) ?? throw new Exception($"Type {typeName} not found");
+        if (typeof(ISerializable).IsAssignableFrom(type))
+        {
+            ISerializable obj = (ISerializable)Activator.CreateInstance(type, [stream])!;
+            return obj;
+        }
+        else
+        {
+            if (type == typeof(string))
+                return stream.ReadString();
+            if (type == typeof(int))
+                return stream.ReadInt32();
+            if (type == typeof(long))
+                return stream.ReadInt64();
+            if (type == typeof(short))
+                return stream.ReadInt16();
+            if (type == typeof(float))
+                return stream.ReadFloat();
+            if (type == typeof(double))
+                return stream.ReadDouble();
+            if (type == typeof(bool))
+                return stream.ReadBoolean();
+            if (type == typeof(byte))
+                return (byte)stream.ReadByte();
+            if (type == typeof(ushort))
+                return stream.ReadUInt16();
+            if (type == typeof(uint))
+                return stream.ReadUInt32();
+            if (type == typeof(ulong))
+                return stream.ReadUInt64();
+            if (type == typeof(Vector2))
+                return stream.ReadVec2();
+            if (type == typeof(Vector3))
+                return stream.ReadVec3();
+
+            throw new Exception($"Object of type {type.Name} is not deserializable");
+        }
+    }
+
     public static void WritePrimitive<T>(this Stream stream, T value) where T : unmanaged
     {
         switch (value)

@@ -4,127 +4,114 @@ namespace Rpg.Scripting;
 
 public sealed class AddExpr : Expr<float>
 {
-    public readonly Expr<float>[] Args;
-    public AddExpr(params Expr<float>[] args) => Args = args;
+    public readonly ArrayExpr<float> Args;
+    public AddExpr(ArrayExpr<float> args) => Args = args;
+    public AddExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
     [ExprOp(ExprCategory.Number, "sum", "plus", "add", "addition", "+")]
-    [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to sum")]
+    [ExprParam("numbers", typeof(global::System.Collections.Generic.List<float>), Required = true, Description = "Array of numbers to sum")]
     public static Expr<float> CompileOp(JsonElement obj)
-        => new AddExpr(ExpressionCompiler.CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
+        => new AddExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
     public AddExpr(Stream stream)
     {
-        int length = stream.ReadInt32();
-        Args = new Expr<float>[length];
-        for (int i = 0; i < length; i++)
-            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
+        Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)
     {
         float sum = 0;
-        foreach (var e in Args)
-            sum += e.Eval(ctx);
+        var result = Args.Eval(ctx);
+        foreach (var e in result)
+            sum += e;
         return sum;
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteInt32(Args.Length);
-        foreach (var e in Args)
-            e.ToBytes(stream);
+        Args.ToBytes(stream);
     }
 }
 public sealed class SubExpr : Expr<float>
 {
-    public readonly Expr<float>[] Args;
-    public SubExpr(params Expr<float>[] args) => Args = args;
+    public readonly ArrayExpr<float> Args;
+    public SubExpr(ArrayExpr<float> args) => Args = args;
+    public SubExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
     [ExprOp(ExprCategory.Number, "sub", "subtract", "minus", "subtraction", "-")]
-    [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to subtract sequentially")]
+    [ExprParam("numbers", typeof(float[]), Required = true, Description = "Array of numbers to subtract sequentially")]
     public static Expr<float> CompileOp(JsonElement obj)
-        => new SubExpr(ExpressionCompiler.CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
+        => new SubExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
     public SubExpr(Stream stream)
     {
-        int length = stream.ReadInt32();
-        Args = new Expr<float>[length];
-        for (int i = 0; i < length; i++)
-            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
+        Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override float Eval(EvalContext ctx)
     {
-        float result = Args[0].Eval(ctx);
-        for (int i = 1; i < Args.Length; i++)
-            result -= Args[i].Eval(ctx);
+        var args = Args.Eval(ctx).ToArray();
+        float result = args[0];
+        for (int i = 1; i < args.Length; i++)
+            result -= args[i];
         return result;
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteInt32(Args.Length);
-        foreach (var e in Args)
-            e.ToBytes(stream);
+        Args.ToBytes(stream);
     }
 }
 public sealed class MulExpr : Expr<float>
 {
-    public readonly Expr<float>[] Args;
-    public MulExpr(params Expr<float>[] args) => Args = args;
+    public readonly ArrayExpr<float> Args;
+    public MulExpr(ArrayExpr<float> args) => Args = args;
+    public MulExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
     [ExprOp(ExprCategory.Number, "mul", "multiply", "times", "multiplication", "*")]
-    [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to multiply")]
+    [ExprParam("numbers", typeof(float[]), Required = true, Description = "Array of numbers to multiply")]
     public static Expr<float> CompileOp(JsonElement obj)
-        => new MulExpr(ExpressionCompiler.CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
+        => new MulExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
     public MulExpr(Stream stream)
     {
-        int length = stream.ReadInt32();
-        Args = new Expr<float>[length];
-        for (int i = 0; i < length; i++)
-            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
+        Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
     }
     public override float Eval(EvalContext ctx)
     {
         float product = 1f;
-        foreach (var e in Args)
-            product *= e.Eval(ctx);
+        foreach (var e in Args.Eval(ctx))
+            product *= e;
         return product;
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteInt32(Args.Length);
-        foreach (var e in Args)
-            e.ToBytes(stream);
+        Args.ToBytes(stream);
     }
 }
 public sealed class DivExpr : Expr<float>
 {
-    public readonly Expr<float>[] Args;
-    public DivExpr(params Expr<float>[] args) => Args = args;
+    public readonly ArrayExpr<float> Args;
+    public DivExpr(ArrayExpr<float> args) => Args = args;
+    public DivExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
     [ExprOp(ExprCategory.Number, "div", "divide", "division", "/")]
-    [ExprParam("numbers", "numberExpr[]", Required = true, Description = "Array of numbers to divide sequentially")]
+    [ExprParam("numbers", typeof(float[]), Required = true, Description = "Array of numbers to divide sequentially")]
     public static Expr<float> CompileOp(JsonElement obj)
-        => new DivExpr(ExpressionCompiler.CompileArgsAs<Expr<float>>(obj.GetProperty("numbers")));
+        => new DivExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
     public DivExpr(Stream stream)
     {
-        int length = stream.ReadInt32();
-        Args = new Expr<float>[length];
-        for (int i = 0; i < length; i++)
-            Args[i] = (Expr<float>)BaseExpr.Deserialize(stream);
+        Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
     }
     public override float Eval(EvalContext ctx)
     {
-        float result = Args[0].Eval(ctx);
-        for (int i = 1; i < Args.Length; i++)
-            result /= Args[i].Eval(ctx);
+        var args = Args.Eval(ctx).ToArray();
+        float result = args[0];
+        for (int i = 1; i < args.Length; i++)
+            result /= args[i];
         return result;
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteInt32(Args.Length);
-        foreach (var e in Args)
-            e.ToBytes(stream);
+        Args.ToBytes(stream);
     }
 }

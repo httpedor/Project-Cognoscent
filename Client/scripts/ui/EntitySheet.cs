@@ -284,7 +284,7 @@ public partial class EntitySheetWindow : Window
                 bool enabled = features.IsFeatureEnabled(f);
                 var tag = new Button
                 {
-                    Text = f.GetName(),
+                    Text = f.Name,
                     ToggleMode = false,
                     Disabled = true,
                     FocusMode = Control.FocusModeEnum.None

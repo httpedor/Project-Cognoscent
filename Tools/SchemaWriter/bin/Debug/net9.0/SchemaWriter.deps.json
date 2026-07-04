@@ -18,7 +18,8 @@
         "runtime": {
           "lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
             "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.23.53103"
+            "fileVersion": "8.0.23.53103",
+            "localPath": "Microsoft.Win32.SystemEvents.dll"
           }
         },
         "runtimeTargets": {
@@ -26,7 +27,8 @@
             "rid": "win",
             "assetType": "runtime",
             "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.23.53103"
+            "fileVersion": "8.0.23.53103",
+            "localPath": "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.dll"
           }
         }
       },
@@ -37,7 +39,8 @@
         "runtime": {
           "lib/net8.0/System.Drawing.Common.dll": {
             "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.324.11603"
+            "fileVersion": "8.0.324.11603",
+            "localPath": "System.Drawing.Common.dll"
           }
         }
       },

@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
-    ".NETStandard,Version=v2.1": {
+    "netstandard2.1": {
       "Humanizer.Core/2.14.1": {
         "type": "package",
         "compile": {
@@ -39,10 +39,14 @@
         "type": "package",
         "dependencies": {
           "Microsoft.CodeAnalysis.Analyzers": "3.3.4",
+          "System.Buffers": "4.5.1",
           "System.Collections.Immutable": "8.0.0",
+          "System.Memory": "4.5.5",
+          "System.Numerics.Vectors": "4.5.0",
           "System.Reflection.Metadata": "8.0.0",
           "System.Runtime.CompilerServices.Unsafe": "6.0.0",
-          "System.Text.Encoding.CodePages": "7.0.0"
+          "System.Text.Encoding.CodePages": "7.0.0",
+          "System.Threading.Tasks.Extensions": "4.5.4"
         },
         "compile": {
           "lib/netstandard2.0/Microsoft.CodeAnalysis.dll": {
@@ -101,10 +105,14 @@
         "dependencies": {
           "Microsoft.CodeAnalysis.Analyzers": "3.3.4",
           "Microsoft.CodeAnalysis.Common": "[4.10.0]",
+          "System.Buffers": "4.5.1",
           "System.Collections.Immutable": "8.0.0",
+          "System.Memory": "4.5.5",
+          "System.Numerics.Vectors": "4.5.0",
           "System.Reflection.Metadata": "8.0.0",
           "System.Runtime.CompilerServices.Unsafe": "6.0.0",
-          "System.Text.Encoding.CodePages": "7.0.0"
+          "System.Text.Encoding.CodePages": "7.0.0",
+          "System.Threading.Tasks.Extensions": "4.5.4"
         },
         "compile": {
           "lib/netstandard2.0/Microsoft.CodeAnalysis.CSharp.dll": {
@@ -167,13 +175,17 @@
           "Microsoft.CodeAnalysis.CSharp": "[4.10.0]",
           "Microsoft.CodeAnalysis.Common": "[4.10.0]",
           "Microsoft.CodeAnalysis.Workspaces.Common": "[4.10.0]",
+          "System.Buffers": "4.5.1",
           "System.Collections.Immutable": "8.0.0",
           "System.Composition": "8.0.0",
           "System.IO.Pipelines": "8.0.0",
+          "System.Memory": "4.5.5",
+          "System.Numerics.Vectors": "4.5.0",
           "System.Reflection.Metadata": "8.0.0",
           "System.Runtime.CompilerServices.Unsafe": "6.0.0",
           "System.Text.Encoding.CodePages": "7.0.0",
-          "System.Threading.Channels": "7.0.0"
+          "System.Threading.Channels": "7.0.0",
+          "System.Threading.Tasks.Extensions": "4.5.4"
         },
         "compile": {
           "lib/netstandard2.0/Microsoft.CodeAnalysis.CSharp.Workspaces.dll": {
@@ -234,13 +246,17 @@
           "Microsoft.Bcl.AsyncInterfaces": "8.0.0",
           "Microsoft.CodeAnalysis.Analyzers": "3.3.4",
           "Microsoft.CodeAnalysis.Common": "[4.10.0]",
+          "System.Buffers": "4.5.1",
           "System.Collections.Immutable": "8.0.0",
           "System.Composition": "8.0.0",
           "System.IO.Pipelines": "8.0.0",
+          "System.Memory": "4.5.5",
+          "System.Numerics.Vectors": "4.5.0",
           "System.Reflection.Metadata": "8.0.0",
           "System.Runtime.CompilerServices.Unsafe": "6.0.0",
           "System.Text.Encoding.CodePages": "7.0.0",
-          "System.Threading.Channels": "7.0.0"
+          "System.Threading.Channels": "7.0.0",
+          "System.Threading.Tasks.Extensions": "4.5.4"
         },
         "compile": {
           "lib/netstandard2.0/Microsoft.CodeAnalysis.Workspaces.dll": {
@@ -294,9 +310,23 @@
           }
         }
       },
+      "System.Buffers/4.5.1": {
+        "type": "package",
+        "compile": {
+          "ref/netstandard2.0/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/System.Buffers.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "System.Collections.Immutable/8.0.0": {
         "type": "package",
         "dependencies": {
+          "System.Memory": "4.5.5",
           "System.Runtime.CompilerServices.Unsafe": "6.0.0"
         },
         "compile": {
@@ -404,6 +434,11 @@
       },
       "System.IO.Pipelines/8.0.0": {
         "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.5.1",
+          "System.Memory": "4.5.5",
+          "System.Threading.Tasks.Extensions": "4.5.4"
+        },
         "compile": {
           "lib/netstandard2.0/System.IO.Pipelines.dll": {
             "related": ".xml"
@@ -415,10 +450,42 @@
           }
         }
       },
+      "System.Memory/4.5.5": {
+        "type": "package",
+        "dependencies": {
+          "System.Buffers": "4.5.1",
+          "System.Numerics.Vectors": "4.4.0",
+          "System.Runtime.CompilerServices.Unsafe": "4.5.3"
+        },
+        "compile": {
+          "lib/netstandard2.0/System.Memory.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/System.Memory.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "System.Numerics.Vectors/4.5.0": {
+        "type": "package",
+        "compile": {
+          "ref/netstandard2.0/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/System.Numerics.Vectors.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "System.Reflection.Metadata/8.0.0": {
         "type": "package",
         "dependencies": {
-          "System.Collections.Immutable": "8.0.0"
+          "System.Collections.Immutable": "8.0.0",
+          "System.Memory": "4.5.5"
         },
         "compile": {
           "lib/netstandard2.0/System.Reflection.Metadata.dll": {
@@ -447,6 +514,7 @@
       "System.Text.Encoding.CodePages/7.0.0": {
         "type": "package",
         "dependencies": {
+          "System.Memory": "4.5.5",
           "System.Runtime.CompilerServices.Unsafe": "6.0.0"
         },
         "compile": {
@@ -469,6 +537,22 @@
         },
         "runtime": {
           "lib/netstandard2.1/System.Threading.Channels.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "System.Threading.Tasks.Extensions/4.5.4": {
+        "type": "package",
+        "dependencies": {
+          "System.Runtime.CompilerServices.Unsafe": "4.5.3"
+        },
+        "compile": {
+          "lib/netstandard2.0/System.Threading.Tasks.Extensions.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/System.Threading.Tasks.Extensions.dll": {
             "related": ".xml"
           }
         }
@@ -1363,6 +1447,37 @@
         "microsoft.codeanalysis.workspaces.common.nuspec"
       ]
     },
+    "System.Buffers/4.5.1": {
+      "sha512": "Rw7ijyl1qqRS0YQD/WycNst8hUUMgrMH4FCn1nNm27M4VxchZ1js3fVjQaANHO5f3sN4isvP4a+Met9Y4YomAg==",
+      "type": "package",
+      "path": "system.buffers/4.5.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/net461/System.Buffers.dll",
+        "lib/net461/System.Buffers.xml",
+        "lib/netcoreapp2.0/_._",
+        "lib/netstandard1.1/System.Buffers.dll",
+        "lib/netstandard1.1/System.Buffers.xml",
+        "lib/netstandard2.0/System.Buffers.dll",
+        "lib/netstandard2.0/System.Buffers.xml",
+        "lib/uap10.0.16299/_._",
+        "ref/net45/System.Buffers.dll",
+        "ref/net45/System.Buffers.xml",
+        "ref/netcoreapp2.0/_._",
+        "ref/netstandard1.1/System.Buffers.dll",
+        "ref/netstandard1.1/System.Buffers.xml",
+        "ref/netstandard2.0/System.Buffers.dll",
+        "ref/netstandard2.0/System.Buffers.xml",
+        "ref/uap10.0.16299/_._",
+        "system.buffers.4.5.1.nupkg.sha512",
+        "system.buffers.nuspec",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
+    },
     "System.Collections.Immutable/8.0.0": {
       "sha512": "AurL6Y5BA1WotzlEvVaIDpqzpIPvYnnldxru8oXJU2yFxFUy3+pNXjXd1ymO+RA0rq0+590Q8gaz2l3Sr7fmqg==",
       "type": "package",
@@ -1589,6 +1704,76 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "System.Memory/4.5.5": {
+      "sha512": "XIWiDvKPXaTveaB7HVganDlOCRoj03l+jrwNvcge/t8vhGYKvqV+dMv6G4SAX2NoNmN0wZfVPTAlFwZcZvVOUw==",
+      "type": "package",
+      "path": "system.memory/4.5.5",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/net461/System.Memory.dll",
+        "lib/net461/System.Memory.xml",
+        "lib/netcoreapp2.1/_._",
+        "lib/netstandard1.1/System.Memory.dll",
+        "lib/netstandard1.1/System.Memory.xml",
+        "lib/netstandard2.0/System.Memory.dll",
+        "lib/netstandard2.0/System.Memory.xml",
+        "ref/netcoreapp2.1/_._",
+        "system.memory.4.5.5.nupkg.sha512",
+        "system.memory.nuspec",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
+    },
+    "System.Numerics.Vectors/4.5.0": {
+      "sha512": "QQTlPTl06J/iiDbJCiepZ4H//BVraReU4O4EoRw1U02H5TLUIT7xn3GnDp9AXPSlJUDyFs4uWjWafNX6WrAojQ==",
+      "type": "package",
+      "path": "system.numerics.vectors/4.5.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/MonoAndroid10/_._",
+        "lib/MonoTouch10/_._",
+        "lib/net46/System.Numerics.Vectors.dll",
+        "lib/net46/System.Numerics.Vectors.xml",
+        "lib/netcoreapp2.0/_._",
+        "lib/netstandard1.0/System.Numerics.Vectors.dll",
+        "lib/netstandard1.0/System.Numerics.Vectors.xml",
+        "lib/netstandard2.0/System.Numerics.Vectors.dll",
+        "lib/netstandard2.0/System.Numerics.Vectors.xml",
+        "lib/portable-net45+win8+wp8+wpa81/System.Numerics.Vectors.dll",
+        "lib/portable-net45+win8+wp8+wpa81/System.Numerics.Vectors.xml",
+        "lib/uap10.0.16299/_._",
+        "lib/xamarinios10/_._",
+        "lib/xamarinmac20/_._",
+        "lib/xamarintvos10/_._",
+        "lib/xamarinwatchos10/_._",
+        "ref/MonoAndroid10/_._",
+        "ref/MonoTouch10/_._",
+        "ref/net45/System.Numerics.Vectors.dll",
+        "ref/net45/System.Numerics.Vectors.xml",
+        "ref/net46/System.Numerics.Vectors.dll",
+        "ref/net46/System.Numerics.Vectors.xml",
+        "ref/netcoreapp2.0/_._",
+        "ref/netstandard1.0/System.Numerics.Vectors.dll",
+        "ref/netstandard1.0/System.Numerics.Vectors.xml",
+        "ref/netstandard2.0/System.Numerics.Vectors.dll",
+        "ref/netstandard2.0/System.Numerics.Vectors.xml",
+        "ref/uap10.0.16299/_._",
+        "ref/xamarinios10/_._",
+        "ref/xamarinmac20/_._",
+        "ref/xamarintvos10/_._",
+        "ref/xamarinwatchos10/_._",
+        "system.numerics.vectors.4.5.0.nupkg.sha512",
+        "system.numerics.vectors.nuspec",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
+    },
     "System.Reflection.Metadata/8.0.0": {
       "sha512": "ptvgrFh7PvWI8bcVqG5rsA/weWM09EnthFHR5SCnS6IN+P4mj6rE1lBDC4U8HL9/57htKAqy4KQ3bBj84cfYyQ==",
       "type": "package",
@@ -1709,10 +1894,47 @@
         "system.threading.channels.nuspec",
         "useSharedDesignerContext.txt"
       ]
+    },
+    "System.Threading.Tasks.Extensions/4.5.4": {
+      "sha512": "zteT+G8xuGu6mS+mzDzYXbzS7rd3K6Fjb9RiZlYlJPam2/hU7JCBZBVEcywNuR+oZ1ncTvc/cq0faRr3P01OVg==",
+      "type": "package",
+      "path": "system.threading.tasks.extensions/4.5.4",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/MonoAndroid10/_._",
+        "lib/MonoTouch10/_._",
+        "lib/net461/System.Threading.Tasks.Extensions.dll",
+        "lib/net461/System.Threading.Tasks.Extensions.xml",
+        "lib/netcoreapp2.1/_._",
+        "lib/netstandard1.0/System.Threading.Tasks.Extensions.dll",
+        "lib/netstandard1.0/System.Threading.Tasks.Extensions.xml",
+        "lib/netstandard2.0/System.Threading.Tasks.Extensions.dll",
+        "lib/netstandard2.0/System.Threading.Tasks.Extensions.xml",
+        "lib/portable-net45+win8+wp8+wpa81/System.Threading.Tasks.Extensions.dll",
+        "lib/portable-net45+win8+wp8+wpa81/System.Threading.Tasks.Extensions.xml",
+        "lib/xamarinios10/_._",
+        "lib/xamarinmac20/_._",
+        "lib/xamarintvos10/_._",
+        "lib/xamarinwatchos10/_._",
+        "ref/MonoAndroid10/_._",
+        "ref/MonoTouch10/_._",
+        "ref/netcoreapp2.1/_._",
+        "ref/xamarinios10/_._",
+        "ref/xamarinmac20/_._",
+        "ref/xamarintvos10/_._",
+        "ref/xamarinwatchos10/_._",
+        "system.threading.tasks.extensions.4.5.4.nupkg.sha512",
+        "system.threading.tasks.extensions.nuspec",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
     }
   },
   "projectFileDependencyGroups": {
-    ".NETStandard,Version=v2.1": [
+    "netstandard2.1": [
       "Microsoft.CodeAnalysis.Analyzers >= 3.3.4",
       "Microsoft.CodeAnalysis.CSharp >= 4.10.0",
       "Microsoft.CodeAnalysis.CSharp.Workspaces >= 4.10.0"
@@ -1724,11 +1946,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\theco\\OneDrive\\Documentos\\Programas\\Godot\\TTRpg\\Tools\\ComponentGenerator\\ComponentGenerator.csproj",
+      "projectUniqueName": "D:\\Programas\\TTRpg\\Tools\\ComponentGenerator\\ComponentGenerator.csproj",
       "projectName": "ComponentGenerator",
-      "projectPath": "C:\\Users\\theco\\OneDrive\\Documentos\\Programas\\Godot\\TTRpg\\Tools\\ComponentGenerator\\ComponentGenerator.csproj",
+      "projectPath": "D:\\Programas\\TTRpg\\Tools\\ComponentGenerator\\ComponentGenerator.csproj",
       "packagesPath": "C:\\Users\\theco\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\theco\\OneDrive\\Documentos\\Programas\\Godot\\TTRpg\\Tools\\ComponentGenerator\\obj\\",
+      "outputPath": "D:\\Programas\\TTRpg\\Tools\\ComponentGenerator\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\theco\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1741,6 +1963,7 @@
       },
       "frameworks": {
         "netstandard2.1": {
+          "framework": "netstandard2.1",
           "targetAlias": "netstandard2.1",
           "projectReferences": {}
         }
@@ -1755,10 +1978,11 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.100"
+      "SdkAnalysisLevel": "11.0.100"
     },
     "frameworks": {
       "netstandard2.1": {
+        "framework": "netstandard2.1",
         "targetAlias": "netstandard2.1",
         "dependencies": {
           "Microsoft.CodeAnalysis.Analyzers": {
@@ -1787,125 +2011,18 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "NETStandard.Library.Ref",
+            "version": "[2.1.0, 2.1.0]"
+          }
+        ],
         "frameworkReferences": {
           "NETStandard.Library": {
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100-preview.5.25277.114\\RuntimeIdentifierGraph.json",
-        "packagesToPrune": {
-          "Microsoft.Win32.Primitives": "(, 4.3.0]",
-          "System.AppContext": "(, 4.3.0]",
-          "System.Buffers": "(, 4.5.1]",
-          "System.Collections": "(, 4.3.0]",
-          "System.Collections.Concurrent": "(, 4.3.0]",
-          "System.Collections.Immutable": "(, 1.4.0]",
-          "System.Collections.NonGeneric": "(, 4.3.0]",
-          "System.Collections.Specialized": "(, 4.3.0]",
-          "System.ComponentModel": "(, 4.3.0]",
-          "System.ComponentModel.Composition": "(, 4.5.0]",
-          "System.ComponentModel.EventBasedAsync": "(, 4.3.0]",
-          "System.ComponentModel.Primitives": "(, 4.3.0]",
-          "System.ComponentModel.TypeConverter": "(, 4.3.0]",
-          "System.Console": "(, 4.3.1]",
-          "System.Data.Common": "(, 4.3.0]",
-          "System.Diagnostics.Contracts": "(, 4.3.0]",
-          "System.Diagnostics.Debug": "(, 4.3.0]",
-          "System.Diagnostics.FileVersionInfo": "(, 4.3.0]",
-          "System.Diagnostics.Process": "(, 4.3.0]",
-          "System.Diagnostics.StackTrace": "(, 4.3.0]",
-          "System.Diagnostics.TextWriterTraceListener": "(, 4.3.0]",
-          "System.Diagnostics.Tools": "(, 4.3.0]",
-          "System.Diagnostics.TraceSource": "(, 4.3.0]",
-          "System.Diagnostics.Tracing": "(, 4.3.0]",
-          "System.Drawing.Primitives": "(, 4.3.0]",
-          "System.Dynamic.Runtime": "(, 4.3.0]",
-          "System.Globalization": "(, 4.3.0]",
-          "System.Globalization.Calendars": "(, 4.3.0]",
-          "System.Globalization.Extensions": "(, 4.3.0]",
-          "System.IO": "(, 4.3.0]",
-          "System.IO.Compression": "(, 4.3.0]",
-          "System.IO.Compression.ZipFile": "(, 4.3.0]",
-          "System.IO.FileSystem": "(, 4.3.0]",
-          "System.IO.FileSystem.DriveInfo": "(, 4.3.1]",
-          "System.IO.FileSystem.Primitives": "(, 4.3.0]",
-          "System.IO.FileSystem.Watcher": "(, 4.3.0]",
-          "System.IO.IsolatedStorage": "(, 4.3.0]",
-          "System.IO.MemoryMappedFiles": "(, 4.3.0]",
-          "System.IO.Pipes": "(, 4.3.0]",
-          "System.IO.UnmanagedMemoryStream": "(, 4.3.0]",
-          "System.Linq": "(, 4.3.0]",
-          "System.Linq.Expressions": "(, 4.3.0]",
-          "System.Linq.Parallel": "(, 4.0.1]",
-          "System.Linq.Queryable": "(, 4.3.0]",
-          "System.Memory": "(, 4.5.5]",
-          "System.Net.Http": "(, 4.3.4]",
-          "System.Net.NameResolution": "(, 4.3.0]",
-          "System.Net.NetworkInformation": "(, 4.3.0]",
-          "System.Net.Ping": "(, 4.3.0]",
-          "System.Net.Primitives": "(, 4.3.1]",
-          "System.Net.Requests": "(, 4.3.0]",
-          "System.Net.Security": "(, 4.3.2]",
-          "System.Net.Sockets": "(, 4.3.0]",
-          "System.Net.WebHeaderCollection": "(, 4.3.0]",
-          "System.Net.WebSockets": "(, 4.3.0]",
-          "System.Net.WebSockets.Client": "(, 4.3.2]",
-          "System.Numerics.Vectors": "(, 4.5.0]",
-          "System.ObjectModel": "(, 4.3.0]",
-          "System.Private.DataContractSerialization": "(, 4.3.0]",
-          "System.Reflection": "(, 4.3.0]",
-          "System.Reflection.DispatchProxy": "(, 4.5.1]",
-          "System.Reflection.Emit": "(, 4.7.0]",
-          "System.Reflection.Emit.ILGeneration": "(, 4.7.0]",
-          "System.Reflection.Emit.Lightweight": "(, 4.7.0]",
-          "System.Reflection.Extensions": "(, 4.3.0]",
-          "System.Reflection.Primitives": "(, 4.3.0]",
-          "System.Reflection.TypeExtensions": "(, 4.3.0]",
-          "System.Resources.Reader": "(, 4.3.0]",
-          "System.Resources.ResourceManager": "(, 4.3.0]",
-          "System.Resources.Writer": "(, 4.3.0]",
-          "System.Runtime": "(, 4.3.1]",
-          "System.Runtime.CompilerServices.VisualC": "(, 4.3.0]",
-          "System.Runtime.Extensions": "(, 4.3.1]",
-          "System.Runtime.Handles": "(, 4.3.0]",
-          "System.Runtime.InteropServices": "(, 4.3.0]",
-          "System.Runtime.InteropServices.RuntimeInformation": "(, 4.3.0]",
-          "System.Runtime.Loader": "(, 4.3.0]",
-          "System.Runtime.Numerics": "(, 4.3.0]",
-          "System.Runtime.Serialization.Formatters": "(, 4.3.0]",
-          "System.Runtime.Serialization.Json": "(, 4.3.0]",
-          "System.Runtime.Serialization.Primitives": "(, 4.3.0]",
-          "System.Runtime.Serialization.Xml": "(, 4.3.0]",
-          "System.Security.AccessControl": "(, 4.4.0]",
-          "System.Security.Claims": "(, 4.3.0]",
-          "System.Security.Cryptography.Algorithms": "(, 4.3.1]",
-          "System.Security.Cryptography.Csp": "(, 4.3.0]",
-          "System.Security.Cryptography.Encoding": "(, 4.3.0]",
-          "System.Security.Cryptography.Primitives": "(, 4.3.0]",
-          "System.Security.Cryptography.X509Certificates": "(, 4.3.2]",
-          "System.Security.Cryptography.Xml": "(, 4.4.0]",
-          "System.Security.Principal": "(, 4.3.0]",
-          "System.Security.Principal.Windows": "(, 4.4.0]",
-          "System.Security.SecureString": "(, 4.3.0]",
-          "System.Text.Encoding": "(, 4.3.0]",
-          "System.Text.Encoding.Extensions": "(, 4.3.0]",
-          "System.Text.RegularExpressions": "(, 4.3.0]",
-          "System.Threading": "(, 4.3.0]",
-          "System.Threading.Overlapped": "(, 4.3.0]",
-          "System.Threading.Tasks": "(, 4.3.0]",
-          "System.Threading.Tasks.Extensions": "(, 4.5.4]",
-          "System.Threading.Tasks.Parallel": "(, 4.3.0]",
-          "System.Threading.Thread": "(, 4.3.0]",
-          "System.Threading.ThreadPool": "(, 4.3.0]",
-          "System.Threading.Timer": "(, 4.3.0]",
-          "System.ValueTuple": "(, 4.4.0]",
-          "System.Xml.ReaderWriter": "(, 4.3.1]",
-          "System.Xml.XDocument": "(, 4.3.0]",
-          "System.Xml.XmlDocument": "(, 4.3.0]",
-          "System.Xml.XmlSerializer": "(, 4.3.0]",
-          "System.Xml.XPath": "(, 4.3.0]",
-          "System.Xml.XPath.XDocument": "(, 4.3.0]"
-        }
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\11.0.100-preview.4.26230.115\\RuntimeIdentifierGraph.json"
       }
     }
   }

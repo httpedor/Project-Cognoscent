@@ -69,38 +69,29 @@ public sealed class VarStringExpr : Expr<string>
 
 public sealed class StringConcatExpr : Expr<string>
 {
-    public readonly Expr<string>[] Parts;
+    public readonly ArrayExpr<string> Parts;
 
-    public StringConcatExpr(Expr<string>[] parts)
+    public StringConcatExpr(ArrayExpr<string> parts)
     {
         Parts = parts;
     }
 
     [ExprOp(ExprCategory.String, "concat", "add", "join")]
-    [ExprParam("strings", "stringExpr[]", Required = true)]
+    [ExprParam("strings", typeof(global::System.Collections.Generic.List<string>), Required = true)]
     public static Expr<string> CompileOp(JsonElement obj)
-        => new StringConcatExpr(ExpressionCompiler.CompileArgsAs<Expr<string>>(obj.GetProperty("strings")));
+        => new StringConcatExpr(ExpressionCompiler.CompileArray<string>(obj.GetProperty("strings")));
     public StringConcatExpr(Stream stream)
     {
-        int partCount = stream.ReadByte();
-        Parts = new Expr<string>[partCount];
-        for (int i = 0; i < partCount; i++)
-        {
-            Parts[i] = (Expr<string>)BaseExpr.Deserialize(stream);
-        }
+        Parts = (ArrayExpr<string>)BaseExpr.Deserialize(stream);
     }
 
     public override string Eval(EvalContext ctx)
     {
-        return string.Concat(Parts.Select(p => p.Eval(ctx)));
+        return string.Concat(Parts.Eval(ctx));
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteByte((byte)Parts.Length);
-        foreach (var part in Parts)
-        {
-            part.ToBytes(stream);
-        }
+        Parts.ToBytes(stream);
     }
 }

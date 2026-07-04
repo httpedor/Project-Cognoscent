@@ -19,75 +19,567 @@
             "true": { "$ref": "#/$defs/NumberExpr" },
             "false": { "$ref": "#/$defs/NumberExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "numbers"],
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
           "properties": {
-            "op": { "enum": ["sum", "plus", "add", "addition", "+"] },
-            "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" }, "description": "Array of numbers to sum" }
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/NumberExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "numbers"],
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
           "properties": {
-            "op": { "enum": ["sub", "subtract", "minus", "subtraction", "-"] },
-            "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" }, "description": "Array of numbers to subtract sequentially" }
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/NumberExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/NumberExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/NumberExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/NumberExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "numbers"],
           "properties": {
-            "op": { "enum": ["mul", "multiply", "times", "multiplication", "*"] },
-            "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" }, "description": "Array of numbers to multiply" }
+            "op": {
+              "type": "string",
+              "enum": ["body_part_health", "bp_health", "bp_max_health", "body_part_max_health", "bp_health_percent", "body_part_health_percent", "health_percent_bp", "layer_index", "find_layer_index", "layer_health", "body_stability", "stability_of_body", "get_body_stability", "body_movement_intensity", "movement_intensity_of_body", "get_body_movement_intensity", "sum", "plus", "add", "addition", "+", "sub", "subtract", "minus", "subtraction", "-", "mul", "multiply", "times", "multiplication", "*", "div", "divide", "division", "/", "max_value", "max_float", "float_max_value", "min_value", "min_float", "float_min_value", "lerp", "rand", "random", "distribution", "stat", "creature_stat", "entity_stat", "entitystat", "creaturestat", "group_stat", "stat_from_group", "local_stat", "stat_local", "array_size", "length_of_array", "array_length", "array_count", "count_array"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_part_health", "bp_health"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "part": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to get the health of" },
+              "standalone": { "$ref": "#/$defs/ConditionExpr", "description": "Whether to get the health of the body part alone, without counting its parents. If false or not provided, the health of the body part will be 0 if the parent is dead." }
+            },
+            "required": ["part"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["bp_max_health", "body_part_max_health"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "part": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to get the max health of" }
+            },
+            "required": ["part"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["bp_health_percent", "body_part_health_percent", "health_percent_bp"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "part": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to get the health percent of" }
+            },
+            "required": ["part"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["layer_index", "find_layer_index"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyPartExpr", "description": "The layer's bodypart" },
+              "name": { "$ref": "#/$defs/StringExpr", "description": "The layer's name" }
+            },
+            "required": ["target", "name"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["layer_health"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyPartExpr", "description": "The layer's bodypart" },
+              "name": { "$ref": "#/$defs/StringExpr", "description": "The layer's name" }
+            },
+            "required": ["target", "name"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_stability", "stability_of_body", "get_body_stability"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body to get the stability of" }
+            },
+            "required": ["target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_movement_intensity", "movement_intensity_of_body", "get_body_movement_intensity"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body to get the movement intensity of" }
+            },
+            "required": ["target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["sum", "plus", "add", "addition", "+"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "numbers": { "$ref": "#/$defs/NumberExprArray", "description": "Array of numbers to sum" }
+            },
+            "required": ["numbers"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["sub", "subtract", "minus", "subtraction", "-"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "numbers": { "$ref": "#/$defs/NumberExprArray", "description": "Array of numbers to subtract sequentially" }
+            },
+            "required": ["numbers"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["mul", "multiply", "times", "multiplication", "*"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "numbers": { "$ref": "#/$defs/NumberExprArray", "description": "Array of numbers to multiply" }
+            },
+            "required": ["numbers"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["div", "divide", "division", "/"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "numbers": { "$ref": "#/$defs/NumberExprArray", "description": "Array of numbers to divide sequentially" }
+            },
+            "required": ["numbers"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["max_value", "max_float", "float_max_value"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["min_value", "min_float", "float_min_value"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["lerp"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "min": { "$ref": "#/$defs/NumberExpr" },
+              "max": { "$ref": "#/$defs/NumberExpr" },
+              "t": { "$ref": "#/$defs/NumberExpr", "description": "Interpolation factor (0-1)" }
+            },
+            "required": ["min", "max", "t"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["rand", "random", "distribution"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "min": { "$ref": "#/$defs/NumberExpr" },
+              "max": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["min", "max"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["stat", "creature_stat", "entity_stat", "entitystat", "creaturestat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr", "description": "Name of the stat to read" },
+              "entity": { "$ref": "#/$defs/EntityExpr", "description": "Entity to read stat from (defaults to caller)" },
+              "default": { "$ref": "#/$defs/NumberExpr", "description": "Default value if stat not found (defaults to 0)" }
+            },
+            "required": ["stat"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["group_stat", "stat_from_group", "local_stat", "stat_local"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr", "description": "Name of the stat to read" },
+              "group": { "$ref": "#/$defs/StringExpr", "description": "Name of the group to read stat from" },
+              "entity": { "$ref": "#/$defs/EntityExpr", "description": "Entity to read stat from (defaults to caller)" },
+              "default": { "$ref": "#/$defs/NumberExpr", "description": "Default value if stat not found (defaults to 0)" }
+            },
+            "required": ["stat", "group"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["array_size", "length_of_array", "array_length", "array_count", "count_array"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "array": { "$ref": "#/$defs/AnyExprArray", "description": "The array to get the length of" }
+            },
+            "required": ["array"]
+          }
+        }
+      ]
+    },
+    "NumberExprArray": {
+      "description": "An array of NumberExpr",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of NumberExpr.",
+          "items": { "$ref": "#/$defs/NumberExpr" }
         },
         {
           "type": "object",
-          "required": ["op", "numbers"],
-          "properties": {
-            "op": { "enum": ["div", "divide", "division", "/"] },
-            "numbers": { "type": "array", "items": { "$ref": "#/$defs/NumberExpr" }, "description": "Array of numbers to divide sequentially" }
-          },
-          "unevaluatedProperties": false
+          "description": "Single NumberExpr that will create an array with one element.",
+          "$ref": "#/$defs/NumberExpr"
         },
         {
           "type": "object",
-          "required": ["op", "min", "max", "t"],
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
           "properties": {
-            "op": { "enum": ["lerp"] },
-            "min": { "$ref": "#/$defs/NumberExpr" },
-            "max": { "$ref": "#/$defs/NumberExpr" },
-            "t": { "$ref": "#/$defs/NumberExpr", "description": "Interpolation factor (0-1)" }
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/NumberExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "min", "max"],
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
           "properties": {
-            "op": { "enum": ["rand", "random", "range"] },
-            "min": { "$ref": "#/$defs/NumberExpr" },
-            "max": { "$ref": "#/$defs/NumberExpr" }
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "stat"],
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
           "properties": {
-            "op": { "enum": ["stat", "creature_stat", "entity_stat", "entitystat", "creaturestat"] },
-            "stat": { "type": "string", "description": "Name of the stat to read" },
-            "entity": { "$ref": "#/$defs/SelectorExpr", "description": "Entity to read stat from (defaults to caller)" },
-            "default": { "$ref": "#/$defs/NumberExpr", "description": "Default value if stat not found (defaults to 0)" }
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/NumberExpr" },
+            "false": { "$ref": "#/$defs/NumberExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/NumberExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/NumberExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/NumberExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/NumberExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/NumberExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": ["range", "rangeNumber", "numberRange"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["range", "rangeNumber", "numberRange"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "start": { "$ref": "#/$defs/NumberExpr" },
+              "end": { "$ref": "#/$defs/NumberExpr" },
+              "step": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["start", "end", "step"]
+          }
         }
       ]
     },
@@ -108,119 +600,578 @@
             "true": { "$ref": "#/$defs/ConditionExpr" },
             "false": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op"],
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
           "properties": {
-            "op": { "enum": ["true"] }
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op"],
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
           "properties": {
-            "op": { "enum": ["false"] }
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/ConditionExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/ConditionExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/ConditionExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op"],
           "properties": {
-            "op": { "enum": ["random", "rand"] },
-            "probability": { "$ref": "#/$defs/NumberExpr", "description": "Probability value 0-1 (defaults to 0.5)" }
+            "op": {
+              "type": "string",
+              "enum": ["body_part_alive", "is_body_part_alive", "bp_alive", "body_part_dead", "is_body_part_dead", "bp_dead", "body_group_alive", "is_body_group_alive", "true", "false", "random", "rand", "all", "any", "=", "==", "!=", "and", "or", "not", ">", "<=", "<", ">=", "in_range", "var_has_tag", "var_name_is", "var_name_equals"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_part_alive", "is_body_part_alive", "bp_alive"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "part": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to check" }
+            },
+            "required": ["part"]
+          }
         },
         {
-          "type": "object",
-          "required": ["op", "conditions"],
-          "properties": {
-            "op": { "enum": ["and"] },
-            "conditions": { "type": "array", "items": { "$ref": "#/$defs/ConditionExpr" } }
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_part_dead", "is_body_part_dead", "bp_dead"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "part": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to check" }
+            },
+            "required": ["part"]
+          }
         },
         {
-          "type": "object",
-          "required": ["op", "conditions"],
-          "properties": {
-            "op": { "enum": ["or"] },
-            "conditions": { "type": "array", "items": { "$ref": "#/$defs/ConditionExpr" } }
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_group_alive", "is_body_group_alive"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "group": { "$ref": "#/$defs/StringExpr", "description": "The ID of the body group to check" },
+              "body": { "$ref": "#/$defs/BodyExpr", "description": "The body to check the group on. If not provided, uses the current body in context." }
+            },
+            "required": ["group", "body"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["true"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["false"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["random", "rand"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "probability": { "$ref": "#/$defs/NumberExpr", "description": "Probability value 0-1 (defaults to 0.5)" }
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["all"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "condition": { "$ref": "#/$defs/ConditionExpr", "description": "The condition to check for all elements. The current element will be available as variable 0 in the condition context." },
+              "variables": { "$ref": "#/$defs/AnyExprArray", "description": "The array of elements to check." }
+            },
+            "required": ["condition", "variables"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["any"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "condition": { "$ref": "#/$defs/ConditionExpr", "description": "The condition to check for any element. The current element will be available as variable 0 in the condition context." },
+              "variables": { "$ref": "#/$defs/AnyExprArray", "description": "The array of elements to check." }
+            },
+            "required": ["condition", "variables"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["=", "=="] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "left": { "$ref": "#/$defs/AnyExpr" },
+              "right": { "$ref": "#/$defs/AnyExpr" }
+            },
+            "required": ["left", "right"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["!="] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "left": { "$ref": "#/$defs/AnyExpr" },
+              "right": { "$ref": "#/$defs/AnyExpr" }
+            },
+            "required": ["left", "right"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["and"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "conditions": { "$ref": "#/$defs/ConditionExprArray" }
+            },
+            "required": ["conditions"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["or"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "conditions": { "$ref": "#/$defs/ConditionExprArray" }
+            },
+            "required": ["conditions"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["not"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "condition": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "required": ["condition"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": [">"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "left": { "$ref": "#/$defs/NumberExpr" },
+              "right": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["left", "right"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["<="] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "left": { "$ref": "#/$defs/NumberExpr" },
+              "right": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["left", "right"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["<"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "left": { "$ref": "#/$defs/NumberExpr" },
+              "right": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["left", "right"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": [">="] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "left": { "$ref": "#/$defs/NumberExpr" },
+              "right": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["left", "right"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["in_range"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "min": { "$ref": "#/$defs/NumberExpr" },
+              "max": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "required": ["value", "min", "max"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["var_has_tag"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "var": { "$ref": "#/$defs/NumberExpr", "description": "Which variable to check" },
+              "tag": { "$ref": "#/$defs/StringExpr", "description": "Tag to check for" }
+            },
+            "required": ["var", "tag"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["var_name_is", "var_name_equals"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "name": { "$ref": "#/$defs/StringExpr", "description": "The name to check" },
+              "var": { "$ref": "#/$defs/NumberExpr", "description": "Which variable to check" }
+            },
+            "required": ["name", "var"]
+          }
+        }
+      ]
+    },
+    "ConditionExprArray": {
+      "description": "An array of ConditionExpr",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of ConditionExpr.",
+          "items": { "$ref": "#/$defs/ConditionExpr" }
         },
         {
           "type": "object",
-          "required": ["op", "condition"],
+          "description": "Single ConditionExpr that will create an array with one element.",
+          "$ref": "#/$defs/ConditionExpr"
+        },
+        {
+          "type": "object",
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
           "properties": {
-            "op": { "enum": ["not"] },
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/ConditionExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
+          "properties": {
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
             "condition": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "left", "right"],
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
           "properties": {
-            "op": { "enum": [">"] },
-            "left": { "$ref": "#/$defs/NumberExpr" },
-            "right": { "$ref": "#/$defs/NumberExpr" }
-          },
-          "unevaluatedProperties": false
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
         },
         {
           "type": "object",
-          "required": ["op", "left", "right"],
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
           "properties": {
-            "op": { "enum": ["<="] },
-            "left": { "$ref": "#/$defs/NumberExpr" },
-            "right": { "$ref": "#/$defs/NumberExpr" }
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/ConditionExpr" },
+            "false": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "left", "right"],
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
           "properties": {
-            "op": { "enum": ["<"] },
-            "left": { "$ref": "#/$defs/NumberExpr" },
-            "right": { "$ref": "#/$defs/NumberExpr" }
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "left", "right"],
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
           "properties": {
-            "op": { "enum": [">="] },
-            "left": { "$ref": "#/$defs/NumberExpr" },
-            "right": { "$ref": "#/$defs/NumberExpr" }
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/ConditionExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/ConditionExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/ConditionExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "left", "right"],
           "properties": {
-            "op": { "enum": ["=", "=="] },
-            "left": { "$ref": "#/$defs/NumberExpr" },
-            "right": { "$ref": "#/$defs/NumberExpr" }
-          },
-          "unevaluatedProperties": false
-        },
-        {
-          "type": "object",
-          "required": ["op", "left", "right"],
-          "properties": {
-            "op": { "enum": ["!="] },
-            "left": { "$ref": "#/$defs/NumberExpr" },
-            "right": { "$ref": "#/$defs/NumberExpr" }
-          },
-          "unevaluatedProperties": false
+            "op": {
+              "type": "string", "enum": [] }
+          }
         }
       ]
     },
@@ -230,124 +1181,679 @@
         { "type": ["null", "boolean"], "enum": [null, false], "description": "No effect." },
         {
           "type": "object",
-          "required": ["effect", "injury", "target"],
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
           "properties": {
-            "effect": { "enum": ["add_injury", "addinjury", "injury", "hurt"] },
-            "injury": { "type": "string", "description": "Injury model definition" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/EffectExpr" },
+            "false": { "$ref": "#/$defs/EffectExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["effect", "injury", "target"],
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
           "properties": {
-            "effect": { "enum": ["heal_injury", "healinjury"] },
-            "injury": { "$ref": "#/$defs/StringExpr", "description": "Injury type compendium ID" },
-            "target": { "$ref": "#/$defs/SelectorExpr" },
-            "amount": { "$ref": "#/$defs/NumberExpr", "description": "Amount to heal (omit to remove entirely)" }
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/EffectExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["effect"],
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
           "properties": {
-            "effect": { "enum": ["null", "nop", "noeffect", "no_effect"] }
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/EffectExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/EffectExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/EffectExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/EffectExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/EffectExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/EffectExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["effect", "effects"],
           "properties": {
-            "effect": { "enum": ["composite"] },
-            "effects": { "type": "array", "items": { "$ref": "#/$defs/EffectExpr" } }
+            "op": {
+              "type": "string",
+              "enum": ["foreach", "add_injury", "injury", "hurt", "heal_injury", "change_stability", "set_stability", "add_stability", "addstability", "remove_stability", "reduce_stability", "change_posture", "set_posture", "change_posture_to_resting", "reset_posture", "go_to_resting_posture", "null", "nop", "noeffect", "no_effect", "composite", "set_const", "const_set", "setconst", "constset", "set_number", "number_set", "setnumber", "numberset", "set_string", "string_set", "setstring", "stringset", "set_condition", "condition_set", "setcondition", "conditionset", "add_feature", "addfeature", "add_feat", "add_condition", "addcondition", "remove_feature", "removefeature", "remove_feat", "log", "chat_message", "chat", "log_to_chat", "setstat", "set_stat", "addstat", "add_stat", "substat", "sub_stat", "remove_stat", "removestat", "mulstat", "mul_stat", "divstat", "div_stat", "modifystat", "modify_stat", "removestatmodifier", "remove_stat_modifier"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["foreach"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "values": { "$ref": "#/$defs/AnyExprArray", "description": "The values to iterate over" },
+              "effect": { "$ref": "#/$defs/EffectExpr", "description": "The effect to apply for each value. The current value will be available as variable 0 in each effect context." }
+            },
+            "required": ["values", "effect"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "feature", "target"],
-          "properties": {
-            "effect": { "enum": ["add_feature", "addfeature", "add_feat", "add_condition", "addcondition"] },
-            "feature": { "$ref": "#/$defs/StringExpr", "description": "Compendium feature ID" },
-            "target": { "$ref": "#/$defs/SelectorExpr" },
-            "ticks": { "$ref": "#/$defs/NumberExpr", "description": "Duration in ticks (creates a timed condition)" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["add_injury", "injury", "hurt"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "injury": { "$ref": "body-model.schema.json#/$defs/LayerInjuryModel", "description": "Injury model definition" },
+              "target": { "$ref": "#/$defs/BodyPartExpr" }
+            },
+            "required": ["injury", "target"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "feature", "target"],
-          "properties": {
-            "effect": { "enum": ["remove_feature", "removefeature", "remove_feat"] },
-            "feature": { "$ref": "#/$defs/StringExpr", "description": "Compendium feature ID to remove" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["heal_injury"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "injury": { "$ref": "#/$defs/StringExpr", "description": "Injury type compendium ID" },
+              "target": { "$ref": "#/$defs/BodyPartExpr" },
+              "amount": { "$ref": "#/$defs/NumberExpr", "description": "Amount to heal (omit to remove entirely)" },
+              "layer": { "$ref": "#/$defs/NumberExpr", "description": "The layer that will be healed" }
+            },
+            "required": ["injury", "target"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "stat", "value", "target"],
-          "properties": {
-            "effect": { "enum": ["setstat", "set_stat"] },
-            "stat": { "type": "string", "description": "Name of the stat to set" },
-            "value": { "$ref": "#/$defs/NumberExpr" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["change_stability", "set_stability"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "amount": { "$ref": "#/$defs/NumberExpr", "description": "Amount of stability to add (negative to remove)" },
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body whose stability will be changed" }
+            },
+            "required": ["amount", "target"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "stat", "value", "target"],
-          "properties": {
-            "effect": { "enum": ["addstat", "add_stat"] },
-            "stat": { "type": "string" },
-            "value": { "$ref": "#/$defs/NumberExpr" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["add_stability", "addstability"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "amount": { "$ref": "#/$defs/NumberExpr", "description": "Amount of stability to add" },
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body whose stability will be changed" }
+            },
+            "required": ["amount", "target"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "stat", "value", "target"],
-          "properties": {
-            "effect": { "enum": ["substat", "sub_stat", "remove_stat", "removestat"] },
-            "stat": { "type": "string" },
-            "value": { "$ref": "#/$defs/NumberExpr" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["remove_stability", "reduce_stability"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "amount": { "$ref": "#/$defs/NumberExpr", "description": "Amount of stability to remove" },
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body whose stability will be changed" }
+            },
+            "required": ["amount", "target"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "stat", "value", "target"],
-          "properties": {
-            "effect": { "enum": ["mulstat", "mul_stat"] },
-            "stat": { "type": "string" },
-            "value": { "$ref": "#/$defs/NumberExpr" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["change_posture", "set_posture"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "posture": { "$ref": "#/$defs/StringExpr", "description": "The posture to set (compendium ID)" },
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body whose posture will be changed" }
+            },
+            "required": ["posture", "target"]
+          }
         },
         {
-          "type": "object",
-          "required": ["effect", "stat", "value", "target"],
-          "properties": {
-            "effect": { "enum": ["divstat", "div_stat"] },
-            "stat": { "type": "string" },
-            "value": { "$ref": "#/$defs/NumberExpr" },
-            "target": { "$ref": "#/$defs/SelectorExpr" }
+          "if": {
+            "properties": {
+              "op": { "enum": ["change_posture_to_resting", "reset_posture", "go_to_resting_posture"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "The body whose posture will be changed" }
+            },
+            "required": ["target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["null", "nop", "noeffect", "no_effect"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["composite"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "effects": { "$ref": "#/$defs/EffectExprArray" }
+            },
+            "required": ["effects"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["set_const", "const_set", "setconst", "constset"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "variable": { "$ref": "#/$defs/NumberExpr", "description": "The ID of the variable" },
+              "value": { "$ref": "#/$defs/AnyExpr" }
+            },
+            "required": ["variable", "value"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["set_number", "number_set", "setnumber", "numberset"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "variable": { "$ref": "#/$defs/NumberExpr", "description": "The ID of the variable" },
+              "value": { "$ref": "#/$defs/NumberExpr", "description": "The number expression to evaluate and set the variable to" }
+            },
+            "required": ["variable", "value"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["set_string", "string_set", "setstring", "stringset"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "variable": { "$ref": "#/$defs/NumberExpr", "description": "The ID of the variable" },
+              "value": { "$ref": "#/$defs/StringExpr", "description": "The string expression to evaluate and set the variable to" }
+            },
+            "required": ["variable", "value"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["set_condition", "condition_set", "setcondition", "conditionset"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "variable": { "$ref": "#/$defs/NumberExpr", "description": "The ID of the variable" },
+              "value": { "$ref": "#/$defs/ConditionExpr", "description": "The condition expression to evaluate and set the variable to" }
+            },
+            "required": ["variable", "value"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["add_feature", "addfeature", "add_feat", "add_condition", "addcondition"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "feature": { "$ref": "#/$defs/StringExpr", "description": "Compendium feature ID" },
+              "target": { "$ref": "#/$defs/EntityExpr" },
+              "ticks": { "$ref": "#/$defs/NumberExpr", "description": "Duration in ticks (creates a timed condition)" }
+            },
+            "required": ["feature", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["remove_feature", "removefeature", "remove_feat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "feature": { "$ref": "#/$defs/StringExpr", "description": "Compendium feature ID to remove" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["feature", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["log"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "message": { "$ref": "#/$defs/StringExpr", "description": "The message to log when this effect is evaluated" },
+              "level": { "$ref": "#/$defs/LogLevelExpr", "description": "The log level" }
+            },
+            "required": ["message"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["chat_message", "chat", "log_to_chat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "message": { "$ref": "#/$defs/StringExpr", "description": "The message to add to the chat when this effect is evaluated" }
+            },
+            "required": ["message"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["setstat", "set_stat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr", "description": "Name of the stat to set" },
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["stat", "value", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["addstat", "add_stat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr" },
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["stat", "value", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["substat", "sub_stat", "remove_stat", "removestat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr" },
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["stat", "value", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["mulstat", "mul_stat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr" },
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["stat", "value", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["divstat", "div_stat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr" },
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["stat", "value", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["modifystat", "modify_stat"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr" },
+              "modifier_type": { "$ref": "#/$defs/StatModifierTypeExpr", "description": "How the modifier value is applied to the stat. E.g. \"Flat\", \"Percent\", etc." },
+              "value": { "$ref": "#/$defs/NumberExpr" },
+              "target": { "$ref": "#/$defs/EntityExpr" },
+              "id": { "$ref": "#/$defs/StringExpr", "description": "Optional ID for the modifier, used to remove it later if needed" }
+            },
+            "required": ["stat", "modifier_type", "value", "target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["removestatmodifier", "remove_stat_modifier"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "stat": { "$ref": "#/$defs/StringExpr" },
+              "id": { "$ref": "#/$defs/StringExpr", "description": "ID of the modifier to remove" },
+              "target": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "required": ["stat", "id", "target"]
+          }
         }
       ]
     },
-    "SelectorExpr": {
-      "description": "Selects an Entity (Expr<Entity?>). Can reference caller, target, target_part, or a variable.",
+    "EffectExprArray": {
+      "description": "An array of EffectExpr",
       "oneOf": [
-        { "type": "string", "enum": ["self", "caller", "target", "target_part"], "description": "Named fixed selector." },
+        {
+          "type": "array",
+          "description": "Manually typed array of EffectExpr.",
+          "items": { "$ref": "#/$defs/EffectExpr" }
+        },
+        {
+          "type": "object",
+          "description": "Single EffectExpr that will create an array with one element.",
+          "$ref": "#/$defs/EffectExpr"
+        },
+        {
+          "type": "object",
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
+          "properties": {
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/EffectExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
+          "properties": {
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
+          "properties": {
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/EffectExpr" },
+            "false": { "$ref": "#/$defs/EffectExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/EffectExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/EffectExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/EffectExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/EffectExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/EffectExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/EffectExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/EffectExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": [] }
+          }
+        }
+      ]
+    },
+    "EntityExpr": {
+      "description": "Selects an Entity (Expr<Entity?>). Can reference caller, target, target_component, or a variable.",
+      "oneOf": [
+        { "type": "string", "enum": ["self", "caller", "target", "target_component"], "description": "Named fixed selector." },
         { "type": "string", "pattern": "^\\$[0-9]+$", "description": "Indexed variable, e.g. '$0'." },
         { "type": ["null", "boolean"], "enum": [null, false], "description": "No entity / null selector." },
         {
@@ -357,64 +1863,788 @@
           "properties": {
             "op": { "const": "if" },
             "condition": { "$ref": "#/$defs/ConditionExpr" },
-            "true": { "$ref": "#/$defs/SelectorExpr" },
-            "false": { "$ref": "#/$defs/SelectorExpr" }
+            "true": { "$ref": "#/$defs/EntityExpr" },
+            "false": { "$ref": "#/$defs/EntityExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "target", "tag"],
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
           "properties": {
-            "op": { "enum": ["part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag"] },
-            "target": { "$ref": "#/$defs/SelectorExpr" },
-            "tag": { "$ref": "#/$defs/StringExpr" }
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/EntityExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "target", "name"],
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
           "properties": {
-            "op": { "enum": ["part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name"] },
-            "target": { "$ref": "#/$defs/SelectorExpr" },
-            "name": { "$ref": "#/$defs/StringExpr" }
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/EntityExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/EntityExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/EntityExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/EntityExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "target", "path"],
           "properties": {
-            "op": { "enum": ["part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path"] },
-            "target": { "$ref": "#/$defs/SelectorExpr" },
-            "path": { "$ref": "#/$defs/StringExpr" }
+            "op": {
+              "type": "string",
+              "enum": ["caller", "self", "target", "target_component_entity", "component_entity", "entity_from_component", "entity_of_component"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["caller", "self"] } 
+            }
           },
-          "unevaluatedProperties": false
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["target"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["target_component_entity"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["component_entity", "entity_from_component", "entity_of_component"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        }
+      ]
+    },
+    "EntityExprArray": {
+      "description": "An array of EntityExpr",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of EntityExpr.",
+          "items": { "$ref": "#/$defs/EntityExpr" }
         },
         {
           "type": "object",
-          "required": ["op"],
-          "properties": {
-            "op": { "enum": ["caller", "self"] }
-          },
-          "unevaluatedProperties": false
+          "description": "Single EntityExpr that will create an array with one element.",
+          "$ref": "#/$defs/EntityExpr"
         },
         {
           "type": "object",
-          "required": ["op"],
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
           "properties": {
-            "op": { "enum": ["target"] }
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/EntityExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op"],
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
           "properties": {
-            "op": { "enum": ["target_part"] }
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
+          "properties": {
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/EntityExpr" },
+            "false": { "$ref": "#/$defs/EntityExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/EntityExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/EntityExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/EntityExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/EntityExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/EntityExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/EntityExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": ["all_entities", "all_entities_with_component"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["all_entities"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["all_entities_with_component"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "component_type": { "$ref": "#/$defs/NumberExpr", "description": "The full name of the component type that the entities must have to be included in the result" }
+            },
+            "required": ["component_type"]
+          }
+        }
+      ]
+    },
+    "ComponentExpr": {
+      "description": "Selects a Component (Expr<Component?>). Can reference caller, target, or a variable.",
+      "oneOf": [
+        { "type": "string", "enum": ["target_component"], "description": "Named fixed selector." },
+        { "type": "string", "pattern": "^\\$[0-9]+$", "description": "Indexed variable, e.g. '$0'." },
+        { "type": ["null", "boolean"], "enum": [null, false], "description": "No component / null selector." },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/ComponentExpr" },
+            "false": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/ComponentExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/ComponentExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/ComponentExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/ComponentExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/ComponentExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": ["part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name", "part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path", "body_from_part", "body_from_bp", "body_from_bodypart", "target", "component_target", "target_component"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr" },
+              "name": { "$ref": "#/$defs/StringExpr" }
+            },
+            "required": ["target", "name"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr" },
+              "path": { "$ref": "#/$defs/StringExpr" }
+            },
+            "required": ["target", "path"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_from_part", "body_from_bp", "body_from_bodypart"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to get the body from" }
+            },
+            "required": ["target"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["target", "component_target", "target_component"] } 
+            }
+          },
+          "then": {
+            "properties": {
+            },
+            "required": []
+          }
+        }
+      ]
+    },
+    "ComponentExprArray": {
+      "description": "An array of ComponentExpr",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of ComponentExpr.",
+          "items": { "$ref": "#/$defs/ComponentExpr" }
+        },
+        {
+          "type": "object",
+          "description": "Single ComponentExpr that will create an array with one element.",
+          "$ref": "#/$defs/ComponentExpr"
+        },
+        {
+          "type": "object",
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
+          "properties": {
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
+          "properties": {
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
+          "properties": {
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/ComponentExpr" },
+            "false": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/ComponentExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/ComponentExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/ComponentExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/ComponentExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/ComponentExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/ComponentExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": ["part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag", "parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "body": { "$ref": "#/$defs/BodyExpr" },
+              "tag": { "$ref": "_tags.schema.json#/$defs/BodyPartTag" }
+            },
+            "required": ["body", "tag"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "body": { "$ref": "#/$defs/BodyExpr", "description": "The body to get the parts from" },
+              "group_id": { "$ref": "#/$defs/StringExpr", "description": "The ID of the group to get the parts from" }
+            },
+            "required": ["body", "group_id"]
+          }
         }
       ]
     },
@@ -432,23 +2662,1126 @@
             "true": { "$ref": "#/$defs/StringExpr" },
             "false": { "$ref": "#/$defs/StringExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
         },
         {
           "type": "object",
-          "required": ["op", "strings"],
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
           "properties": {
-            "op": { "enum": ["concat", "add", "join"] },
-            "strings": { "type": "array", "items": { "$ref": "#/$defs/StringExpr" } }
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/StringExpr" }
           },
-          "unevaluatedProperties": false
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/StringExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/StringExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/StringExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/StringExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/StringExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/StringExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": ["concat", "add", "join", "bodypart_group", "bp_group", "entity_name", "ent_name", "resting_posture", "rest_posture"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["concat", "add", "join"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "strings": { "$ref": "#/$defs/StringExprArray" }
+            },
+            "required": ["strings"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["bodypart_group", "bp_group"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyPartExpr", "description": "Body part to get the group of (defaults to caller's body part)" }
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["entity_name", "ent_name"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/EntityExpr", "description": "Entity to get the name of (defaults to caller)" }
+            },
+            "required": []
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["resting_posture", "rest_posture"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr", "description": "Body to get the resting posture of (defaults to caller's body)" }
+            },
+            "required": []
+          }
         }
       ]
     },
-    "StatModifierType": {
-      "type": "string",
-      "enum": ["Flat", "FlatPostMods", "Percent", "Multiplier", "Capmax", "Capmin", "OverrideBase", "OverrideFinal"],
-      "description": "How the modifier value is applied to the stat. Case-insensitive at runtime."
+    "StringExprArray": {
+      "description": "An array of StringExpr",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of StringExpr.",
+          "items": { "$ref": "#/$defs/StringExpr" }
+        },
+        {
+          "type": "object",
+          "description": "Single StringExpr that will create an array with one element.",
+          "$ref": "#/$defs/StringExpr"
+        },
+        {
+          "type": "object",
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
+          "properties": {
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/StringExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
+          "properties": {
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
+          "properties": {
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/StringExpr" },
+            "false": { "$ref": "#/$defs/StringExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/StringExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/StringExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/StringExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/StringExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/StringExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/StringExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/StringExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": [] }
+          }
+        }
+      ]
+    },
+    "BodyPartExpr": {
+      "description": "Typed expression for Component: BodyPart.",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/BodyPartExpr" },
+            "false": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/BodyPartExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/BodyPartExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/BodyPartExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/BodyPartExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/BodyPartExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        { "$ref": "#/$defs/EntityExpr" },
+        { "const": "target_component" },
+         {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": ["part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name","part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr" },
+              "name": { "$ref": "#/$defs/StringExpr" }
+            },
+            "required": ["target", "name"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyExpr" },
+              "path": { "$ref": "#/$defs/StringExpr" }
+            },
+            "required": ["target", "path"]
+          }
+        }
+      ]
+    },
+    "BodyPartExprArray": {
+      "description": "An array of typed expressions for BodyPart.",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of BodyPartExpr.",
+          "items": { "$ref": "#/$defs/BodyPartExpr" }
+        },
+        {
+          "type": "object",
+          "description": "Single BodyPartExpr that will create an array with one element.",
+          "$ref": "#/$defs/BodyPartExpr"
+        },
+        {
+          "type": "object",
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
+          "properties": {
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
+          "properties": {
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
+          "properties": {
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/BodyPartExpr" },
+            "false": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/BodyPartExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/BodyPartExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/BodyPartExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/BodyPartExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/BodyPartExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/BodyPartExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": ["part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag", "parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group"] }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "body": { "$ref": "#/$defs/BodyExpr" },
+              "tag": { "$ref": "_tags.schema.json#/$defs/BodyPartTag" }
+            },
+            "required": ["body", "tag"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "body": { "$ref": "#/$defs/BodyExpr", "description": "The body to get the parts from" },
+              "group_id": { "$ref": "#/$defs/StringExpr", "description": "The ID of the group to get the parts from" }
+            },
+            "required": ["body", "group_id"]
+          }
+        }
+      ]
+    },
+    "BodyExpr": {
+      "description": "Typed expression for Component: Body.",
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/BodyExpr" },
+            "false": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/BodyExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/BodyExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/BodyExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/BodyExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/BodyExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        { "$ref": "#/$defs/EntityExpr" },
+        { "const": "target_component" },
+         {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": ["body_from_part", "body_from_bp", "body_from_bodypart"] }
+          }
+        }
+      ]
+      ,"allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": { "enum": ["body_from_part", "body_from_bp", "body_from_bodypart"] } 
+            }
+          },
+          "then": {
+            "properties": {
+              "target": { "$ref": "#/$defs/BodyPartExpr", "description": "The body part to get the body from" }
+            },
+            "required": ["target"]
+          }
+        }
+      ]
+    },
+    "BodyExprArray": {
+      "description": "An array of typed expressions for Body.",
+      "oneOf": [
+        {
+          "type": "array",
+          "description": "Manually typed array of BodyExpr.",
+          "items": { "$ref": "#/$defs/BodyExpr" }
+        },
+        {
+          "type": "object",
+          "description": "Single BodyExpr that will create an array with one element.",
+          "$ref": "#/$defs/BodyExpr"
+        },
+        {
+          "type": "object",
+          "description": "Iterates over the elements of an array and transforms them based on an expression.",
+          "required": ["op", "values", "expression"],
+          "properties": {
+            "op": { "enum": ["map"] },
+            "values": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Filters the elements of an array based on a condition expression.",
+          "required": ["op", "values", "condition"],
+          "properties": {
+            "op": { "enum": ["filter"] },
+            "values": { "$ref": "#/$defs/AnyExprArray" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Appends two or more arrays.",
+          "required": ["op", "arrays"],
+          "properties": {
+            "op": { "enum": ["concat", "append", "join"] },
+            "arrays": {
+              "type": "array",
+              "description": "Two or more arrays to concatenate.",
+              "items": { "$ref": "#/$defs/AnyExprArray" },
+              "minItems": 2
+            }
+          }
+        },
+        {
+            "type": "object",
+            "description": "Sorts the elements of an array using a comparison expression. The comparison expression is evaluated with variables $0 (first element) and $1 (second element). It should return true if the first element should come before the second.",
+            "required": ["op", "values", "comparison"],
+            "properties": {
+                "op": { "enum": ["order", "sort", "order_by"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "comparison": { "$ref": "#/$defs/ConditionExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is <= the provided 'value', then returns up to 'count' items ordered ascending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["max_elements", "max", "top"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Selects elements whose computed numeric value is >= the provided 'value', then returns up to 'count' items ordered descending by the computed value.",
+            "required": ["op", "values", "value", "count"],
+            "properties": {
+                "op": { "enum": ["min_elements", "min", "bottom"] },
+                "values": { "$ref": "#/$defs/BaseExpr" },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "count": { "$ref": "#/$defs/NumberExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "string",
+          "description": "An $N indexed variable, where N is the index of the array in the Variables array.",
+          "pattern": "^\\$[0-9]+$"
+        },
+        {
+          "type": "object",
+          "description": "Conditional expression (if/then/else).",
+          "required": ["op", "condition", "true", "false"],
+          "properties": {
+            "op": { "const": "if" },
+            "condition": { "$ref": "#/$defs/ConditionExpr" },
+            "true": { "$ref": "#/$defs/BodyExpr" },
+            "false": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Runs the inner expression with the given variables added to the context. The variables are added from 0. If the EvalContext already has variables, the new ones will be added at 0 and shift the existing ones up.",
+          "required": ["op", "variables", "expression"],
+          "properties": {
+            "op": { "enum": ["with_vars", "with_var", "with_variables"] },
+            "variables": { "$ref": "#/$defs/BaseExpr" },
+            "expression": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "description": "Chains multiple if-else conditions together.",
+          "required": ["op", "branches"],
+          "properties": {
+            "op": { "enum": ["if_chain"] },
+            "branches": {
+                "type": "array",
+                "description": "Array of condition/expr pairs. The first condition that evaluates to true will have its corresponding expr returned. The last branch can have a null condition to serve as a default case.",
+                "items": {
+                    "type": "object",
+                    "required": ["condition", "expr"],
+                    "properties": {
+                        "condition": { "$ref": "#/$defs/ConditionExpr" },
+                        "expr": { "$ref": "#/$defs/BodyExpr" }
+                    },
+                    "unevaluatedProperties": true
+                },
+                "minItems": 1
+            },
+            "default": { "$ref": "#/$defs/BodyExpr" }
+          },
+          "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Returns the specified expr based on a number. Switch-Case for numbers.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_number"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "object",
+                    "description": "Object with the key being the target number, and the value being the resulting expr",
+                    "additionalProperties": {
+                        "$ref": "#/$defs/BodyExpr"
+                    }
+                },
+                "default": { "$ref": "#/$defs/BodyExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Switch-Case for number RANGES.",
+            "required": ["op", "value", "cases"],
+            "properties": {
+                "op": { "enum": ["switch_range"] },
+                "value": { "$ref": "#/$defs/NumberExpr" },
+                "cases": {
+                    "type": "array",
+                    "description": "Array of range/expr pairs. The first range that matches the input number will have its corresponding expr returned. The last case can have a null range to serve as a default case.",
+                    "items": {
+                        "type": "object",
+                        "required": ["min", "max", "expr"],
+                        "properties": {
+                            "min": {"type": "number"},
+                            "max": {"type": "number"},
+                            "expr": { "$ref": "#/$defs/BodyExpr" }
+                        },
+                        "unevaluatedProperties": true
+                    },
+                    "minItems": 1
+                },
+                "default": { "$ref": "#/$defs/BodyExpr" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+            "type": "object",
+            "description": "Runs an expression from a library",
+            "required": ["op", "id", "args"],
+            "properties": {
+                "op": { "enum": ["function", "run_function", "run_expr", "call_function", "call_expr"] },
+                "id": { "$ref": "#/$defs/StringExpr" },
+                "args": { "$ref": "#/$defs/AnyExprArray" }
+            },
+            "unevaluatedProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string", "enum": [] }
+          }
+        }
+      ]
+    },
+    "AnyExpr": {
+      "description": "Any expression type (all generated Expr defs).",
+      "oneOf": [
+        { "$ref": "#/$defs/BodyExpr" },
+        { "$ref": "#/$defs/BodyPartExpr" },
+        { "$ref": "#/$defs/ComponentExpr" },
+        { "$ref": "#/$defs/ConditionExpr" },
+        { "$ref": "#/$defs/EffectExpr" },
+        { "$ref": "#/$defs/EntityExpr" },
+        { "$ref": "#/$defs/NumberExpr" },
+        { "$ref": "#/$defs/StringExpr" }
+      ]
+    },
+    "AnyExprArray": {
+      "description": "An array of any expression type (all generated ExprArray defs).",
+      "oneOf": [
+        { "$ref": "#/$defs/BodyExprArray" },
+        { "$ref": "#/$defs/BodyPartExprArray" },
+        { "$ref": "#/$defs/ComponentExprArray" },
+        { "$ref": "#/$defs/ConditionExprArray" },
+        { "$ref": "#/$defs/EffectExprArray" },
+        { "$ref": "#/$defs/EntityExprArray" },
+        { "$ref": "#/$defs/NumberExprArray" },
+        { "$ref": "#/$defs/StringExprArray" }
+      ]
+    },
+    "BaseExpr": {
+      "description": "Anything that can be compiled as an expression.",
+      "oneOf": [
+        { "$ref": "#/$defs/AnyExpr" },
+        { "$ref": "#/$defs/AnyExprArray" },
+        { "type": "array", "items": { "$ref": "#/$defs/BaseExpr" }, "description": "An array of expressions." }
+      ]
+    },
+    "LogLevelExpr": {
+      "description": "Expression for enum LogLevel.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StringExpr"
+        },
+        {
+          "type": "string",
+          "enum": ["Info", "Warning", "Error"] }
+      ]
+    },
+    "StatModifierTypeExpr": {
+      "description": "Expression for enum StatModifierType.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StringExpr"
+        },
+        {
+          "type": "string",
+          "enum": ["Flat", "FlatPostMods", "Percent", "Multiplier", "Capmax", "Capmin", "OverrideBase", "OverrideFinal"] }
+      ]
     },
     "ArgumentType": {
       "type": "string",

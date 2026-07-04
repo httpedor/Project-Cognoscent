@@ -115,7 +115,6 @@ public partial class StatsContainer : Component, IEnumerable<Stat>, IStatEventHa
 
     public void OnStatChanged(StatEvent statEvent)
     {
-        //TODO: Relay these changes up, so server can broadcast packets
         var eventArgs = new StatsContainerEvent(this, statEvent);
         Entity.DispatchEvent(eventArgs);
     }

@@ -63,12 +63,12 @@ public class InjuryType : ISerializable, ITaggable
         Name = json.GetProperty("name").GetString()!;
         DestructionTranslation = json.GetProperty("destruction").GetString()!;
 
-        Pain = ExpressionCompiler.CompileNumber(json.GetProperty("pain"));
-        BleedingRate = ExpressionCompiler.CompileNumber(json.GetProperty("bleed"));
-        OverkillPercentMin = ExpressionCompiler.CompileNumber(json.GetProperty("overkillMin"));
-        OverkillPercentMax = ExpressionCompiler.CompileNumber(json.GetProperty("overkillMax"));
-        NaturalHeal = json.TryGetProperty("heal", out var healElement) ? ExpressionCompiler.CompileNumber(healElement) : new ConstNumberExpr(0);
-        Instakill = json.TryGetProperty("instakill", out var instakillElement) ? ExpressionCompiler.CompileCondition(instakillElement) : new ConstConditionExpr(false);
+        Pain = ExpressionCompiler.Compile<float>(json.GetProperty("pain"));
+        BleedingRate = ExpressionCompiler.Compile<float>(json.GetProperty("bleed"));
+        OverkillPercentMin = ExpressionCompiler.Compile<float>(json.GetProperty("overkillMin"));
+        OverkillPercentMax = ExpressionCompiler.Compile<float>(json.GetProperty("overkillMax"));
+        NaturalHeal = json.TryGetProperty("heal", out var healElement) ? ExpressionCompiler.Compile<float>(healElement) : new ConstNumberExpr(0);
+        Instakill = json.TryGetProperty("instakill", out var instakillElement) ? ExpressionCompiler.Compile<bool>(instakillElement) : new ConstConditionExpr(false);
 
         if (json.TryGetProperty("creations", out var creationsEl) && creationsEl.ValueKind == JsonValueKind.Array)
         {
@@ -84,7 +84,7 @@ public class InjuryType : ISerializable, ITaggable
                 try
                 {
                     float interval = node.GetProperty("interval").GetSingle();
-                    creations.Add((ExpressionCompiler.CompileCondition(node.GetProperty("condition")),
+                    creations.Add((ExpressionCompiler.Compile<bool>(node.GetProperty("condition")),
                         new InjuryModel(node.GetProperty("injury")),
                         interval));
                 }
@@ -111,7 +111,7 @@ public class InjuryType : ISerializable, ITaggable
                 try
                 {
                     float interval = node.GetProperty("interval").GetSingle();
-                    conversions.Add((ExpressionCompiler.CompileCondition(node.GetProperty("condition")),
+                    conversions.Add((ExpressionCompiler.Compile<bool>(node.GetProperty("condition")),
                         new InjuryModel(node.GetProperty("injury")),
                         interval));
                 }
@@ -158,10 +158,10 @@ public class InjuryModel
     {
         if (!json.TryGetProperty("type", out var typeEl))
             throw new Exception("InjuryModel deserialization requires a 'type' property.");
-        Type = new CompendiumEntryExpr<InjuryType>(ExpressionCompiler.CompileString(typeEl));
+        Type = new CompendiumEntryExpr<InjuryType>(ExpressionCompiler.Compile<string>(typeEl));
         if (!json.TryGetProperty("severity", out var severityEl))
             throw new Exception("InjuryModel deserialization requires a 'severity' property.");
-        Severity = ExpressionCompiler.CompileNumber(severityEl);
+        Severity = ExpressionCompiler.Compile<float>(severityEl);
     }
 
     public InjuryModel(Stream stream)

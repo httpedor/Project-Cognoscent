@@ -23,7 +23,9 @@ public class FeatureEnabledEvent(Component component, Feature feature) : Feature
 public class FeatureDisabledEvent(Component component, Feature feature) : FeatureEvent(component, feature) 
 {
 }
-public partial class FeaturesContainer : Component, ITickableComponent, ISkillProvider, ComponentEventHandler<DamageEvent>, ComponentEventHandler<BodyPartInjuryAddedEvent>
+public partial class FeaturesContainer : Component,
+                                        ITickableComponent, ISkillProvider, IPostureProvider,
+                                        ComponentEventHandler<DamageEvent>, ComponentEventHandler<BodyLayerInjuryAddedEvent>
 {
     [JsonInclude]
     protected Dictionary<string, (Feature feature, bool enabled)> features = new();
@@ -48,15 +50,26 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
         {
             bool enabled = stream.ReadBoolean();
             Feature feature = Feature.FromBytes(stream);
-            features[feature.GetId()] = (feature, enabled);
+            features[feature.Id] = (feature, enabled);
         }
     }
     public void AddFeature(Feature feature)
     {
-        features[feature.GetId()] = (feature, true);
+        features[feature.Id] = (feature, true);
         Entity.DispatchEvent(new FeatureAddedEvent(this, feature));
         feature.OnAdded(this);
         feature.OnEnable(this);
+    }
+
+    public void AddCondition(ConditionFeature condition, float duration)
+    {
+        if (CustomData == null)
+        {
+            Logger.Log($"FeaturesContainer {Entity.Id} does not have a CustomDataComponent. Cannot track condition duration.", LogLevel.Error);
+            return;
+        }
+        AddFeature(condition);
+        CustomData.SetUInt(condition.EndTickKey, Entity.Board.CurrentTick + (uint)(duration * Physics.TicksPerSecond));
     }
 
     public Feature? RemoveFeature(string id)
@@ -67,13 +80,18 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
             DisableFeature(id);
             value.feature.OnRemoved(this);
             Entity.DispatchEvent(new FeatureRemovedEvent(this, value.feature));
+            if (value.feature is ConditionFeature condition && CustomData != null)
+            {
+                CustomData.Remove(condition.StartTickKey);
+                CustomData.Remove(condition.EndTickKey);
+            }
             return value.feature;
         }
         return null;
     }
     public Feature? RemoveFeature(Feature feature)
     {
-        return RemoveFeature(feature.GetId());
+        return RemoveFeature(feature.Id);
     }
 
     public bool DisableFeature(string id)
@@ -115,7 +133,7 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
     }
     public bool HasFeature(Feature feature)
     {
-        return features.ContainsKey(feature.GetId());
+        return features.ContainsKey(feature.Id);
     }
 
     public bool IsFeatureEnabled(string id)
@@ -128,7 +146,7 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
     }
     public bool IsFeatureEnabled(Feature feature)
     {
-        return IsFeatureEnabled(feature.GetId());
+        return IsFeatureEnabled(feature.Id);
     }
 
     public override void ToBytes(Stream stream)
@@ -167,7 +185,7 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
         }
     }
 
-    public void HandleEvent(BodyPartInjuryAddedEvent componentEvent)
+    public void HandleEvent(BodyLayerInjuryAddedEvent componentEvent)
     {
         foreach (var feat in EnabledFeatures)
         {
@@ -182,6 +200,17 @@ public partial class FeaturesContainer : Component, ITickableComponent, ISkillPr
             foreach (var skill in feat.GetSkills(this, executor))
             {
                 yield return skill;
+            }
+        }
+    }
+
+    public IEnumerable<BodyPosture> GetProvidedPostures()
+    {
+        foreach (var feat in EnabledFeatures)
+        {
+            foreach (var posture in feat.GetProvidedPostures(this))
+            {
+                yield return posture;
             }
         }
     }

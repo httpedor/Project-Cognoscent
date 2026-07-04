@@ -1,4 +1,79 @@
 {
+  "layerProfiles": {
+    "default": {
+      "layers": {
+        "skin": {
+          "bloodFlow": 1,
+          "pain": 1,
+          "maxHealth": 1,
+          "damageModifiers": {
+            "blunt": 0.75
+          },
+          "resistance": {
+            "blunt": 0.25
+          }
+        },
+        "fat": {
+          "bloodFlow": "0.4:0.6",
+          "maxHealth": "1.1:1.3",
+          "damageModifiers": {
+            "blunt": 0.75
+          },
+          "resistance": {
+            "blunt": 0.75
+          }
+        },
+        "muscle": {
+          "bloodFlow": "2:3",
+          "maxHealth": "1.5:2.5",
+          "vital": true,
+          "damageModifiers": {
+            "slash": 1.2,
+            "pierce": 0.8,
+            "blunt": 0.95
+          }
+        },
+        "bone": {
+          "bloodFlow": "0.2:0.3",
+          "maxHealth": "4:5.5",
+          "vital": true,
+          "damageModifiers": [
+            // Sharp attacks are less effective against bone
+            {
+              "condition": {
+                "op": "var_has_tag",
+                "var": 1,
+                "tag": "sharp"
+              },
+              "operation": "Percent",
+              "value": -0.2
+            }
+          ]
+        }
+      },
+      "order": ["skin", "fat", "muscle", "bone"]
+    },
+
+    "boneless": {
+      "extends": "default",
+      "order": ["skin", "fat", "muscle"],
+      "layers": {
+      }
+    },
+
+    "organ": {
+      "layers": {
+        "tissue": {
+          "bloodFlow": 4,
+          "maxHealth": 1,
+          "vital": true
+        }
+      },
+      "order": ["tissue"]
+    }
+  },
+
+  // Maybe respiration should depend on blood_flow, and consciousness should only depend on respiration
   "stats": {
     "strength": {
       "aliases": [
@@ -186,7 +261,27 @@
       },
       "overCap": false,
       "max": 1,
-      "vital": true
+      "vital": true,
+      "thresholds": [
+        {
+          // If consciousness drops to 0.3 or below, apply the "Sleeping" feature
+          "condition": {
+            "op": "<=",
+            "left": "$0",
+            "right": 0.3
+          },
+          "effect": {
+            "op": "add_feature",
+            "feature": "sleeping",
+            "target": "self"
+          },
+          "reverse": {
+            "op": "remove_feature",
+            "feature": "sleeping",
+            "target": "self"
+          }
+        }
+      ]
     },
     "blood_flow": {
       "max": 1

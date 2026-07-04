@@ -265,7 +265,10 @@ public abstract class Board
         chatHistory.Add(message);
     }
     public abstract void BroadcastMessage(string message);
-    
+    public virtual void PlaySound(Midia sound, Vector3? position = null)
+    {
+
+    }
     public void Log(string message)
     {
         if (SidedLogic.Instance.IsClient())

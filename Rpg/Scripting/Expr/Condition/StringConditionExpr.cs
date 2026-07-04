@@ -1,33 +1,5 @@
 namespace Rpg.Scripting;
 
-public class StringEqualsConditionExpr : Expr<bool>
-{
-    public readonly Expr<string> Left;
-    public readonly Expr<string> Right;
-
-    public StringEqualsConditionExpr(Expr<string> left, Expr<string> right)
-    {
-        Left = left;
-        Right = right;
-    }
-    public StringEqualsConditionExpr(Stream stream)
-    {
-        Left = (Expr<string>)BaseExpr.Deserialize(stream);
-        Right = (Expr<string>)BaseExpr.Deserialize(stream);
-    }
-
-    public override bool Eval(EvalContext ctx)
-    {
-        return Left.Eval(ctx) == Right.Eval(ctx);
-    }
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Left.ToBytes(stream);
-        Right.ToBytes(stream);
-    }
-}
-
 public class StringContainsConditionExpr : Expr<bool>
 {
     public readonly Expr<string> Text;

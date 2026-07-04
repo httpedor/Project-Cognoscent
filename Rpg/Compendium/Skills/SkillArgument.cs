@@ -3,11 +3,13 @@ using Rpg;
 using Rpg.Entities;
 using Rpg.Entities.Components.Health;
 using Rpg.Entities.Components.Inventory;
+using Rpg.Scripting;
 
 namespace Rpg.Skills;
 
 public abstract class SkillArgument : ISerializable
 {
+    public abstract object Value { get; }
     public static SkillArgument FromBytes(Stream stream)
     {
         var path = stream.ReadString();
@@ -55,6 +57,8 @@ public abstract class ComponentArgument<T> : SkillArgument where T : Component
 {
     private readonly ComponentRef<T> componentRef;
     public T? Component => componentRef.Component;
+    public override object Value => Component!;
+
 
     public ComponentArgument(T component)
     {
@@ -74,6 +78,8 @@ public abstract class ComponentArgument<T> : SkillArgument where T : Component
 public class PositionSkillArgument : SkillArgument
 {
     public Vector3 Position;
+    public override object Value => Position;
+
 
     public PositionSkillArgument(Vector3 position)
     {
@@ -104,7 +110,8 @@ public class BodyPartSkillArgument : ComponentArgument<BodyPart>
 
 public class BooleanSkillArgument(bool value) : SkillArgument
 {
-    public bool Value => value;
+    public override object Value => value;
+    public bool ValueBool => value;
     public BooleanSkillArgument(Stream stream) : this(stream.ReadByte() != 0)
     {
     }
@@ -120,6 +127,8 @@ public class EntitySkillArgument : SkillArgument
 {
     private readonly EntityRef entity;
     public Entity? Entity => entity.Entity;
+    public override object Value => Entity!;
+
     public EntitySkillArgument(Entity entity)
     {
         this.entity = new EntityRef(entity);

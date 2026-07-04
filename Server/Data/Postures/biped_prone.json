@@ -1,0 +1,71 @@
+{
+    // Posture for any bipedal creature lying on the ground. Uses it's hand and feet to crawl, so movement speed is based on their strength.
+    "default": true,
+    "name": "Deitado",
+    "maxStability": { "op": "max_float" },
+    "stabilityRecovery": 0,
+    "idealHeight": 0,
+    "heightTolerance": 0.5,
+    "movement": {
+        "op": "lerp",
+        "max": 0.04,
+        "min": 0.1,
+        "t": {
+            "op": "mul", // Multiply all that stuff by the movement intensity to get the final movement speed multiplier.
+            "numbers": [
+                "$0", // movement intensity
+                {
+                    "op": "with_vars",
+                    "variables": [
+                        //$0 is now the array of all hand and foot body parts
+                        {
+                            "op": "concat",
+                            "arrays": [
+                                {
+                                    "op": "bp_by_tag",
+                                    "tag": "hand",
+                                    "body": "target_component"
+                                },
+                                {
+                                    "op": "bp_by_tag",
+                                    "tag": "foot",
+                                    "body": "target_component"
+                                }
+                            ]
+                        }
+                    ],
+                    "expression": {
+                        "op": "div", // Divide the sum of strength by the number of groups to get the average, then divide by 80 to normalize.
+                        "numbers": [
+                            {
+                                "op": "sum", // Sum strength of all groups from hands and feet
+                                "numbers": {
+                                    "op": "map",
+                                    "expression": {
+                                        "op": "group_stat", // Get strength stat of each group
+                                        "stat": "strength",
+                                        "entity": "caller",
+                                        "group": "$0" // Current group
+                                    },
+                                    "values": {
+                                        "op": "map", // Get groups
+                                        "expression": {
+                                            "op": "bp_group",
+                                            "target": "$0" // Each body part from the hands and feet arrays
+                                        },
+                                        "values": "$0" // Hands and Feet
+                                    }
+                                }
+                            },
+                            {
+                                "op": "array_size",
+                                "array": "$0" // Hands and Feet
+                            },
+                            80
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

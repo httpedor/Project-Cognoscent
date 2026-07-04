@@ -5,6 +5,7 @@ using Rpg.Entities.Components;
 using Rpg.Entities.Components.Inventory;
 using Rpg.Features;
 using Rpg.Health;
+using Rpg.Scripting;
 using Rpg.Skills;
 
 namespace Rpg;
@@ -17,6 +18,7 @@ public static class Compendium
 
     private class CompendiumEntry
     {
+        public string Name;
         public bool IsBase;
         public JsonElement? Data;
         public object? Loaded;
@@ -27,6 +29,7 @@ public static class Compendium
     {
         public Type Type = typeof(object);
         public Dictionary<string, CompendiumEntry> Entries { get; } = new();
+        public Dictionary<object, CompendiumEntry> EntriesByObj { get; } = new();
         public Func<string, JsonElement, object?>? Builder;
         public string Default = "";
     }
@@ -51,6 +54,7 @@ public static class Compendium
                 ret = new Midia(data, fileName);
             return ret;
         });
+        RegisterFolder<ExprLibrary>("Libraries", (id, json) => ExprLibrary.FromJson(id, json));
         RegisterFolder<InjuryType>("InjuryTypes", (name, json) => new InjuryType(name, json));
         RegisterFolder<DamageType>("DamageTypes", (name, json) => new DamageType(name, json));
         RegisterFolder<Skill>("Skills", Skill.FromJson);
@@ -59,10 +63,9 @@ public static class Compendium
         RegisterFolder<ItemModel>("Items", (name, json) => new ItemModel(name, json));
         //TODO: SkillTree models
         RegisterFolder<SkillTreeModel>("SkillTrees", (id, json) => new SkillTreeModel(id, json));
-        RegisterFolder<BodyModel>("Bodies", (_, json) => new BodyModel(json));
+        RegisterFolder<BodyPosture>("Postures", (id, json) => new BodyPosture(id, json));
+        RegisterFolder<BodyModel>("Bodies", (id, json) => new BodyModel(id, json));
         RegisterFolder<string>("Notes", (_, json) => json.GetProperty("text").GetString() ?? "");
-
-        //TODO: Register default skills and features here instead of hardcoding them elsewhere
     }
     
     public static IEnumerable<(string fName, JsonElement obj)> GetFiles(string folder)
@@ -121,6 +124,11 @@ public static class Compendium
                 continue;
             }
 
+            // Merge the child file onto its parent.
+            //
+            // - Child values override parent values.
+            // - Setting a value to `null` in the child will remove that key from the merged result.
+            // - Objects merge recursively and arrays are merged according to JsonHelpers.MergeArrays.
             var result = JsonHelpers.Merge(parentObj, next.obj);
             toProcess.RemoveAt(0);
             processedFiles[next.fName] = result;
@@ -147,8 +155,10 @@ public static class Compendium
 
     public static object? RegisterHardEntry(string folder, string name, object? data)
     {
-        CompendiumEntry entry = new() { Loaded = data };
+        CompendiumEntry entry = new() { Loaded = data, Name = name };
         folders[folder].Entries[name] = entry;
+        if (data != null)
+            folders[folder].EntriesByObj[data] = entry;
         return data;
     }
 
@@ -159,7 +169,7 @@ public static class Compendium
 
     public static object? RegisterEntry(string folder, string name, JsonElement data)
     {
-        CompendiumEntry entry = new() { Data = data };
+        CompendiumEntry entry = new() { Data = data, Name = name};
         if (data.TryGetProperty("_note", out var noteVal) && noteVal.ValueKind == JsonValueKind.String)
             entry.Note = noteVal.GetString();
         if (name.EndsWith("_base"))
@@ -180,6 +190,7 @@ public static class Compendium
                 if (ret != null && ret.GetType().IsAssignableTo(folders[folder].Type))
                 {
                     entry.Loaded = ret;
+                    folders[folder].EntriesByObj[ret] = entry;
                     return ret;
                 }
                 else
@@ -237,6 +248,18 @@ public static class Compendium
         }
         return (T?)found;
     }
+    public static bool TryGetEntry<T>(string name, out T entry) where T : class
+    {
+        entry = GetEntry<T>(name);
+        return entry != null;
+    }
+    public static T GetEntryOrThrow<T>(string name) where T : class
+    {
+        T? entry = GetEntry<T>(name);
+        if (entry == null)
+            throw new Exception("Entry not found: " + GetFolderName<T>() + "/" + name);
+        return entry;
+    }
 
     public static JsonElement? GetEntryJsonOrNull(string folder, string name)
     {
@@ -257,6 +280,13 @@ public static class Compendium
     {
         string folder = GetFolderName<T>();
         return GetEntryJson(folder, name);
+    }
+
+    public static string? GetEntryName(object entry)
+    {
+        var folder = GetFolderName(entry.GetType());
+        if (!folders.TryGetValue(folder, out var fd)) throw new Exception("Invalid data type: " + folder);
+        return fd?.EntriesByObj.GetValueOrDefault(entry)?.Name;
     }
 
     public static IEnumerable<string> GetEntryNames(string folder)
@@ -322,6 +352,11 @@ public static class Compendium
     {
         return EntryExists<T>(name, includeBase);
     }
+    public static bool IsFolder<T>()
+    {
+        string folder = GetFolderName<T>();
+        return folders.ContainsKey(folder);
+    }
     
     public static T? GetDefaultEntry<T>() where T : class
     {
@@ -333,6 +368,11 @@ public static class Compendium
     public static string GetFolderName<T>()
     {
         if (!typeToFolder.TryGetValue(typeof(T), out var folder)) throw new Exception("Invalid data type: " + typeof(T));
+        return folder;
+    }
+    public static string GetFolderName(Type type)
+    {
+        if (!typeToFolder.TryGetValue(type, out var folder)) throw new Exception("Invalid data type: " + type);
         return folder;
     }
 

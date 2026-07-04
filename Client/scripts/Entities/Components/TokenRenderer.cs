@@ -205,7 +205,6 @@ public partial class TokenRenderer : ComponentRenderer<Token>
 
     public override void _Process(double delta)
     {
-        //TODO: Positioning not quite working, probably because I changed from adding this to the entitiesnode to adding the EntityRenderer to the entitiesnode
         base._Process(delta);
 
         var token = Component;

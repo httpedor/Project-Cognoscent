@@ -39,19 +39,22 @@ public partial class BodyViewer : Tree
 			actions = actions.Substring(0, actions.Length - 2);
 		item.SetText(2, actions);
 		var stats = new StringBuilder("");
-		foreach (var stat in part.ProvidedStats)
+		foreach (var layer in part.Layers)
 		{
-			stats.Append(stat.Key);
-			stats.Append(":");
-			foreach (var mod in stat.Value)
+			foreach (var stat in layer.ProvidedStats)
 			{
+				stats.Append(stat.Key);
+				stats.Append(":");
+				foreach (var mod in stat.Value)
+				{
+					stats.Append("\n");
+					stats.Append("    ");
+					stats.Append(mod.op);
+					stats.Append(", ");
+					stats.Append(mod.CalculateFor(layer).Value);
+				}
 				stats.Append("\n");
-				stats.Append("    ");
-				stats.Append(mod.op);
-				stats.Append(", ");
-				stats.Append(mod.CalculateFor(part).Value);
 			}
-			stats.Append("\n");
 		}
 		item.SetText(3, stats.ToString());
 		var flags = "";

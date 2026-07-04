@@ -7,14 +7,54 @@ using Rpg.Skills;
 
 namespace Rpg.Entities.Components.Health;
 
-//TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
+public class BodyEvent : ComponentEvent
+{
+    public Body Body;
 
+    public BodyEvent(Body component) : base(component)
+    {
+        Body = component;
+    }
+}
+public class BodyPostureChangedEvent : BodyEvent
+{
+    public BodyPosture OldPosture;
+    public BodyPosture NewPosture;
+
+    public BodyPostureChangedEvent(Body component, BodyPosture oldPosture, BodyPosture newPosture) : base(component)
+    {
+        OldPosture = oldPosture;
+        NewPosture = newPosture;
+    }
+}
+public class BodyStabilityChangedEvent : BodyEvent
+{
+    public float OldStability;
+    public float NewStability;
+
+    public BodyStabilityChangedEvent(Body component, float oldStability, float newStability) : base(component)
+    {
+        OldStability = oldStability;
+        NewStability = newStability;
+    }
+}
+public class BodyMovementIntensityChangedEvent : BodyEvent
+{
+    public float OldIntensity;
+    public float NewIntensity;
+
+    public BodyMovementIntensityChangedEvent(Body component, float oldIntensity, float newIntensity) : base(component)
+    {
+        OldIntensity = oldIntensity;
+        NewIntensity = newIntensity;
+    }
+}
 public partial class Body : Component, ISerializable, ITaggable,
     ITickableComponent,
     ISkillProvider,
-    ComponentEventHandler<BodyPartInjuryAddedEvent>,
-    ComponentEventHandler<BodyPartInjuryRemovedEvent>,
-    ComponentEventHandler<BodyPartInjuryChangedEvent>,
+    ComponentEventHandler<BodyLayerInjuryAddedEvent>,
+    ComponentEventHandler<BodyLayerInjuryRemovedEvent>,
+    ComponentEventHandler<BodyLayerInjuryChangedEvent>,
     ComponentEventHandler<BodyPartDiedEvent>,
     ComponentEventHandler<ItemHeldEvent>,
     ComponentEventHandler<ItemUnheldEvent>,
@@ -23,13 +63,13 @@ public partial class Body : Component, ISerializable, ITaggable,
     ComponentEventHandler<StatsContainerEvent>
 {
     public readonly EvalContext Context = new EvalContext();
-    public BodyModel? Model { get; init; }
+    public BodyModel Model { get; init; }
     private readonly Dictionary<string, HashSet<BodyPart>> equipmentSlots = new();
     private readonly Dictionary<BodyPart, HashSet<EquipmentProperty>> partsCovered = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByName = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByGroup = new();
     private readonly Dictionary<string, HashSet<BodyPart>> partsByTag = new();
-    private readonly Dictionary<Injury, BodyPart> injuriesCache = new();
+    private readonly Dictionary<Injury, BodyLayer> injuriesCache = new();
     private readonly HashSet<BodyPart> partsCache = new();
 
     public BodyStat[] Stats {get; init;} = Array.Empty<BodyStat>();
@@ -37,8 +77,13 @@ public partial class Body : Component, ISerializable, ITaggable,
     public Feature[] Features {get; init;} = Array.Empty<Feature>();
     public IEnumerable<BodyPart> PartsWithEquipSlots => equipmentSlots.Values.SelectMany(x => x);
     public IEnumerable<Injury> Injuries => injuriesCache.Keys;
+
+    public float Height => Entity.Stats?.GetStatValue("height") ?? -1;
+    public bool IsMale => Tags.Contains("male");
+    public bool IsFemale => Tags.Contains("female");
     public bool IsAlive;
-    public bool IsConscious;
+    public bool IsConscious => Entity.Stats?.GetStat("consciousness")?.FinalValue > 0;
+    public bool IsUnconscious => !IsConscious;
     public bool IsDead => !IsAlive;
 
     public IEnumerable<string> Groups => partsByGroup.Keys;
@@ -66,20 +111,78 @@ public partial class Body : Component, ISerializable, ITaggable,
         }
     }
 
+    /// <summary>
+    /// The current posture of this body.
+    /// </summary>
+    public BodyPosture CurrentPosture;
+    /// <summary>
+    /// The current stability of the body while in this posture.
+    /// If this reaches 0, the body collapses and goes to it's resting posture.
+    /// </summary>
+    public float Stability
+    {
+        get => field;
+        set
+        {
+            float oldStability = field;
+            field = value;
+            if (!WasInitialized)
+                return;
+            if (field < 0)
+                field = 0;
+            var maxStability = CurrentPosture.MaxStability.Eval(Context);
+            if (field > maxStability)
+                field = CurrentPosture.MaxStability.Eval(Context);
+            if (oldStability != field)
+            {
+                Entity.DispatchEvent(new BodyStabilityChangedEvent(this, oldStability, field));
+                if (field <= 0)
+                {
+                    ChangePosture(Model.RestingPosture);
+                }
+            }
+        }
+    }
+    /// <summary>
+    /// How much effort the body is putting into moving while in this posture.
+    /// [0, 1] where 0 is not moving at all, and 1 is moving at the maximum speed allowed by the posture.
+    /// </summary>
+    public float MovementIntensity
+    {
+        get => field;
+        set
+        {
+            float oldIntensity = field;
+            field = value;
+            if (!WasInitialized)
+                return;
+            if (field < 0)
+                field = 0;
+            if (field > 1)
+                field = 1;
+            if (oldIntensity != field)
+                Entity.DispatchEvent(new BodyMovementIntensityChangedEvent(this, oldIntensity, field));
+        }
+    }
     public IEnumerable<BodyPart> Parts => partsCache;
     public HashSet<string> Tags = new();
     HashSet<string> ITaggable.Tags {get => Tags; set => Tags = value;}
 
-    public Body(string name, BodyPart root, BodyModel? model = null) : base()
+    public Body(string name, BodyPart root, BodyModel model) : base()
     {
         Name = name;
         Root = root;
         Model = model;
+        CurrentPosture = model.AvailablePostures.First();
     }
 
     public Body(Stream stream) : base(stream)
     {
         Name = stream.ReadString();
+        string modelId = stream.ReadString();
+        Model = Compendium.GetEntry<BodyModel>(modelId) ?? throw new Exception("Failed to find BodyModel with id " + modelId);
+        string postureId = stream.ReadString();
+        CurrentPosture = Compendium.GetEntry<BodyPosture>(postureId) ?? throw new Exception("Failed to find BodyPosture with id " + postureId);
         this.LoadTags(stream);
         int count = stream.ReadByte();
         Stats = new BodyStat[count];
@@ -88,8 +191,21 @@ public partial class Body : Component, ISerializable, ITaggable,
         {
             Stats[i] = new BodyStat(stream);
         }
+        
 
         LookForComponent<BodyPart>("root", stream.ReadInt32());
+    }
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteString(Name);
+        stream.WriteString(Model.Id);
+        stream.WriteString(CurrentPosture.Id);
+        ((ITaggable)this).SaveTags(stream);
+        stream.WriteByte((byte)Stats.Length);
+        foreach (var statDef in Stats)
+            statDef.ToBytes(stream);
+        SaveComponentRef<BodyPart>(stream, Root);
     }
 
     protected override void OnFoundComponents(string group, List<Component> components)
@@ -113,8 +229,9 @@ public partial class Body : Component, ISerializable, ITaggable,
         }
         Context.Target = entity;
         Context.Caller = entity;
+        Context.TargetComponent = this;
         Context.Board = entity.Board;
-        Context.Variables = new object[2];
+        Context.Variables = new object[8];
     }
     public override void OnReady()
     {
@@ -165,6 +282,13 @@ public partial class Body : Component, ISerializable, ITaggable,
                 }
             }
         }
+
+        if (CurrentPosture.CanStayInPosture != null && Entity.ExistanceTicks % 10 == 0 && !CurrentPosture.CanStayInPosture.Eval(Context))
+            ChangePosture(Model.RestingPosture);
+        if (CurrentPosture.StabilityRecovery != null)
+            Stability += CurrentPosture.StabilityRecovery.Eval(Context) * (float)Physics.SecondsPerTick;
+        if (CurrentPosture.OnTick != null)
+            CurrentPosture.OnTick.Eval(Context);
     }
 
     public void ApplyPartToOwner(BodyPart part)
@@ -207,9 +331,9 @@ public partial class Body : Component, ISerializable, ITaggable,
                 partsByTag[tag] = new HashSet<BodyPart>();
             partsByTag[tag].Add(part);
         }
-        foreach (var injury in part.Injuries)
+        foreach (var pair in part.InjuriesWithLayers)
         {
-            injuriesCache[injury] = part;
+            injuriesCache[pair.injury] = pair.layer;
         }
         if (part.IsAlive)
             ApplyPartToOwner(part);
@@ -310,15 +434,15 @@ public partial class Body : Component, ISerializable, ITaggable,
         }
     }
 
-    public override void ToBytes(Stream stream)
+    public bool ChangePosture(BodyPosture newPosture)
     {
-        base.ToBytes(stream);
-        stream.WriteString(Name);
-        ((ITaggable)this).SaveTags(stream);
-        stream.WriteByte((byte)Stats.Length);
-        foreach (var statDef in Stats)
-            statDef.ToBytes(stream);
-        SaveComponentRef<BodyPart>(stream, Root);
+        if (CurrentPosture == newPosture)
+            return false;
+        if (newPosture.CanEnterPosture != null && !newPosture.CanEnterPosture.Eval(Context))
+            return false;
+        CurrentPosture = newPosture;
+        Entity.DispatchEvent(new BodyPostureChangedEvent(this, CurrentPosture, newPosture));
+        return true;
     }
 
     public override void Destroy()
@@ -396,9 +520,12 @@ public partial class Body : Component, ISerializable, ITaggable,
         // Add the actual local modifiers from this group of body parts
         foreach (BodyPart part in GetPartsOnGroup(group))
         {
-            if (!part.ProvidedStats.TryGetValue(stat, out BodyPart.BodyPartStat[]? partStat))
-                continue;
-            statMods.AddRange(partStat.Where(mod => mod.isLocal).Select(mod => mod.CalculateFor(part)));
+            foreach (var layer in part.Layers)
+            {
+                if (!layer.ProvidedStats.TryGetValue(stat, out BodyProvidedStat[]? partStat))
+                    continue;
+                statMods.AddRange(partStat.Where(mod => mod.isLocal).Select(mod => mod.CalculateFor(layer)));
+            }
         }
 
         //Apply dependencies for this BodyStat if any
@@ -437,6 +564,37 @@ public partial class Body : Component, ISerializable, ITaggable,
         return GetLocalStat(group, stat, out var _ignored, out var _ignored2, baseValue);
     }
 
+    public double GetGroupHealthPercent(string group)
+    {
+        double totalHealth = 0;
+        double totalMaxHealth = 0;
+        foreach (BodyPart part in GetPartsOnGroup(group))
+        {
+            totalHealth += part.Health;
+            totalMaxHealth += part.MaxHealth;
+        }
+        if (totalMaxHealth <= 0)
+            return 0;
+        return totalHealth / totalMaxHealth;
+    }
+    public bool IsGroupAlive(string group)
+    {
+        foreach (BodyPart part in GetPartsOnGroup(group))
+        {
+            if (part.VitalForGroup && !part.IsAlive)
+                return false;
+        }
+        return true;
+    }
+    public int GetGroupPartCount(string group)
+    {
+        return partsByGroup.TryGetValue(group, out HashSet<BodyPart>? partsSet) ? partsSet.Count : 0;
+    }
+    public int GetGroupPartAliveCount(string group)
+    {
+        return partsByGroup.TryGetValue(group, out HashSet<BodyPart>? partsSet) ? partsSet.Count(part => part.IsAlive) : 0;
+    }
+
     public IEnumerable<EquipmentProperty> GetCoveringEquipment(BodyPart bp)
     {
         return partsCovered[bp];
@@ -466,20 +624,47 @@ public partial class Body : Component, ISerializable, ITaggable,
         return current;
     }
 
-    public void HandleEvent(BodyPartInjuryAddedEvent ev)
+    public void HandleEvent(BodyLayerInjuryAddedEvent ev)
     {
-        injuriesCache[ev.Injury] = ev.Part;
+        injuriesCache[ev.Injury] = ev.Layer;
+        Context.TargetComponent = ev.Part;
+        var health = ev.Part.Health;
+        Context.Variables[0] = health;
+        Context.Variables[1] = health + ev.Injury.Severity;
+        Context.Variables[2] = ev.Injury.Severity;
+        Context.Variables[3] = ev.Injury.Type;
+        foreach (var effect in Model.OnHealthChange)
+            effect.Eval(Context);
+        Context.TargetComponent = this;
     }
 
-    public void HandleEvent(BodyPartInjuryRemovedEvent ev)
+    public void HandleEvent(BodyLayerInjuryRemovedEvent ev)
     {
         injuriesCache.Remove(ev.Injury);
+        Context.TargetComponent = ev.Part;
+        var health = ev.Part.Health;
+        Context.Variables[0] = health;
+        Context.Variables[1] = health - ev.Injury.Severity;
+        Context.Variables[2] = ev.Injury.Severity;
+        Context.Variables[3] = ev.Injury.Type;
+        foreach (var effect in Model.OnHealthChange)
+            effect.Eval(Context);
+        Context.TargetComponent = this;
     }
 
-    public void HandleEvent(BodyPartInjuryChangedEvent ev)
+    public void HandleEvent(BodyLayerInjuryChangedEvent ev)
     {
         injuriesCache.Remove(ev.OldInjury);
-        injuriesCache[ev.NewInjury] = ev.Part;
+        injuriesCache[ev.NewInjury] = ev.Layer;
+        Context.Target = ev.Part.Entity;
+        Context.TargetComponent = ev.Part;
+        var health = ev.Part.Health;
+        Context.Variables[0] = health;
+        Context.Variables[1] = health + ev.OldInjury.Severity - ev.NewInjury.Severity;
+        Context.Variables[2] = ev.NewInjury.Severity;
+        Context.Variables[3] = ev.NewInjury.Type;
+        foreach (var effect in Model.OnHealthChange)
+            effect.Eval(Context);
     }
 
     public void HandleEvent(ItemHeldEvent componentEvent)
@@ -560,6 +745,25 @@ public partial class Body : Component, ISerializable, ITaggable,
             }
         }
     }
+    public IEnumerable<BodyPosture> GetAvailablePostures()
+    {
+        foreach (var posture in Model.AvailablePostures)
+        {
+            if (posture.CanEnterPosture == null || posture.CanEnterPosture.Eval(Context))
+                yield return posture;
+        }
+        foreach (var id in Component.PostureProviderIDs)
+        {
+            var provider = Entity.GetComponent(id) as IPostureProvider;
+            if (provider == null)
+                continue;
+            foreach (BodyPosture posture in provider.GetProvidedPostures())
+            {
+                if (posture.CanEnterPosture == null || posture.CanEnterPosture.Eval(Context))
+                    yield return posture;
+            }
+        }
+    }
 
     public void HandleEvent(StatsContainerEvent ev)
     {
@@ -586,9 +790,7 @@ public partial class Body : Component, ISerializable, ITaggable,
                 }
             }
             if (bodyStat.Vital && statVal <= stat.MinValue)
-            {
                 IsAlive = false;
-            }
 
         }
     }

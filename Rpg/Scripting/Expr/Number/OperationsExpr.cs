@@ -16,14 +16,14 @@ public sealed class LerpExpr : Expr<float>
     }
 
     [ExprOp(ExprCategory.Number, "lerp")]
-    [ExprParam("min", "numberExpr", Required = true)]
-    [ExprParam("max", "numberExpr", Required = true)]
-    [ExprParam("t", "numberExpr", Required = true, Description = "Interpolation factor (0-1)")]
+    [ExprParam("min", typeof(float), Required = true)]
+    [ExprParam("max", typeof(float), Required = true)]
+    [ExprParam("t", typeof(float), Required = true, Description = "Interpolation factor (0-1)")]
     public static Expr<float> CompileOp(JsonElement obj)
         => new LerpExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("min")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("max")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("t")));
+            ExpressionCompiler.Compile<float>(obj.GetProperty("min")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("max")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("t")));
     public LerpExpr(Stream stream)
     {
         Min = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -46,25 +46,25 @@ public sealed class LerpExpr : Expr<float>
         T.ToBytes(stream);
     }
 }
-public sealed class RangeExpr : Expr<float>
+public sealed class RandomExpr : Expr<float>
 {
     public readonly Expr<float> Min;
     public readonly Expr<float> Max;
 
-    public RangeExpr(Expr<float> min, Expr<float> max)
+    public RandomExpr(Expr<float> min, Expr<float> max)
     {
         Min = min;
         Max = max;
     }
 
-    [ExprOp(ExprCategory.Number, "rand", "random", "range")]
-    [ExprParam("min", "numberExpr", Required = true)]
-    [ExprParam("max", "numberExpr", Required = true)]
+    [ExprOp(ExprCategory.Number, "rand", "random", "distribution")]
+    [ExprParam("min", typeof(float), Required = true)]
+    [ExprParam("max", typeof(float), Required = true)]
     public static Expr<float> CompileOp(JsonElement obj)
-        => new RangeExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("min")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("max")));
-    public RangeExpr(Stream stream)
+        => new RandomExpr(
+            ExpressionCompiler.Compile<float>(obj.GetProperty("min")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("max")));
+    public RandomExpr(Stream stream)
     {
         Min = (Expr<float>)BaseExpr.Deserialize(stream);
         Max = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -72,7 +72,7 @@ public sealed class RangeExpr : Expr<float>
     /// <summary>
     /// Parses a range expression from a string, like 1d20, 3-10, 5:15.
     /// </summary>
-    public RangeExpr(string range)
+    public RandomExpr(string range)
     {
         if (range.Contains('d') || range.Contains('D'))
         {

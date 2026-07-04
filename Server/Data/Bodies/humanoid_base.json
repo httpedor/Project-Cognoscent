@@ -1,5 +1,789 @@
 {
   "parent": "living_base",
   "icon": "humanoid",
-  "tags": ["humanoid"]
+  "tags": ["humanoid"],
+  "onHealthChange": [
+    {
+      // Go prone if all movement bodyparts are dead
+      "op": "if",
+      "condition": {
+        "op": "and",
+        "conditions": [
+          {
+            //Optimization trick to avoid checking all bodyparts if the one damaged doesn't have the "movement" tag
+            // since the only way all movement bodyparts are dead is if the damaged one is, we can skip the rest of the checks in that case
+            "op": "var_has_tag",
+            "tag": "movement",
+            "var": "target_part"
+          },
+          {
+            "op": "all",
+            "condition": {
+              "op": "var_has_tag",
+              "tag": "movement",
+              "var": "target_part"
+            },
+            "variables": {
+              "op": "part_by_tag",
+              "body": {
+                "op": "body_from_part",
+                "target": "target_part"
+              },
+              "tag": "movement"
+            }
+          }
+        ]
+      },
+      "true": {
+        "op": "add_feat",
+        "target": "self",
+        "feature": "prone" // TODO: PRONE feat
+      }
+    }
+  ],
+  "root": {
+    "area": 1,
+    "maxHealth": 25,
+    "name": "Peito",
+    "slots": [
+      "back",
+      "chest",
+      "waist"
+    ],
+    "layersProfile": {
+      "extends": "default",
+      "layers": {
+        "bone": {
+          "surfaceArea": 0.75
+        }
+      }
+    },
+    "children": [
+      {
+        "area": 0.05,
+        "maxHealth": 10,
+        "name": "Pulmão Esquerdo",
+        "layersProfile": "organ",
+        "tags": [
+          "internal"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0.5,
+            "atZero": 0,
+            "operation": "Flat",
+            "stat": "respiration",
+            "standaloneHPOnly": false
+          }
+        ]
+      },
+      {
+        "area": 0.05,
+        "maxHealth": 10,
+        "name": "Pulmão Direito",
+        "layersProfile": "organ",
+        "tags": [
+          "internal"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0.5,
+            "atZero": 0,
+            "operation": "Flat",
+            "stat": "respiration",
+            "standaloneHPOnly": false
+          }
+        ]
+      },
+      {
+        "area": 0.035,
+        "maxHealth": 15,
+        "name": "Coração",
+        "layersProfile": "organ",
+        "tags": [
+          "internal"
+        ],
+        "providedStats": [
+          {
+            "atFull": 1,
+            "atZero": 0,
+            "operation": "Flat",
+            "stat": "blood_flow",
+            "standaloneHPOnly": false
+          }
+        ]
+      },
+      {
+        "name": "Barriga",
+        "area": 0.9,
+        "maxHealth": 25,
+        "slots": ["waist"],
+        "layersProfile": "boneless",
+        "children": [
+          {
+            "area": 0.02,
+            "maxHealth": 15,
+            "name": "Rim Direito",
+            "tags": ["internal"],
+            "layersProfile": "organ",
+            "providedStats": [
+              {
+                "atFull": 0,
+                "atZero": -0.25,
+                "operation": "Percent",
+                "stat": "blood_flow",
+                "standaloneHPOnly": false
+              }
+            ]
+          },
+          {
+            "area": 0.02,
+            "maxHealth": 15,
+            "name": "Rim Esquerdo",
+            "tags": ["internal"],
+            "layersProfile": "organ",
+            "providedStats": [
+              {
+                "atFull": 0,
+                "atZero": -0.25,
+                "operation": "Percent",
+                "stat": "blood_flow",
+                "standaloneHPOnly": false
+              }
+            ]
+          },
+          {
+            "area": 0.25,
+            "maxHealth": 30,
+            "group": "lower-right",
+            "name": "Perna Direita",
+            "tags": [
+              "limb"
+            ],
+            "skills": [],
+            "slots": [
+              "leg"
+            ],
+            "children": [
+              {
+                "area": 0.1,
+                "maxHealth": 25,
+                "group": "lower-right",
+                "name": "Pé Direito",
+                "tags": [
+                  "limb"
+                ],
+                "slots": [
+                  "foot"
+                ]
+              }
+            ]
+          },
+          {
+            "area": 0.25,
+            "maxHealth": 30,
+            "group": "lower-left",
+            "name": "Perna Esquerda",
+            "tags": [
+              "limb"
+            ],
+            "skills": [],
+            "slots": [
+              "leg"
+            ],
+            "children": [
+              {
+                "area": 0.1,
+                "maxHealth": 25,
+                "group": "lower-left",
+                "name": "Pé Esquerdo",
+                "tags": [
+                  "limb"
+                ],
+                "slots": [
+                  "foot"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "maxHealth": 25,
+        "name": "Pescoço",
+        "slots": [
+          "neck"
+        ],
+        "layersProfile": {
+          "extends": "default",
+          "layers": {
+            "muscle": {
+              "bloodFlow": 5
+            }
+          }
+        },
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -1,
+            "operation": "Percent",
+            "stat": "blood_flow",
+            "standaloneHPOnly": false
+          },
+          {
+            "atFull": 0,
+            "atZero": -1,
+            "operation": "Percent",
+            "stat": "respiration",
+            "standaloneHPOnly": false
+          }
+        ],
+        "children": [
+          {
+            "area": 3,
+            "maxHealth": 25,
+            "name": "Cabeça",
+            "slots": [
+              "head"
+            ],
+            "children": [
+              {
+                "area": 0.8,
+                "maxHealth": 10,
+                "name": "Cerebro",
+                "tags": [
+                  "internal"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 1,
+                    "atZero": 0,
+                    "operation": "Flat",
+                    "stat": "consciousness",
+                    "standaloneHPOnly": false
+                  }
+                ]
+              },
+              {
+                "area": 0.07,
+                "maxHealth": 12,
+                "name": "Orelha Esquerda",
+                "tags": [
+                  "overlaps"
+                ],
+                "slots": [
+                  "ear"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0.5,
+                    "atZero": 0,
+                    "operation": "Flat",
+                    "stat": "hearing",
+                    "standaloneHPOnly": true
+                  }
+                ]
+              },
+              {
+                "area": 0.07,
+                "maxHealth": 12,
+                "name": "Orelha Direita",
+                "tags": [
+                  "overlaps"
+                ],
+                "slots": [
+                  "ear"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0.5,
+                    "atZero": 0,
+                    "operation": "Flat",
+                    "stat": "hearing",
+                    "standaloneHPOnly": true
+                  }
+                ]
+              },
+              {
+                "area": 0.07,
+                "maxHealth": 5,
+                "name": "Olho Direito",
+                "tags": [
+                  "overlaps"
+                ],
+                "slots": [
+                  "eye"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0.5,
+                    "atZero": 0,
+                    "operation": "Flat",
+                    "stat": "sight",
+                    "standaloneHPOnly": true
+                  }
+                ]
+              },
+              {
+                "area": 0.07,
+                "maxHealth": 5,
+                "name": "Olho Esquerdo",
+                "tags": [
+                  "overlaps"
+                ],
+                "slots": [
+                  "eye"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0.5,
+                    "atZero": 0,
+                    "operation": "Flat",
+                    "stat": "sight",
+                    "standaloneHPOnly": true
+                  }
+                ]
+              },
+              {
+                "area": 0.1,
+                "maxHealth": 10,
+                "name": "Nariz",
+                "tags": [
+                  "overlaps"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "respiration",
+                    "standaloneHPOnly": true
+                  }
+                ]
+              },
+              {
+                "area": 0.1,
+                "maxHealth": 20,
+                "name": "Mandíbula",
+                "tags": [
+                  "overlaps"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.8,
+                    "operation": "Percent",
+                    "stat": "social",
+                    "standaloneHPOnly": true
+                  }
+                ],
+                "children": [
+                  {
+                    "area": 0.01,
+                    "maxHealth": 10,
+                    "name": "Língua",
+                    "tags": [
+                      "internal"
+                    ],
+                    "layersProfile": {
+                      "extends": "default",
+                      "layers": {},
+                      "order": ["muscle"]
+                    },
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.8,
+                        "operation": "Percent",
+                        "stat": "social",
+                        "standaloneHPOnly": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "area": 0.12,
+        "maxHealth": 30,
+        "group": "upper-left",
+        "name": "Ombro Esquerdo",
+        "tags": [
+          "limb"
+        ],
+        "slots": [
+          "shoulder"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -0.1,
+            "operation": "Percent",
+            "stat": "agility",
+            "standaloneHPOnly": true
+          }
+        ],
+        "children": [
+          {
+            "area": 1.5,
+            "maxHealth": 30,
+            "group": "upper-left",
+            "name": "Braço Esquerdo",
+            "providedStats": [
+              {
+                "atFull": 0,
+                "atZero": -0.1,
+                "operation": "Percent",
+                "stat": "agility",
+                "standaloneHPOnly": true
+              },
+              {
+                "atFull": 20,
+                "atZero": 0,
+                "operation": "Flat",
+                "stat": "strength",
+                "standaloneHPOnly": true
+              }
+            ],
+            "tags": [
+              "limb"
+            ],
+            "slots": [
+              "arm"
+            ],
+            "children": [
+              {
+                "area": 0.15,
+                "maxHealth": 20,
+                "group": "upper-left",
+                "name": "Mão Esquerda",
+                "tags": [
+                  "limb"
+                ],
+                "skills": [
+                  "punch"
+                ],
+                "slots": [
+                  "wrist",
+                  "hand",
+                  "hold"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "agility",
+                    "standaloneHPOnly": true
+                  },
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "strength",
+                    "standaloneHPOnly": true
+                  }
+                ],
+                "children": [
+                  {
+                    "area": 0.06,
+                    "maxHealth": 8,
+                    "group": "upper-left",
+                    "name": "Dedão Esquerdo",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.15,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.07,
+                    "maxHealth": 8,
+                    "group": "upper-left",
+                    "name": "Dedo Indicador Esquerdo",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "slots": [
+                      "finger"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.08,
+                    "maxHealth": 8,
+                    "group": "upper-left",
+                    "name": "Dedo do Meio Esquerdo",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "slots": [
+                      "finger"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.07,
+                    "maxHealth": 8,
+                    "group": "upper-left",
+                    "name": "Dedo Anelar Esquerdo",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "slots": [
+                      "finger"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.06,
+                    "maxHealth": 8,
+                    "group": "upper-left",
+                    "name": "Dedinho Esquerdo",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "slots": [
+                      "finger"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "area": 0.12,
+        "maxHealth": 30,
+        "group": "upper-right",
+        "name": "Ombro Direito",
+        "tags": [
+          "limb"
+        ],
+        "slots": [
+          "shoulder"
+        ],
+        "providedStats": [
+          {
+            "atFull": 0,
+            "atZero": -0.1,
+            "operation": "Percent",
+            "stat": "agility",
+            "standaloneHPOnly": true
+          }
+        ],
+        "children": [
+          {
+            "area": 1.5,
+            "maxHealth": 30,
+            "group": "upper-right",
+            "name": "Braço Direito",
+            "tags": [
+              "limb"
+            ],
+            "slots": [
+              "arm"
+            ],
+            "providedStats": [
+              {
+                "atFull": 0,
+                "atZero": -0.1,
+                "operation": "Percent",
+                "stat": "agility",
+                "standaloneHPOnly": true
+              },
+              {
+                "atFull": 0,
+                "atZero": 20,
+                "operation": "Flat",
+                "stat": "strength",
+                "standaloneHPOnly": true
+              }
+            ],
+            "children": [
+              {
+                "area": 0.15,
+                "maxHealth": 20,
+                "group": "upper-right",
+                "name": "Mão Direita",
+                "tags": [
+                  "limb"
+                ],
+                "skills": [
+                  "punch"
+                ],
+                "slots": [
+                  "wrist",
+                  "hand",
+                  "hold"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "agility",
+                    "standaloneHPOnly": true
+                  },
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "strength",
+                    "standaloneHPOnly": true
+                  }
+                ],
+                "children": [
+                  {
+                    "area": 0.06,
+                    "maxHealth": 8,
+                    "group": "upper-right",
+                    "name": "Dedão Direito",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.15,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.07,
+                    "maxHealth": 8,
+                    "group": "upper-right",
+                    "name": "Dedo Indicador Direito",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.08,
+                    "maxHealth": 8,
+                    "group": "upper-right",
+                    "name": "Dedo do Meio Direito",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.07,
+                    "maxHealth": 8,
+                    "group": "upper-right",
+                    "name": "Dedo Anelar Direito",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  },
+                  {
+                    "area": 0.06,
+                    "maxHealth": 8,
+                    "group": "upper-right",
+                    "name": "Dedinho Direito",
+                    "tags": [
+                      "limb",
+                      "overlaps"
+                    ],
+                    "providedStats": [
+                      {
+                        "atFull": 0,
+                        "atZero": -0.05,
+                        "operation": "Percent",
+                        "stat": "dexterity",
+                        "standaloneHPOnly": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -9,7 +9,18 @@ public static class JsonHelpers
     public static StatModifierType ParseOp(string? op, StatModifierType fallback)
         => Enum.TryParse<StatModifierType>(op ?? string.Empty, true, out var v) ? v : fallback;
 
-    // Deep merge for JsonObject with array merge by name/id
+    // Deep merge for JsonObject with array merge by name/id.
+    //
+    // Behavior:
+    // - Starts by cloning `first` (typically the "parent" or base object).
+    // - Applies values from `second` (typically the "child" or override object).
+    //   - If a value in `second` is `null`, the key is removed from the result.
+    //   - If a key exists in both and both values are JsonObject, they are merged recursively.
+    //   - If a key exists in both and both values are JsonArray, MergeArrays is used.
+    //   - Otherwise, the value from `second` overrides (deep-cloned).
+    //
+    // This supports an inheritance-style pattern (parent/child JSON) where the child
+    // can override, extend, or remove portions of the parent.
     public static JsonObject Merge(JsonObject first, JsonObject second)
     {
         JsonObject result = new JsonObject();
@@ -36,7 +47,7 @@ public static class JsonHelpers
             }
             else if (result[kvp.Key] is JsonArray arr1 && kvp.Value is JsonArray arr2)
             {
-                result[kvp.Key] = MergeArrays(arr1, arr2);
+                result[kvp.Key] = MergeArrays(arr1, arr2, "name", "id");
             }
             else
             {
@@ -47,6 +58,32 @@ public static class JsonHelpers
         return result;
     }
 
+    /// <summary>
+    /// Deep-merge two <see cref="JsonArray"/> instances, optionally merging objects by identity keys.
+    /// </summary>
+    /// <param name="first">Base array whose elements are retained unless overridden by <paramref name="second"/>.</param>
+    /// <param name="second">Overlay array whose elements can override or extend elements from <paramref name="first"/>.</param>
+    /// <param name="idKeys">Optional list of property names used to identify and merge objects within the arrays.</param>
+    /// <returns>A new <see cref="JsonArray"/> containing merged and deep-cloned elements.</returns>
+    /// <remarks>
+    /// <para>
+    /// When <paramref name="idKeys"/> is empty, the returned array is a deep clone of both inputs:
+    /// all elements from <paramref name="first"/> are appended first, then all elements from <paramref name="second"/>.
+    /// </para>
+    /// <para>
+    /// When <paramref name="idKeys"/> is provided, objects are considered mergeable if they contain a string property
+    /// matching any of the keys. Matching objects are merged via <see cref="Merge(JsonObject, JsonObject)"/>, and the "merged"
+    /// result is appended once (after processing all inputs).
+    /// </para>
+    /// <para>
+    /// Non-object values, objects missing the id property, or objects where the id property is not a string are deep-cloned
+    /// and appended in place (preserving the relative order of those elements).
+    /// </para>
+    /// <para>
+    /// Note: merged objects are appended after all non-merged elements in the returned array. Their order is based on the
+    /// first occurrence of each identifier (via <see cref="Dictionary{TKey,TValue}"/> enumeration).
+    /// </para>
+    /// </remarks>
     public static JsonArray MergeArrays(JsonArray first, JsonArray second, params string[] idKeys)
     {
         var merged = new JsonArray();

@@ -19,7 +19,7 @@ public class SkillExpressions
     public readonly Expr<bool>? canExecute;
     public readonly Expr<string>[]? layers;
     
-    public readonly (Expr<float>, CompendiumEntryExpr<DamageType>)? damage;
+    public readonly (Expr<float>, Expr<DamageType>)? damage;
     public readonly (Expr<bool>, Expr<string>)? doesHit;
     public readonly EffectExpr? onHit;
     public readonly EffectExpr? onAttack;
@@ -40,22 +40,22 @@ public class SkillExpressions
                 }
                 else if (typeof(T) == typeof(Expr<bool>))
                 {
-                    var expr = ExpressionCompiler.CompileCondition(prop);
+                    var expr = ExpressionCompiler.Compile<bool>(prop);
                     return (T)(BaseExpr)expr;
                 }
                 else if (typeof(T) == typeof(Expr<float>))
                 {
-                    var expr = ExpressionCompiler.CompileNumber(prop);
+                    var expr = ExpressionCompiler.Compile<float>(prop);
                     return (T)(BaseExpr)expr;
                 }
                 else if (typeof(T) == typeof(Expr<string>))
                 {
-                    var expr = ExpressionCompiler.CompileString(prop);
+                    var expr = ExpressionCompiler.Compile<string>(prop);
                     return (T)(BaseExpr)expr;
                 }
                 else if (typeof(T) == typeof(CompendiumEntryExpr<DamageType>))
                 {
-                    var expr = ExpressionCompiler.CompileCompendiumEntry<DamageType>(prop);
+                    var expr = ExpressionCompiler.Compile<DamageType>(prop);
                     return (T)(BaseExpr)expr;
                 }
             }
@@ -74,7 +74,7 @@ public class SkillExpressions
             var list = new List<Expr<string>>();
             foreach (var item in layersElem.EnumerateArray())
             {
-                var expr = ExpressionCompiler.CompileString(item);
+                var expr = ExpressionCompiler.Compile<string>(item);
                 list.Add(expr);
             }
             layers = list.ToArray();
@@ -86,14 +86,14 @@ public class SkillExpressions
         onAttack = TryCompile<EffectExpr>("onAttack");
         if (obj.GetPropertyOrNull("damage") is JsonElement damageElem && damageElem.ValueKind == JsonValueKind.Object)
         {
-            var numberExpr = ExpressionCompiler.CompileNumber(damageElem.GetProperty("amount"));
-            var damageTypeExpr = ExpressionCompiler.CompileCompendiumEntry<DamageType>(damageElem.GetProperty("type"));
+            var numberExpr = ExpressionCompiler.Compile<float>(damageElem.GetProperty("amount"));
+            var damageTypeExpr = ExpressionCompiler.Compile<DamageType>(damageElem.GetProperty("type"));
             damage = (numberExpr, damageTypeExpr);
         }
         if (obj.GetPropertyOrNull("doesHit") is JsonElement doesHitElem && doesHitElem.ValueKind == JsonValueKind.Object)
         {
-            var conditionExpr = ExpressionCompiler.CompileCondition(doesHitElem.GetProperty("condition"));
-            var stringExpr = ExpressionCompiler.CompileString(doesHitElem.GetProperty("description"));
+            var conditionExpr = ExpressionCompiler.Compile<bool>(doesHitElem.GetProperty("condition"));
+            var stringExpr = ExpressionCompiler.Compile<string>(doesHitElem.GetProperty("description"));
             doesHit = (conditionExpr, stringExpr);
         }
         condition = TryCompile<Expr<bool>>("condition");
@@ -149,7 +149,7 @@ public class SkillExpressions
     {
         var context = CreateEvalContext(exec, args, otherArgs);
         context.Target = (target is BodyPart bp) ? bp.OwnerEntity : (target as Entity);
-        context.TargetPart = (target is BodyPart bp2) ? bp2.Entity : null;
+        context.TargetComponent = (target is BodyPart bp2) ? bp2 : null;
         return context;
     }
     public EvalContext CreateEvalContext(SkillExecutor exec, IDamageable target)

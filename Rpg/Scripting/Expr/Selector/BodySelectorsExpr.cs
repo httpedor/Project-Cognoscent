@@ -1,76 +1,70 @@
 using System.Text.Json;
 using Rpg.Entities;
+using Rpg.Entities.Components.Health;
 
 namespace Rpg.Scripting;
 
-public class BodyPartSelectorByTagExpr : Expr<Entity?>
+
+public class BodyPartSelectorByTagExpr : ArrayExpr<Component>
 {
-    public readonly Expr<Entity?> Target;
+    public readonly Expr<Body?> Target;
     public readonly Expr<string> Tag;
-    public BodyPartSelectorByTagExpr(Expr<Entity?> target, Expr<string> tag)
+    public BodyPartSelectorByTagExpr(Expr<Body?> target, Expr<string> tag)
     {
         Target = target;
         Tag = tag;
     }
 
-    [ExprOp(ExprCategory.Selector, "part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag")]
-    [ExprParam("target", "selectorExpr", Required = true)]
-    [ExprParam("tag", "stringExpr", Required = true)]
-    public static Expr<Entity?> CompileOp(JsonElement obj)
-        => new BodyPartSelectorByTagExpr(
-            ExpressionCompiler.CompileSelector(obj.GetProperty("target")),
-            ExpressionCompiler.CompileString(obj.GetProperty("tag")));
     public BodyPartSelectorByTagExpr(Stream stream)
     {
-        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
+        Target = (Expr<Body?>)BaseExpr.Deserialize(stream);
         Tag = (Expr<string>)BaseExpr.Deserialize(stream);
     }
-    public override Entity? Eval(EvalContext ctx)
+    public override IEnumerable<BodyPart> Eval(EvalContext ctx)
     {
-        var entity = Target.Eval(ctx);
-        if (entity == null)
-            return null;
-        var body = entity.Body;
+        var body = Target.Eval(ctx);
         if (body == null)
-            return null;
+            return [];
         var tagValue = Tag.Eval(ctx);
         if (tagValue == null)
-            return null;
-        var parts = body.GetPartsWithTag(tagValue);
-        if (parts.Count() == 0)
-            return null;
-        return parts.First().Entity;
+            return [];
+        return body.GetPartsWithTag(tagValue);
     }
+    
+    [ExprOp(ExprCategory.Component, "part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag", GenericType = "BodyPart", IsArray = true)]
+    [ExprParam("body", typeof(Body), Required = true)]
+    [ExprParam("tag", typeof(Tag<BodyPart>), Required = true)]
+    public static ArrayExpr<Component> CompileOp(JsonElement obj)
+        => new BodyPartSelectorByTagExpr(
+            ExpressionCompiler.Compile<Body>(obj.GetProperty("body")),
+            ExpressionCompiler.Compile<string>(obj.GetProperty("tag")));
 }
 
-public class BodyPartSelectorByNameExpr : Expr<Entity?>
+public class BodyPartSelectorByNameExpr : ComponentExpr<BodyPart>
 {
-    public readonly Expr<Entity?> Target;
+    public readonly Expr<Body?> Target;
     public readonly Expr<string> Name;
-    public BodyPartSelectorByNameExpr(Expr<Entity?> target, Expr<string> name)
+    public BodyPartSelectorByNameExpr(Expr<Body?> target, Expr<string> name)
     {
         Target = target;
         Name = name;
     }
 
-    [ExprOp(ExprCategory.Selector, "part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name")]
-    [ExprParam("target", "selectorExpr", Required = true)]
-    [ExprParam("name", "stringExpr", Required = true)]
-    public static Expr<Entity?> CompileOp(JsonElement obj)
+    [ExprOp(ExprCategory.Component, "part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name", GenericType = "BodyPart")]
+    [ExprParam("target", typeof(Body), Required = true)]
+    [ExprParam("name", typeof(string), Required = true)]
+    public static Expr<Component?> CompileOp(JsonElement obj)
         => new BodyPartSelectorByNameExpr(
-            ExpressionCompiler.CompileSelector(obj.GetProperty("target")),
-            ExpressionCompiler.CompileString(obj.GetProperty("name")));
+            ExpressionCompiler.Compile<Body>(obj.GetProperty("target")),
+            ExpressionCompiler.Compile<string>(obj.GetProperty("name")));
     public BodyPartSelectorByNameExpr(Stream stream)
     {
-        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
+        Target = (Expr<Body?>)BaseExpr.Deserialize(stream);
         Name = (Expr<string>)BaseExpr.Deserialize(stream);
     }
-    public override Entity? Eval(EvalContext ctx)
+    public override BodyPart? EvalComponent(EvalContext ctx)
     {
-        var entity = Target.Eval(ctx);
-        if (entity == null)
-            return null;
-        var body = entity.Body;
+        var body = Target.Eval(ctx);
         if (body == null)
             return null;
         var nameValue = Name.Eval(ctx);
@@ -79,44 +73,101 @@ public class BodyPartSelectorByNameExpr : Expr<Entity?>
         var parts = body.GetPartsWithName(nameValue);
         if (parts.Count() == 0)
             return null;
-        return parts.First().Entity;
+        return parts.First();
     }
 }
 
-public class BodyPartSelectorByPathExpr : Expr<Entity?>
+public class BodyPartSelectorByPathExpr : ComponentExpr<BodyPart>
 {
-    public readonly Expr<Entity?> Target;
+    public readonly Expr<Body?> Target;
     public readonly Expr<string> Path;
-    public BodyPartSelectorByPathExpr(Expr<Entity?> target, Expr<string> path)
+    public BodyPartSelectorByPathExpr(Expr<Body?> target, Expr<string> path)
     {
         Target = target;
         Path = path;
     }
 
-    [ExprOp(ExprCategory.Selector, "part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path")]
-    [ExprParam("target", "selectorExpr", Required = true)]
-    [ExprParam("path", "stringExpr", Required = true)]
-    public static Expr<Entity?> CompileOp(JsonElement obj)
+    [ExprOp(ExprCategory.Component, "part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path", GenericType = "BodyPart")]
+    [ExprParam("target", typeof(Body), Required = true)]
+    [ExprParam("path", typeof(string), Required = true)]
+    public static Expr<Component?> CompileOp(JsonElement obj)
         => new BodyPartSelectorByPathExpr(
-            ExpressionCompiler.CompileSelector(obj.GetProperty("target")),
-            ExpressionCompiler.CompileString(obj.GetProperty("path")));
+            ExpressionCompiler.Compile<Body>(obj.GetProperty("target")),
+            ExpressionCompiler.Compile<string>(obj.GetProperty("path")));
     public BodyPartSelectorByPathExpr(Stream stream)
     {
-        Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
+        Target = (Expr<Body?>)BaseExpr.Deserialize(stream);
         Path = (Expr<string>)BaseExpr.Deserialize(stream);
     }
-    public override Entity? Eval(EvalContext ctx)
+    public override BodyPart? EvalComponent(EvalContext ctx)
     {
-        var entity = Target.Eval(ctx);
-        if (entity == null)
-            return null;
-        var body = entity.Body;
+        var body = Target.Eval(ctx);
         if (body == null)
             return null;
         var pathValue = Path.Eval(ctx);
         if (pathValue == null)
             return null;
-        var part = body.GetPartByPath(pathValue);
-        return part?.Entity;
+        return body.GetPartByPath(pathValue);
+    }
+}
+public class BodyFromPartSelectorExpr : ComponentExpr<Body>
+{
+    public readonly Expr<BodyPart?> Target;
+    public BodyFromPartSelectorExpr(Expr<BodyPart?> target)
+    {
+        Target = target;
+    }
+
+    [ExprOp(ExprCategory.Component, "body_from_part", "body_from_bp", "body_from_bodypart", GenericType = "Body")]
+    [ExprParam("target", typeof(BodyPart), Required = true, Description = "The body part to get the body from")]
+    public static Expr<Component?> CompileOp(JsonElement obj)
+        => new BodyFromPartSelectorExpr(
+            ExpressionCompiler.Compile<BodyPart>(obj.GetProperty("target")));
+    public BodyFromPartSelectorExpr(Stream stream)
+    {
+        Target = (Expr<BodyPart?>)BaseExpr.Deserialize(stream);
+    }
+    public override Body? EvalComponent(EvalContext ctx)
+    {
+        var part = Target.Eval(ctx);
+        return part?.Body;
+    }
+}
+public sealed class BodyPartsInGroupExpr : ArrayExpr<Component>
+{
+    public readonly Expr<Body?> Body;
+    public readonly Expr<string> GroupId;
+
+    public BodyPartsInGroupExpr(Expr<Body?> body, Expr<string> groupId)
+    {
+        Body = body;
+        GroupId = groupId;
+    }
+
+    [ExprOp(ExprCategory.Component, "parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group", GenericType = "BodyPart", IsArray = true)]
+    [ExprParam("body", typeof(Body), Required = true, Description = "The body to get the parts from")]
+    [ExprParam("group_id", typeof(string), Required = true, Description = "The ID of the group to get the parts from")]
+    public static ArrayExpr<Component> Compile(JsonElement json)
+    {
+        var body = ExpressionCompiler.Compile<Body>(json.GetProperty("body"));
+        var groupId = ExpressionCompiler.Compile<string>(json.GetProperty("group_id"));
+        return new BodyPartsInGroupExpr(body, groupId);
+    }
+
+    public BodyPartsInGroupExpr(Stream stream)
+    {
+        Body = BaseExpr.Deserialize<Expr<Body?>>(stream);
+        GroupId = BaseExpr.Deserialize<Expr<string>>(stream);
+    }
+
+    public override IEnumerable<BodyPart> Eval(EvalContext ctx)
+    {
+        var bodyValue = Body.Eval(ctx);
+        if (bodyValue == null)
+            return [];
+        var groupIdValue = GroupId.Eval(ctx);
+        if (groupIdValue == null)
+            return [];
+        return bodyValue.GetPartsOnGroup(groupIdValue);
     }
 }

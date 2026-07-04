@@ -1,0 +1,41 @@
+{
+    "name": "Dormindo",
+    "description": "Esta entidade está dormindo",
+    "type": "simple",
+    "icon": "sleeping",
+    "statModifiers": {
+        // Prevent consciousness from going above 0.3 while sleeping
+        "consciousness": [
+            {
+                "type": "Capmax",
+                "value": 0.3
+            }
+        ]
+    },
+    "onEnabled": {
+        "op": "composite",
+        "effects": [
+            {
+                "op": "change_posture_to_resting",
+                "target": "caller"
+            },
+            {
+                "log"
+            }
+        ]
+    },
+    "doesExecuteSkill": {
+        // Prevent executing any skills while sleeping
+        "op": "false",
+        "reason": {
+            "op": "concat",
+            "strings": [
+                {
+                    "op": "ent_name",
+                    "target": "caller"
+                },
+                " está dormindo."
+            ]
+        }
+    }
+}

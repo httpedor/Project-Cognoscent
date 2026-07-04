@@ -5,19 +5,19 @@ using Rpg.Entities.Components;
 namespace Rpg.Scripting;
 
 
-public sealed class DistanceSelectorExpr : Expr<Entity?>
+public sealed class DistanceentityExpr : Expr<Entity?>
 {
     public readonly Expr<Entity?> From;
     public readonly Expr<float>? RangeExpr;
     public readonly bool Nearest;
-    public DistanceSelectorExpr(Expr<Entity?> from, Expr<float>? rangeExpr, bool nearest)
+    public DistanceentityExpr(Expr<Entity?> from, Expr<float>? rangeExpr, bool nearest)
     {
         From = from;
         RangeExpr = rangeExpr;
         Nearest = nearest;
     }
 
-    public DistanceSelectorExpr(Stream stream)
+    public DistanceentityExpr(Stream stream)
     {
         From = BaseExpr.Deserialize<Expr<Entity?>>(stream);
         if (stream.ReadBoolean())

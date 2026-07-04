@@ -28,38 +28,5 @@ public partial class CodeCompendiumEntry : CompendiumEntry
 
     protected override void OnClick()
     {
-        base.OnClick();
-
-        var displayToId = new Dictionary<string, string>();
-        var tabsContent = new (string, Control)[tabs.Length];
-        for (int i = 0; i < tabs.Length; i++)
-        {
-            var tabInfo = tabs[i];
-            var code = new CSharpCodeEdit();
-            if (json.TryGetProperty(tabInfo.JsonKey, out var prop))
-                code.Text = prop.GetString()!.Replace("\\n", "\n");
-            foreach (var global in tabInfo.Globals)
-            {
-                //TODO: This
-                //code.AddCodeCompletionOption();
-            }
-            displayToId[tabInfo.TabTitle] = tabInfo.JsonKey;
-            tabsContent[i] = (tabInfo.TabTitle, code);
-        }
-        Modal.OpenTabs(entryId, tabsContent, () =>
-        {
-            var mutJson = json.ToNode()!.AsObject();
-            foreach (var tabContent in tabsContent)
-            {
-                var code = (tabContent.Item2 as CodeEdit)!;
-                string jsonKey = displayToId[tabContent.Item1];
-                
-                if (code.Text == "")
-                    mutJson.Remove(jsonKey);
-                else
-                    mutJson[jsonKey] = code.Text;
-            }
-            NetworkManager.Instance.SendPacket(CompendiumUpdatePacket.AddEntry(folder, entryId, mutJson.ToElement()));
-        });
     }
 }

@@ -8,8 +8,10 @@
       "type": "string",
       "enum": [
         "biped",
+        "female",
         "flying",
         "humanoid",
+        "male",
         "quadruped"
       ],
       "description": "Known tags for Body."
@@ -17,9 +19,17 @@
     "BodyPartTag": {
       "type": "string",
       "enum": [
-        "hard",
+        "arm",
+        "foot",
+        "hand",
+        "head",
+        "horn",
         "internal",
-        "limb"
+        "leg",
+        "limb",
+        "overlaps",
+        "tail",
+        "wing"
       ],
       "description": "Known tags for BodyPart."
     },

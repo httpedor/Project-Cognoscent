@@ -201,6 +201,33 @@ public partial class NetworkManager : Node
 				board.CurrentTick = turnModePacket.Tick;
 				break;
 			}
+			case ProtocolId.BODY_MOVEMENT_UPDATE:
+			{
+				var bmu = (BodyMovementUpdatePacket)packet;
+				var body = bmu.BodyRef.Component;
+				if (body == null)
+					break;
+				body.MovementIntensity = bmu.NewMovementIntensity;
+				break;
+			}
+			case ProtocolId.BODY_STABILITY_UPDATE:
+			{
+				var bsu = (BodyStabilityUpdatePacket)packet;
+				var body = bsu.BodyRef.Component;
+				if (body == null)
+					break;
+				body.Stability = bsu.NewStability;
+				break;
+			}
+			case ProtocolId.BODY_POSTURE_UPDATE:
+			{
+				var bpu = (BodyPostureUpdatePacket)packet;
+				var body = bpu.BodyRef.Component;
+				if (body == null)
+					break;
+				body.ChangePosture(bpu.NewPosture);
+				break;
+			}
 			case ProtocolId.ENTITY_BODY_PART_INJURY:
 			{
 				var ebpcp = (EntityBodyPartInjuryPacket)packet;
@@ -209,17 +236,18 @@ public partial class NetworkManager : Node
 				if (part == null)
 					break;
 
+				var layer = part.FirstLayer;
 				switch (ebpcp.Type)
 				{
 					case EntityBodyPartInjuryPacket.InjuryPacketType.ADD:
-						part.AddInjury(ebpcp.Injury);
+						layer.AddInjury(ebpcp.Injury);
 						break;
 					case EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE:
-						part.RemoveInjury(ebpcp.Injury);
+						layer.RemoveInjury(ebpcp.Injury);
 						break;
 					case EntityBodyPartInjuryPacket.InjuryPacketType.REPLACE:
-						part.RemoveInjury(ebpcp.OldInjury!.Value);
-						part.AddInjury(ebpcp.Injury);
+						layer.RemoveInjury(ebpcp.OldInjury!.Value);
+						layer.AddInjury(ebpcp.Injury);
 						break;
 				}
 				break;

@@ -35,6 +35,9 @@ public enum ProtocolId
     STAT_UPDATE,
     FEATURE_UPDATE,
     BODY_EQUIP_ITEM,
+    BODY_POSTURE_UPDATE,
+    BODY_STABILITY_UPDATE,
+    BODY_MOVEMENT_UPDATE,
     SKILL_UPDATE,
     SKILL_REMOVE,
     CREATURE_ACTION_LAYER_UPDATE,
@@ -647,7 +650,7 @@ public class FeatureUpdatePacket : Packet
         UpdateType = updateType;
         ContainerRef = @ref;
         Feature = feature;
-        FeatureId = feature?.GetId();
+        FeatureId = feature?.Id;
     }
     private FeatureUpdatePacket(FeatureUpdateType updateType, ComponentRef<FeaturesContainer> @ref, string feature)
     {
@@ -687,7 +690,7 @@ public class FeatureUpdatePacket : Packet
     }
     public static FeatureUpdatePacket Enable(FeaturesContainer component, Feature feature)
     {
-        return Enable(component, feature.GetId());
+        return Enable(component, feature.Id);
     }
     public static FeatureUpdatePacket Disable(FeaturesContainer component, string id)
     {
@@ -700,7 +703,7 @@ public class FeatureUpdatePacket : Packet
     }
     public static FeatureUpdatePacket Disable(FeaturesContainer component, Feature feature)
     {
-        return Disable(component, feature.GetId());
+        return Disable(component, feature.Id);
     }
     public static FeatureUpdatePacket Add(FeaturesContainer component, Feature feature)
     {
@@ -722,7 +725,7 @@ public class FeatureUpdatePacket : Packet
     }
     public static FeatureUpdatePacket Remove(FeaturesContainer component, Feature feature)
     {
-        return Remove(component, feature.GetId());
+        return Remove(component, feature.Id);
     }
 }
 
@@ -779,6 +782,81 @@ public class BodyEquipItemPacket : Packet
 
 }
 
+public class BodyPostureUpdatePacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.BODY_POSTURE_UPDATE;
+    public ComponentRef<Body> BodyRef;
+    public readonly BodyPosture NewPosture;
+
+    public BodyPostureUpdatePacket(Body body, BodyPosture newPosture)
+    {
+        BodyRef = new ComponentRef<Body>(body);
+        NewPosture = newPosture;
+    }
+
+    public BodyPostureUpdatePacket(Stream stream)
+    {
+        BodyRef = new ComponentRef<Body>(stream);
+        NewPosture = Compendium.GetEntryOrThrow<BodyPosture>(stream.ReadString());
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        BodyRef.ToBytes(stream);
+        stream.WriteString(NewPosture.Id);
+    }
+}
+public class BodyStabilityUpdatePacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.BODY_STABILITY_UPDATE;
+    public ComponentRef<Body> BodyRef;
+    public readonly float NewStability;
+
+    public BodyStabilityUpdatePacket(Body body, float newStability)
+    {
+        BodyRef = new ComponentRef<Body>(body);
+        NewStability = newStability;
+    }
+
+    public BodyStabilityUpdatePacket(Stream stream)
+    {
+        BodyRef = new ComponentRef<Body>(stream);
+        NewStability = stream.ReadFloat();
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        BodyRef.ToBytes(stream);
+        stream.WriteFloat(NewStability);
+    }
+}
+public class BodyMovementUpdatePacket : Packet
+{
+    public override ProtocolId Id => ProtocolId.BODY_MOVEMENT_UPDATE;
+    public ComponentRef<Body> BodyRef;
+    public readonly float NewMovementIntensity;
+
+    public BodyMovementUpdatePacket(Body body, float newMovementIntensity)
+    {
+        BodyRef = new ComponentRef<Body>(body);
+        NewMovementIntensity = newMovementIntensity;
+    }
+
+    public BodyMovementUpdatePacket(Stream stream)
+    {
+        BodyRef = new ComponentRef<Body>(stream);
+        NewMovementIntensity = stream.ReadFloat();
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        BodyRef.ToBytes(stream);
+        stream.WriteFloat(NewMovementIntensity);
+    }
+}
 public class SkillUpdatePacket : Packet
 {
     public override ProtocolId Id => ProtocolId.SKILL_UPDATE;

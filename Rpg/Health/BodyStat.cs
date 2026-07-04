@@ -6,7 +6,7 @@ using Rpg.Scripting;
 
 public class BodyStat : ISerializable
 {
-    //TODO: Implement stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
+    //TODO: Test stat thresholds. Planning to use it to create "asfixiation" status when respiratory stat is too low
     public class StatThreshold : ISerializable
     {
         public Expr<bool> Condition;
@@ -41,9 +41,9 @@ public class BodyStat : ISerializable
         public string StatName;
         public string ModifierId => "dep-" + StatName;
         public Expr<float> ModifierValue;
-        public EnumExpr<StatModifierType> ModifierType;
+        public Expr<StatModifierType> ModifierType;
 
-        public StatDependency(string statName, Expr<float> value, EnumExpr<StatModifierType> type)
+        public StatDependency(string statName, Expr<float> value, Expr<StatModifierType> type)
         {
             StatName = statName;
             ModifierValue = value;

@@ -58,9 +58,9 @@ public class SkillTreeEntry : ISerializable
                 Console.WriteLine("Invalid feature name: " + featureName);
             else
             {
-                Name = feature.GetName();
-                Description = feature.GetDescription();
-                Icon = feature.GetIconName();
+                Name = feature.Name;
+                Description = feature.Description;
+                Icon = feature.Icon;
                 Features.Add(feature);
             }
         }

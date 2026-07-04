@@ -3,6 +3,6 @@
   "name": "Fogo",
   "description": "Esta entidade está pegando fogo",
   "icon": "fire",
-  "damage_type": "fogo",
+  "damage_type": "fire",
   "damage": 1
 }

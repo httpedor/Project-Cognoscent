@@ -1,0 +1,162 @@
+{
+    "default": true,
+    "name": "De Pé",
+    "maxStability": {
+        "op": "mul",
+        "numbers": [
+            {
+                "op": "sum",
+                "numbers": [
+                    80,
+                    {
+                        "op": "stat",
+                        "entity": "target_component",
+                        "stat": "constitution"
+                    }
+                ]
+            },
+            {
+                "op": "switch_number",
+                "value": {
+                    "op": "array_count",
+                    "array": {
+                        "op": "filter",
+                        "values": {
+                            "op": "bp_by_tag",
+                            "tag": "foot",
+                            "body": "target_component"
+                        },
+                        "condition": {
+                            "op": "call_expr",
+                            "id": "body:bp_groups_alive",
+                            "args": ["$0"]
+                        }
+                    }
+                },
+                "cases": {
+                    "0": 0.1,
+                    "1": 0.33,
+                    "default": 1
+                }
+            }
+        ]
+    },
+    "stabilityRecovery": {
+        "op": "mul",
+        "numbers": [
+            {
+                "op": "sum",
+                "numbers": [
+                    50,
+                    {
+                        "op": "div",
+                        "numbers": [
+                            {
+                                "op": "stat",
+                                "entity": "target_component",
+                                "stat": "constitution"
+                            },
+                            2
+                        ]
+                    }
+                ]
+            },
+            {
+                "op": "switch_number",
+                "value": {
+                    "op": "array_count",
+                    "array": {
+                        "op": "filter",
+                        "values": {
+                            "op": "bp_by_tag",
+                            "tag": "foot",
+                            "body": "target_component"
+                        },
+                        "condition": {
+                            "op": "call_expr",
+                            "id": "body:bp_groups_alive",
+                            "args": ["$0"]
+                        }
+                    }
+                },
+                "cases": {
+                    "0": 0,
+                    "1": 0.33333334,
+                    "default": 1
+                }
+            }
+        ]
+    },
+    "idealHeight": 1,
+    "heightTolerance": 0.25,
+    "movement": {
+        "op": "/",
+        "numbers": [
+            {
+                "op": "+",
+                "numbers": [
+                    {
+                        "op": "group_stat",
+                        "entity": "target_component",
+                        "group": "lower_left",
+                        "stat": "strength"
+                    },
+                    {
+                        "op": "group_stat",
+                        "entity": "target_component",
+                        "group": "lower_right",
+                        "stat": "strength"
+                    },
+                    {
+                        "op": "stat",
+                        "entity": "target_component",
+                        "stat": "dexterity"
+                    }
+                ]
+            },
+            {
+
+            }
+        ]
+    },
+    "canEnterPosture": {
+        "op": ">=",
+        "left": {
+            "op": "array_count",
+            "array": {
+                "op": "filter",
+                "values": {
+                    "op": "bp_by_tag",
+                    "tag": "foot",
+                    "body": "target_component"
+                },
+                "condition": {
+                    "op": "call_expr",
+                    "id": "body:bp_groups_alive",
+                    "args": ["$0"]
+                }
+            }
+        },
+        "right": 1
+    },
+    "canStayInPosture": {
+        "op": ">=",
+        "left": {
+            "op": "array_count",
+            "array": {
+                "op": "filter",
+                "values": {
+                    "op": "bp_by_tag",
+                    "tag": "foot",
+                    "body": "target_component"
+                },
+                "condition": {
+                    "op": "call_expr",
+                    "id": "body:bp_groups_alive",
+                    "args": ["$0"]
+                }
+            }
+        },
+        "right": 1
+    }
+}

@@ -9,6 +9,8 @@
     "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
     "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
     "StatModifierType": { "$ref": "_expr.schema.json#/$defs/StatModifierType" },
+    "EffectExpr": { "$ref": "_expr.schema.json#/$defs/EffectExpr" },
+    "StringExpr": { "$ref": "_expr.schema.json#/$defs/StringExpr" },
 
     "CommonFields": {
       "description": "Fields shared by all feature types.",
@@ -53,37 +55,70 @@
     "DoesExecuteSkillBlock": {
       "type": "object",
       "description": "Overrides whether this entity can execute a skill.",
-      "properties": {
-        "reason": {
-          "type": "string",
-          "description": "Reason shown when skill execution is blocked."
+      "allOf": [
+        {"$ref": "#/$defs/ConditionExpr"},
+        {
+          "properties": {
+            "reason": {
+              "$ref": "#/$defs/StringExpr",
+              "description": "Reason shown when skill execution is blocked."
+            }
+          }
         }
-      }
+      ]
     },
 
     "DamageModifierBlock": {
       "type": "object",
       "description": "Modifies incoming or outgoing damage.",
-      "properties": {
-        "formula": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Expression applied to damage."
+      "allOf": [
+        {
+          "$ref": "#/$defs/NumberExpr"
+        },
+        {
+          "properties": {
+            "formula": {
+              "$ref": "#/$defs/StringExpr",
+              "description": "The formula explaining what was changed"
+            }
+          }
+        }
+      ]
+    },
+
+    "StatModifiers": {
+      "type": "object",
+      "description": "Modifiers applied to one or more stats by this feature.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["type", "value"],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/StatModifierType",
+              "description": "How to apply the modifier (add, multiply, etc)."
+            },
+            "value": {
+              "$ref": "#/$defs/NumberExpr",
+              "description": "Amount of the modification (number expression)."
+            }
+          }
         }
       }
     },
 
     "Feature": {
-      "allOf": [
-        { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
-      ],
       "type": "object",
       "required": ["type", "name", "icon", "description"],
-      "properties": {
-        "type": {
+      "patternProperties": {
+        "^type$": {
           "type": "string",
-          "enum": ["arbitrary", "attack", "damage_over_time", "simple", "condition", "arbitrary_condition"],
-          "description": "Feature subtype. Determines which class is instantiated."
-        },
+          "enum": ["attack", "damage_over_time", "simple", "condition"],
+          "description": "Feature subtype."
+        }
+      },
+      "properties": {
         "name": {
           "type": ["string", "null"],
           "description": "Display name."
@@ -96,47 +131,106 @@
           "type": ["string", "null"],
           "description": "Description shown in the UI."
         },
-
-        "damage_type": {
-          "type": "string",
-          "description": "[damage_over_time only] Name of the DamageType applied each interval."
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StringExpr"
+          },
+          "description": "Skill compendium IDs granted by this feature.",
+          "default": []
         },
-        "damage": {
-          "type": "number",
-          "description": "[damage_over_time only] Damage amount applied per interval."
-        },
-        "interval": {
-          "type": "integer",
-          "description": "[damage_over_time only] Tick interval between damage applications."
-        },
-
         "doesGetAttacked": {
           "$ref": "#/$defs/DoesGetAttackedBlock",
-          "description": "[arbitrary] Override for whether the entity can be attacked. 'reason' shown on block."
+          "description": "Override for whether the entity can be attacked. 'reason' shown on block.\nCaller is this entity, Target is the attacking entity. The variables available are:\n$0 - Boolean representing whether the attack is currently hitting or not.\n$1 - The attack's damage type."
         },
         "doesAttack": {
           "$ref": "#/$defs/DoesAttackBlock",
-          "description": "[arbitrary] Override for whether this entity can attack. 'reason' shown on block."
+          "description": "Override for whether this entity can attack. 'reason' shown on block.\nCaller is this entity, Target is the attacked entity. The variables available are:\n$0 - Boolean representing whether the attack is currently hitting or not.\n$1 - The attack's damage type."
+        },
+        "onExecuteSkill": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect applied when this entity executes a skill.\nCaller is this entity, Target is the skill being executed. The variables available are:\n$0 - The name of the skill.\n$1...$n - The skill's arguments."
         },
         "doesExecuteSkill": {
           "$ref": "#/$defs/DoesExecuteSkillBlock",
-          "description": "[arbitrary] Override for whether this entity can execute skills. 'reason' shown on block."
+          "description": "Override for whether this entity can execute skills. 'reason' shown on block. \nCaller is this entity, Target is the skill being executed. The variables available are:\n$0 - The name of the skill.\n$1...$n - The skill's arguments."
         },
         "receivingDamage": {
           "$ref": "#/$defs/DamageModifierBlock",
-          "description": "[arbitrary] Modifier applied to damage received by this entity."
+          "description": "Modifier applied to damage received by this entity. Caller is this entity, Target is the attacking entity. The variables available are:\n$0 - The original damage amount.\n$1 - The damage type."
         },
         "attackingDamage": {
           "$ref": "#/$defs/DamageModifierBlock",
-          "description": "[arbitrary] Modifier applied to damage dealt by this entity."
+          "description": "Modifier applied to damage dealt by this entity. Caller is this entity, Target is the attacked entity. The variables available are:\n$0 - The original damage amount.\n$1 - The damage type."
         },
-        "skills": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "[arbitrary] Skill compendium IDs granted by this feature.",
-          "default": []
+        "onTick": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect applied to the entity each tick while this feature is active."
+        },
+        "onEnabled": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect applied to the entity when this feature is enabled."
+        },
+        "onDisabled": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect applied to the entity when this feature is disabled."
+        },
+        "onInjured": {
+          "$ref": "#/$defs/EffectExpr",
+          "description": "Effect applied to the entity when it receives damage while this feature is active.\n$0 - The injury's severity.\n$1 - The injury's type id"
+        },
+        "toggleable": {
+          "$ref": "#/$defs/ConditionExpr",
+          "description": "Whether this feature can be toggled on and off.",
+          "default": false
+        },
+        "statModifiers": {
+          "$ref": "#/$defs/StatModifiers",
+          "description": "Stat modifiers applied by this feature."
         }
-      }
+      },
+      "allOf": [
+        { "$ref": "compendium-entry.schema.json#/$defs/Entry" },
+        {
+          "if": {
+            "patternProperties": {
+              "^type$": { "enum": ["condition", "damage_over_time"] }
+            }
+          },
+          "then": {
+            "properties": {
+              "defaultDuration": {
+                "$ref": "#/$defs/NumberExpr",
+                "description": "Number expression representing how many seconds is the default duration of this condition, if none was specified."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "patternProperties": {
+              "^type$": { "enum": ["damage_over_time"] }
+            }
+          },
+          "then": {
+            "properties": {
+              "damage_type": {
+                "type": "string",
+                "description": "Name of the DamageType applied each interval."
+              },
+              "damage": {
+                "type": "number",
+                "description": "Damage amount applied per interval."
+              },
+              "interval": {
+                "type": "integer",
+                "description": "Tick interval between damage applications."
+              }
+            },
+            "required": ["damage", "damage_type", "interval"]
+          }
+        }
+      ]
     }
   }
 }

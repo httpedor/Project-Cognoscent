@@ -1,6 +1,7 @@
 using Rpg;
 using Rpg.Entities;
 using Rpg.Entities.Components;
+using Rpg.Entities.Components.Health;
 using Server.Network;
 
 namespace Server.Game;
@@ -168,7 +169,21 @@ public class ServerBoard : Board, ISerializable
                 Network.Manager.SendToBoard(new ActionLayerRemovePacket((SkillExecutor)alre.Component, alre.LayerName), this);
                 break;
             }
-
+            case BodyPostureChangedEvent bpce:
+            {
+                Network.Manager.SendToBoard(new BodyPostureUpdatePacket(bpce.Body, bpce.NewPosture), this);
+                break;
+            }
+            case BodyStabilityChangedEvent bsce:
+            {
+                Network.Manager.SendToBoard(new BodyStabilityUpdatePacket(bsce.Body, bsce.NewStability), this);
+                break;
+            }
+             case BodyMovementIntensityChangedEvent bmice:
+            {
+                Network.Manager.SendToBoard(new BodyMovementUpdatePacket(bmice.Body, bmice.NewIntensity), this);
+                break;
+             }
         }
     }
 

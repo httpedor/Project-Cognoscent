@@ -245,17 +245,18 @@ public class RpgClient
 				BodyPart? part = ebpcp.BpRef.Component;
 				if (part == null)
 					break;
+                var layer = part.FirstLayer;
                 switch (ebpcp.Type)
                 {
                     case EntityBodyPartInjuryPacket.InjuryPacketType.ADD:
-                        part.AddInjury(ebpcp.Injury);
+                        layer.AddInjury(ebpcp.Injury);
                         break;
                     case EntityBodyPartInjuryPacket.InjuryPacketType.REMOVE:
-                        part.RemoveInjury(ebpcp.Injury);
+                        layer.RemoveInjury(ebpcp.Injury);
                         break;
                     case EntityBodyPartInjuryPacket.InjuryPacketType.REPLACE:
                         if (ebpcp.OldInjury.HasValue)
-                            part.ChangeInjury(ebpcp.OldInjury.Value, ebpcp.Injury);
+                            layer.ChangeInjury(ebpcp.OldInjury.Value, ebpcp.Injury);
                         break;
                 }
                 break;

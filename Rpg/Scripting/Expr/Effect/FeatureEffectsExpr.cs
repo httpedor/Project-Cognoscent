@@ -7,10 +7,10 @@ namespace Rpg.Scripting;
 public class AddFeatureEffect : EffectExpr
 {
     public readonly Expr<Entity?> Target;
-    public readonly CompendiumEntryExpr<Feature> FeatureName;
-    public AddFeatureEffect(CompendiumEntryExpr<Feature> feature, Expr<Entity?> target)
+    public readonly Expr<Feature?> Feature;
+    public AddFeatureEffect(Expr<Feature?> feature, Expr<Entity?> target)
     {
-        FeatureName = feature;
+        Feature = feature;
         Target = target;
     }
 
@@ -19,30 +19,30 @@ public class AddFeatureEffect : EffectExpr
     /// If "ticks" is present, creates an AddConditionEffect instead.
     /// </summary>
     [ExprOp(ExprCategory.Effect, "add_feature", "addfeature", "add_feat", "add_condition", "addcondition")]
-    [ExprParam("feature", "stringExpr", Required = true, Description = "Compendium feature ID")]
-    [ExprParam("target", "selectorExpr", Required = true)]
-    [ExprParam("ticks", "numberExpr", Description = "Duration in ticks (creates a timed condition)")]
+    [ExprParam("feature", typeof(string), Required = true, Description = "Compendium feature ID")]
+    [ExprParam("target", typeof(Entity), Required = true)]
+    [ExprParam("ticks", typeof(float), Description = "Duration in ticks (creates a timed condition)")]
     public static EffectExpr CompileOp(JsonElement obj)
     {
-        var feature = ExpressionCompiler.CompileCompendiumEntry<Feature>(obj.GetProperty("feature"));
-        var selector = ExpressionCompiler.CompileSelector(obj.GetProperty("target"));
+        var feature = ExpressionCompiler.Compile<Feature?>(obj.GetProperty("feature"));
+        var selector = ExpressionCompiler.Compile<Entity?>(obj.GetProperty("target"));
         if (obj.TryGetProperty("ticks", out var ticksElement))
         {
-            var ticks = ExpressionCompiler.CompileNumber(ticksElement);
-            return new AddConditionEffect(feature.IdExpr.Eval(new EvalContext()), selector, ticks);
+            var ticks = ExpressionCompiler.Compile<float>(ticksElement);
+            return new AddConditionEffect(feature, selector, ticks);
         }
         return new AddFeatureEffect(feature, selector);
     }
     public AddFeatureEffect(Stream stream)
     {
-        FeatureName = (CompendiumEntryExpr<Feature>)BaseExpr.Deserialize(stream);
+        Feature = (Expr<Feature?>)BaseExpr.Deserialize(stream);
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
     }
-    public override void Eval(EvalContext ctx)
+    public override void EvalEffect(EvalContext ctx)
     {
-        var feat = FeatureName.Eval(ctx);
+        var feat = Feature.Eval(ctx);
         if (feat == null)
-            throw new Exception($"Feature '{FeatureName}' not found in Compendium.");
+            throw new Exception($"Feature '{Feature}' not found in Compendium.");
         var entity = Target.Eval(ctx);
         if (entity == null)
             return;
@@ -54,37 +54,37 @@ public class AddFeatureEffect : EffectExpr
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        FeatureName.ToBytes(stream);
+        Feature.ToBytes(stream);
         Target.ToBytes(stream);
     }
 }
 public class RemoveFeatureEffect : EffectExpr
 {
     public readonly Expr<Entity?> Target;
-    public readonly CompendiumEntryExpr<Feature> FeatureName;
-    public RemoveFeatureEffect(CompendiumEntryExpr<Feature> featureName, Expr<Entity?> target)
+    public readonly Expr<Feature> Feature;
+    public RemoveFeatureEffect(Expr<Feature> feature, Expr<Entity?> target)
     {
-        FeatureName = featureName;
+        Feature = feature;
         Target = target;
     }
 
     [ExprOp(ExprCategory.Effect, "remove_feature", "removefeature", "remove_feat")]
-    [ExprParam("feature", "stringExpr", Required = true, Description = "Compendium feature ID to remove")]
-    [ExprParam("target", "selectorExpr", Required = true)]
+    [ExprParam("feature", typeof(string), Required = true, Description = "Compendium feature ID to remove")]
+    [ExprParam("target", typeof(Entity), Required = true)]
     public static EffectExpr CompileOp(JsonElement obj)
         => new RemoveFeatureEffect(
-            ExpressionCompiler.CompileCompendiumEntry<Feature>(obj.GetProperty("feature")),
-            ExpressionCompiler.CompileSelector(obj.GetProperty("target")));
+            ExpressionCompiler.Compile<Feature>(obj.GetProperty("feature")),
+            ExpressionCompiler.Compile<Entity>(obj.GetProperty("target")));
     public RemoveFeatureEffect(Stream stream)
     {
-        FeatureName = (CompendiumEntryExpr<Feature>)BaseExpr.Deserialize(stream);
+        Feature = (Expr<Feature>)BaseExpr.Deserialize(stream);
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
     }
-    public override void Eval(EvalContext ctx)
+    public override void EvalEffect(EvalContext ctx)
     {
-        var feat = FeatureName.Eval(ctx);
+        var feat = Feature.Eval(ctx);
         if (feat == null)
-            throw new Exception($"Feature '{FeatureName}' not found in Compendium.");
+            throw new Exception($"Feature '{Feature}' not found in Compendium.");
         var entity = Target.Eval(ctx);
         if (entity == null)
             return;
@@ -96,7 +96,7 @@ public class RemoveFeatureEffect : EffectExpr
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        FeatureName.ToBytes(stream);
+        Feature.ToBytes(stream);
         Target.ToBytes(stream);
     }
 }
@@ -104,41 +104,41 @@ public class RemoveFeatureEffect : EffectExpr
 public class AddConditionEffect : EffectExpr
 {
     public readonly Expr<Entity?> Target;
-    public readonly Expr<float> Ticks;
-    public readonly string ConditionName;
-    public AddConditionEffect(string conditionName, Expr<Entity?> target, Expr<float> ticks)
+    public readonly Expr<float> Seconds;
+    public readonly Expr<Feature> Condition;
+    public AddConditionEffect(Expr<Feature> condition, Expr<Entity?> target, Expr<float> seconds)
     {
-        ConditionName = conditionName;
+        Condition = condition;
         Target = target;
-        Ticks = ticks;
+        Seconds = seconds;
     }
     public AddConditionEffect(Stream stream)
     {
-        ConditionName = stream.ReadString();
+        Condition = (Expr<Feature>)BaseExpr.Deserialize(stream);
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
-        Ticks = (Expr<float>)BaseExpr.Deserialize(stream);
+        Seconds = (Expr<float>)BaseExpr.Deserialize(stream);
     }
-    public override void Eval(EvalContext ctx)
+    public override void EvalEffect(EvalContext ctx)
     {
-        var feat = Compendium.GetEntry<Feature>(ConditionName);
+        var feat = Condition.Eval(ctx);
         if (feat == null)
-            throw new Exception($"Feature '{ConditionName}' not found in Compendium.");
+            throw new Exception($"Feature '{Condition}' not found in Compendium.");
         if (!(feat is ConditionFeature condition))
-            throw new Exception($"Feature '{ConditionName}' is not a ConditionFeature.");
-        var ticks = (uint)Ticks.Eval(ctx);
+            throw new Exception($"Feature '{Condition}' is not a ConditionFeature.");
+        var seconds = Seconds.Eval(ctx);
         var entity = Target.Eval(ctx);
         if (entity == null)
             return;
         var feats = entity.Features;
         if (feats == null)
             return;
-        feats.AddFeature(condition.WithDuration(ticks));
+        feats.AddCondition(condition, seconds);
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        stream.WriteString(ConditionName);
+        Condition.ToBytes(stream);
         Target.ToBytes(stream);
-        Ticks.ToBytes(stream);
+        Seconds.ToBytes(stream);
     }
 }

@@ -1,3 +1,5 @@
+using Rpg.Entities.Components.Health;
+
 namespace Rpg.Scripting;
 
 public class CompendiumEntryExpr<T> : Expr<T?> where T : class

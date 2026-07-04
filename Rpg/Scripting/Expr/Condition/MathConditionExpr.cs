@@ -14,20 +14,20 @@ public sealed class GreaterThanConditionExpr : Expr<bool>
     }
 
     [ExprOp(ExprCategory.Condition, ">")]
-    [ExprParam("left", "numberExpr", Required = true)]
-    [ExprParam("right", "numberExpr", Required = true)]
+    [ExprParam("left", typeof(float), Required = true)]
+    [ExprParam("right", typeof(float), Required = true)]
     public static Expr<bool> CompileOp(JsonElement obj)
         => new GreaterThanConditionExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
+            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("right")));
 
     [ExprOp(ExprCategory.Condition, "<=")]
-    [ExprParam("left", "numberExpr", Required = true)]
-    [ExprParam("right", "numberExpr", Required = true)]
+    [ExprParam("left", typeof(float), Required = true)]
+    [ExprParam("right", typeof(float), Required = true)]
     public static Expr<bool> CompileLte(JsonElement obj)
         => new NotConditionExpr(new GreaterThanConditionExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("right"))));
+            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("right"))));
     public GreaterThanConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -57,20 +57,20 @@ public sealed class LessThanConditionExpr : Expr<bool>
     }
 
     [ExprOp(ExprCategory.Condition, "<")]
-    [ExprParam("left", "numberExpr", Required = true)]
-    [ExprParam("right", "numberExpr", Required = true)]
+    [ExprParam("left", typeof(float), Required = true)]
+    [ExprParam("right", typeof(float), Required = true)]
     public static Expr<bool> CompileOp(JsonElement obj)
         => new LessThanConditionExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
+            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("right")));
 
     [ExprOp(ExprCategory.Condition, ">=")]
-    [ExprParam("left", "numberExpr", Required = true)]
-    [ExprParam("right", "numberExpr", Required = true)]
+    [ExprParam("left", typeof(float), Required = true)]
+    [ExprParam("right", typeof(float), Required = true)]
     public static Expr<bool> CompileGte(JsonElement obj)
         => new NotConditionExpr(new LessThanConditionExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("right"))));
+            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("right"))));
     public LessThanConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -88,73 +88,45 @@ public sealed class LessThanConditionExpr : Expr<bool>
         Right.ToBytes(stream);
     }
 }
-public sealed class EqualConditionExpr : Expr<bool>
+public sealed class InRangeExpr : Expr<bool>
 {
-    public readonly Expr<float> Left;
-    public readonly Expr<float> Right;
+    public readonly Expr<float> Value;
+    public readonly Expr<float> Min;
+    public readonly Expr<float> Max;
 
-    public EqualConditionExpr(Expr<float> left, Expr<float> right)
+    public InRangeExpr(Expr<float> value, Expr<float> min, Expr<float> max)
     {
-        Left = left;
-        Right = right;
+        Value = value;
+        Min = min;
+        Max = max;
     }
 
-    [ExprOp(ExprCategory.Condition, "=", "==")]
-    [ExprParam("left", "numberExpr", Required = true)]
-    [ExprParam("right", "numberExpr", Required = true)]
+    [ExprOp(ExprCategory.Condition, "in_range")]
+    [ExprParam("value", typeof(float), Required = true)]
+    [ExprParam("min", typeof(float), Required = true)]
+    [ExprParam("max", typeof(float), Required = true)]
     public static Expr<bool> CompileOp(JsonElement obj)
-        => new EqualConditionExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
-    public EqualConditionExpr(Stream stream)
+        => new InRangeExpr(
+            ExpressionCompiler.Compile<float>(obj.GetProperty("value")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("min")),
+            ExpressionCompiler.Compile<float>(obj.GetProperty("max")));
+    public InRangeExpr(Stream stream)
     {
-        Left = (Expr<float>)BaseExpr.Deserialize(stream);
-        Right = (Expr<float>)BaseExpr.Deserialize(stream);
+        Value = (Expr<float>)BaseExpr.Deserialize(stream);
+        Min = (Expr<float>)BaseExpr.Deserialize(stream);
+        Max = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
     public override bool Eval(EvalContext ctx)
     {
-        return Left.Eval(ctx) == Right.Eval(ctx);
+        var value = Value.Eval(ctx);
+        return value >= Min.Eval(ctx) && value <= Max.Eval(ctx);
     }
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
-        Left.ToBytes(stream);
-        Right.ToBytes(stream);
-    }
-}
-public sealed class NotEqualConditionExpr : Expr<bool>
-{
-    public readonly Expr<float> Left;
-    public readonly Expr<float> Right;
-
-    public NotEqualConditionExpr(Expr<float> left, Expr<float> right)
-    {
-        Left = left;
-        Right = right;
-    }
-
-    [ExprOp(ExprCategory.Condition, "!=")]
-    [ExprParam("left", "numberExpr", Required = true)]
-    [ExprParam("right", "numberExpr", Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new NotEqualConditionExpr(
-            ExpressionCompiler.CompileNumber(obj.GetProperty("left")),
-            ExpressionCompiler.CompileNumber(obj.GetProperty("right")));
-    public NotEqualConditionExpr(Stream stream)
-    {
-        Left = (Expr<float>)BaseExpr.Deserialize(stream);
-        Right = (Expr<float>)BaseExpr.Deserialize(stream);
-    }
-
-    public override bool Eval(EvalContext ctx)
-    {
-        return Left.Eval(ctx) != Right.Eval(ctx);
-    }
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Left.ToBytes(stream);
-        Right.ToBytes(stream);
+        Value.ToBytes(stream);
+        Min.ToBytes(stream);
+        Max.ToBytes(stream);
     }
 }

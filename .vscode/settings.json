@@ -25,6 +25,14 @@
         {
             "fileMatch": ["Server/Data/SkillTrees/*.json"],
             "url": "./schemas/skill-tree.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/Postures/*.json"],
+            "url": "./schemas/body-posture.schema.json"
+        },
+        {
+            "fileMatch": ["Server/Data/Functions/*.json"],
+            "url": "./schemas/function.schema.json"
         }
     ],
     "files.associations": {

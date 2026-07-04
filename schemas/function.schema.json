@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "function.schema.json",
+    "title": "ExprLibrary",
+    "description": "Schema for an ExprLibrary compendium entry (Rpg/Scripting/ExprLibrary.cs).",
+    "$ref": "#/$defs/ExprLibrary",
+
+    "$defs": {
+        "BaseExpr": { "$ref": "_expr.schema.json#/$defs/BaseExpr" },
+        "ExprLibrary": {
+            "type": "object",
+            "description": "Library of named expressions that can be used in other expression fields.",
+            "additionalProperties": {
+                "description": "An expression that can be used in other expression fields by referencing its name.",
+                "$ref": "#/$defs/BaseExpr"
+            }
+        }
+    }
+}

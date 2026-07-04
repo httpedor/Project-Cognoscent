@@ -10,7 +10,8 @@ public enum ExprCategory
     Number,
     Condition,
     Effect,
-    Selector,
+    Entity,
+    Component,
     String
 }
 
@@ -34,15 +35,23 @@ public enum ExprCategory
 public class ExprOpAttribute : Attribute
 {
     /// <summary>
-    /// The expression category this op belongs to (Number, Condition, Effect, Selector, String).
+    /// The expression category this op belongs to (Number, Condition, Effect, Entity, Component, String).
     /// </summary>
     public ExprCategory Category { get; }
+
+    public bool IsArray { get; set; } = false;
 
     /// <summary>
     /// One or more op name aliases that map to this compile method.
     /// All names are matched case-insensitively at compile time.
     /// </summary>
     public string[] OpNames { get; }
+
+    /// <summary>
+    /// Optional generic component return type for component ops (e.g. "Body", "BodyPart").
+    /// Used by schema generation to restrict componentExpr<T> to ops that produce T.
+    /// </summary>
+    public string? GenericType { get; set; }
 
     public ExprOpAttribute(ExprCategory category, params string[] opNames)
     {
@@ -65,11 +74,10 @@ public class ExprParamAttribute : Attribute
 
     /// <summary>
     /// The schema reference type. Use one of:
-    /// "numberExpr", "conditionExpr", "effectExpr", "selectorExpr", "stringExpr",
-    /// "string" (literal), "number" (literal), "boolean" (literal),
-    /// or append "[]" for arrays (e.g. "numberExpr[]", "effectExpr[]").
+    /// <see cref="typeof(float)"/>, <see cref="typeof(bool)"/>, <see cref="typeof(string)"/>, <see cref="typeof(Rpg.Entities.Entity)"/> etc.
+    /// If this is not a system-supported type, the generator will fall back to a name-based literal reference.
     /// </summary>
-    public string SchemaRef { get; }
+    public Type? SchemaType { get; }
 
     /// <summary>
     /// Whether this parameter is required in the JSON object.
@@ -81,9 +89,15 @@ public class ExprParamAttribute : Attribute
     /// </summary>
     public string? Description { get; set; }
 
-    public ExprParamAttribute(string name, string schemaRef)
+    /// <summary>
+    /// Optional subtype name for the expression parameter (e.g. "Body", "BodyPart").
+    /// Used by schema generator to create typed Expr definitions.
+    /// </summary>
+    public string? SubType { get; set; }
+
+    public ExprParamAttribute(string name, Type schemaType)
     {
         Name = name;
-        SchemaRef = schemaRef;
+        SchemaType = schemaType;
     }
 }

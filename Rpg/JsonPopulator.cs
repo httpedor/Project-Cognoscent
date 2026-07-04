@@ -156,8 +156,6 @@ public class JsonPopulator
             }
         }
 
-        // TODO: add other conversions
-
         value = null;
         return false;
     }
@@ -167,7 +165,6 @@ public class JsonPopulator
         if (propertyType.GetConstructor(Type.EmptyTypes) == null)
             return null;
 
-        // TODO: handle custom instance creation
         try
         {
             return Activator.CreateInstance(propertyType);

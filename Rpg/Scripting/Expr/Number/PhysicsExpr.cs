@@ -2,7 +2,6 @@ namespace Rpg.Scripting;
 
 public sealed class TicksToSecondsExpr : Expr<float>
 {
-    public const float TickRate = 50f;
     public readonly Expr<float> TicksExpr;
 
     public TicksToSecondsExpr(Expr<float> ticksExpr)
@@ -17,7 +16,7 @@ public sealed class TicksToSecondsExpr : Expr<float>
     public override float Eval(EvalContext ctx)
     {
         var ticks = TicksExpr.Eval(ctx);
-        return ticks / TickRate;
+        return ticks / Physics.TicksPerSecond;
     }
 }
 public sealed class SecondsToTicksExpr : Expr<float>
@@ -36,6 +35,6 @@ public sealed class SecondsToTicksExpr : Expr<float>
     public override float Eval(EvalContext ctx)
     {
         var seconds = SecondsExpr.Eval(ctx);
-        return seconds * TicksToSecondsExpr.TickRate;
+        return seconds * Physics.TicksPerSecond;
     }
 }
