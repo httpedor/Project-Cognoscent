@@ -197,12 +197,7 @@ public class BodyLayerModel
                         new StringLiteralExpr(prop.Name), 1
                     );
                     var value = ExpressionCompiler.Compile<float>(prop.Value);
-                    model.DamageModifiers[condition] = new StatModifier(
-                        $"layer-{name}-{prop.Name}-dmgmod",
-                        0, // placeholder; value is an Expr, so we store it specially
-                        StatModifierType.Percent
-                    );
-                    // For the simple format we need float at build time; evaluate eagerly
+                    // Simple-format modifiers need a float at build time, so evaluate eagerly.
                     model.DamageModifiers[condition] = new StatModifier(
                         $"layer-{name}-{prop.Name}-dmgmod",
                         value.Eval(),
@@ -256,27 +251,7 @@ public class BodyLayerModel
         }
 
         // Parse providedStats
-        if (layerJson.ProvidedStats != null)
-        {
-            foreach (var stat in layerJson.ProvidedStats)
-            {
-                if (string.IsNullOrWhiteSpace(stat.Stat)) continue;
-                var cfg = new BodyPartModel.PartStatModifierConfig
-                {
-                    StatName = stat.Stat!,
-                    AtFullJson = stat.AtFull,
-                    AtZeroJson = stat.AtZero ?? JsonDocument.Parse("0").RootElement,
-                    StandaloneHpOnly = stat.StandaloneHPOnly,
-                    Operation = JsonHelpers.ParseOp(stat.Operation, StatModifierType.Flat),
-                };
-                if (!model.ProvidedStatsRaw.TryGetValue(cfg.StatName, out var list))
-                {
-                    list = new List<BodyPartModel.PartStatModifierConfig>();
-                    model.ProvidedStatsRaw[cfg.StatName] = list;
-                }
-                list.Add(cfg);
-            }
-        }
+        model.ProvidedStatsRaw = BodyPartModel.PartStatModifierConfig.ParseList(layerJson.ProvidedStats);
 
         // Parse penetration resistance
         if (layerJson.Resistance.HasValue)
@@ -332,20 +307,8 @@ public class BodyLayerModel
         };
 
         // Resolve providedStats from raw configs
-        foreach (var (statName, cfgs) in ProvidedStatsRaw)
-        {
-            var bodyStat = bodyStats.GetValueOrDefault(statName);
-            var applyToOwner = bodyStat == null || !bodyStat.IsLocal;
-            var mods = new BodyProvidedStat[cfgs.Count];
-            for (int i = 0; i < cfgs.Count; i++)
-            {
-                var cfg = cfgs[i];
-                float atFull = cfg.AtFullJson != null ? JsonHelpers.GetFloat(cfg.AtFullJson.Value) : 0;
-                float atZero = cfg.AtZeroJson != null ? JsonHelpers.GetFloat(cfg.AtZeroJson.Value) : 0;
-                mods[i] = new BodyProvidedStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, applyToOwner);
-            }
+        foreach (var (statName, mods) in BodyPartModel.PartStatModifierConfig.ResolveAll(ProvidedStatsRaw, bodyStats))
             layer.ProvidedStats[statName] = mods;
-        }
 
         // Evaluate pre-baked injuries
         foreach (var (condition, injuryModel) in InjuryModels)
@@ -367,6 +330,58 @@ public class BodyPartModel
         public JsonElement? AtZeroJson;
         public bool StandaloneHpOnly;
         public StatModifierType Operation = StatModifierType.Flat;
+
+        /// <summary>
+        /// Parse a list of <see cref="StatModifierJson"/> into per-stat config lists,
+        /// skipping entries without a stat name. Shared by body parts and layers.
+        /// </summary>
+        public static Dictionary<string, List<PartStatModifierConfig>> ParseList(List<StatModifierJson>? providedStats)
+        {
+            var result = new Dictionary<string, List<PartStatModifierConfig>>();
+            if (providedStats == null) return result;
+            foreach (var stat in providedStats)
+            {
+                if (string.IsNullOrWhiteSpace(stat.Stat)) continue;
+                var cfg = new PartStatModifierConfig
+                {
+                    StatName = stat.Stat!,
+                    AtFullJson = stat.AtFull,
+                    AtZeroJson = stat.AtZero,
+                    StandaloneHpOnly = stat.StandaloneHPOnly,
+                    Operation = JsonHelpers.ParseOp(stat.Operation, StatModifierType.Flat),
+                };
+                if (!result.TryGetValue(cfg.StatName, out var list))
+                    result[cfg.StatName] = list = new List<PartStatModifierConfig>();
+                list.Add(cfg);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Resolve parsed configs into <see cref="BodyProvidedStat"/> arrays at build time.
+        /// A stat is applied to the owner unless the body declares it as a local stat.
+        /// </summary>
+        public static Dictionary<string, BodyProvidedStat[]> ResolveAll(
+            Dictionary<string, List<PartStatModifierConfig>> configs,
+            Dictionary<string, BodyModel.StatConfig> bodyStats)
+        {
+            var result = new Dictionary<string, BodyProvidedStat[]>(configs.Count);
+            foreach (var (statName, cfgs) in configs)
+            {
+                var bodyStat = bodyStats.GetValueOrDefault(statName);
+                var applyToOwner = bodyStat == null || !bodyStat.IsLocal;
+                var mods = new BodyProvidedStat[cfgs.Count];
+                for (int i = 0; i < cfgs.Count; i++)
+                {
+                    var cfg = cfgs[i];
+                    float atFull = cfg.AtFullJson != null ? JsonHelpers.GetFloat(cfg.AtFullJson.Value) : 0;
+                    float atZero = cfg.AtZeroJson != null ? JsonHelpers.GetFloat(cfg.AtZeroJson.Value) : 0;
+                    mods[i] = new BodyProvidedStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, applyToOwner);
+                }
+                result[statName] = mods;
+            }
+            return result;
+        }
     }
 
     public sealed class DamageModifierConfig
@@ -461,27 +476,7 @@ public class BodyPartModel
         Condition = jsonModel.Condition.HasValue ? ExpressionCompiler.Compile<bool>(jsonModel.Condition.Value) : new ConstConditionExpr(true);
         VitalForGroup = jsonModel.VitalForGroup.HasValue ? ExpressionCompiler.Compile<bool>(jsonModel.VitalForGroup.Value) : new ConstConditionExpr(true);
         // parse part-level provided stats
-        if (jsonModel.ProvidedStats != null)
-        {
-            foreach (var stat in jsonModel.ProvidedStats)
-            {
-                if (string.IsNullOrWhiteSpace(stat.Stat)) continue;
-                var cfg = new PartStatModifierConfig
-                {
-                    StatName = stat.Stat!,
-                    AtFullJson = stat.AtFull,
-                    AtZeroJson = stat.AtZero ?? JsonDocument.Parse("0").RootElement,
-                    StandaloneHpOnly = stat.StandaloneHPOnly,
-                    Operation = JsonHelpers.ParseOp(stat.Operation, StatModifierType.Flat),
-                };
-                if (!ProvidedStats.TryGetValue(cfg.StatName, out var list))
-                {
-                    list = new List<PartStatModifierConfig>();
-                    ProvidedStats[cfg.StatName] = list;
-                }
-                list.Add(cfg);
-            }
-        }
+        ProvidedStats = PartStatModifierConfig.ParseList(jsonModel.ProvidedStats);
 
         if (jsonModel.Stats != null)
         {
@@ -564,7 +559,6 @@ public class BodyPartModel
                 else
                     OwnerFeatures.Add(feature);
             }
-            Metadata = jsonModel.Metadata;
         }
 
         // Parse layer profile reference
@@ -623,12 +617,8 @@ public class BodyPartModel
 
         if (InlineLayerProfile != null)
         {
-            // Register inline profile as an anonymous entry and resolve it
-            // through the same inheritance path as named profiles
-            var anonName = $"__inline_{Name}_{GetHashCode()}";
-            var rawProfiles = new Dictionary<string, BodyLayerProfileJson>(profiles.Count + 1);
-            // Copy existing raw data isn't available here, but we can build
-            // from already-resolved profiles + this inline one.
+            // Resolve the inline profile through the same inheritance path as named
+            // profiles (its "extends" is looked up against the already-resolved set).
             resolved = ResolveOneProfile(InlineLayerProfile, profiles);
         }
         else if (LayersProfileName != null)
@@ -741,20 +731,8 @@ public class BodyPartModel
         bpEntity.AddComponent(ret);
 
         // apply part-level provided stats to the component
-        foreach (var provided in ProvidedStats)
-        {
-            var bodyStat = body.Stats.GetValueOrDefault(provided.Key);
-            var applyToOwner = bodyStat == null || !bodyStat.IsLocal;
-            var mods = new BodyProvidedStat[provided.Value.Count];
-            for (int i = 0; i < provided.Value.Count; i++)
-            {
-                var cfg = provided.Value[i];
-                float atFull = cfg.AtFullJson != null ? JsonHelpers.GetFloat(cfg.AtFullJson.Value) : 0;
-                float atZero = cfg.AtZeroJson != null ? JsonHelpers.GetFloat(cfg.AtZeroJson.Value) : 0;
-                mods[i] = new BodyProvidedStat(atFull, atZero, cfg.Operation, cfg.StandaloneHpOnly, applyToOwner);
-            }
-            ret.ProvidedStats[provided.Key] = mods;
-        }
+        foreach (var (statName, mods) in PartStatModifierConfig.ResolveAll(ProvidedStats, body.Stats))
+            ret.ProvidedStats[statName] = mods;
 
         // Build layers
         var builtLayers = new BodyLayer[LayerModels.Count];
@@ -832,9 +810,26 @@ public class BodyModel
     {
         Id = id;
         originalJson = json;
-        var jsonModel = json.Deserialize<BodyJson>();
-        if (jsonModel == null) throw new Exception("Failed to deserialize BodyJson");
+        var jsonModel = json.Deserialize<BodyJson>()
+            ?? throw new Exception("Failed to deserialize BodyJson");
 
+        ParseHeader(jsonModel);
+        ParsePostures(jsonModel);
+        OnBuild = CompileEffectList(jsonModel.OnBuild, "onBuild");
+        OnHealthChange = CompileEffectList(jsonModel.OnHealthChange, "onHealthChange");
+        LayerProfiles = ResolveLayerProfiles(jsonModel.LayerProfiles);
+
+        if (jsonModel.Root == null) throw new Exception("Root is required");
+        Root = new BodyPartModel(jsonModel.Root);
+        // Resolve layers for all body parts now that profiles are available.
+        Root.ResolveLayers(LayerProfiles);
+
+        Features = ResolveFeatures(jsonModel.Features);
+        ParseStats(jsonModel);
+    }
+
+    private void ParseHeader(BodyJson jsonModel)
+    {
         Name = jsonModel.Name ?? "unnamed";
         Tags = jsonModel.Tags?.Select(ExpressionCompiler.Compile<string>).ToList() ?? new List<Expr<string>>();
         SexualDimorphism = jsonModel.SexualDimorphism;
@@ -843,20 +838,20 @@ public class BodyModel
         {
             // All bodies with sexual dimorphism get a tag based on the sex of the built creature.
             Tags.Add(new ConditionalExpr<string>(
-                new EqualConditionExpr(
-                    new VarExpr<bool>(0),
-                    new ConstConditionExpr(true)
-                ),
+                new EqualConditionExpr(new VarExpr<bool>(0), new ConstConditionExpr(true)),
                 new StringLiteralExpr("female"),
                 new StringLiteralExpr("male")
             ));
         }
+    }
+
+    private void ParsePostures(BodyJson jsonModel)
+    {
         if (jsonModel.Postures != null)
         {
             foreach (var postureEl in jsonModel.Postures)
             {
-                Expr<string> expr = ExpressionCompiler.Compile<string>(postureEl);
-                var postureId = expr.Eval();
+                var postureId = ExpressionCompiler.Compile<string>(postureEl).Eval();
                 var entry = Compendium.GetEntry<BodyPosture>(postureId);
                 if (entry == null)
                     Logger.LogWarning($"Invalid body posture in JSON: {postureId}");
@@ -864,237 +859,205 @@ public class BodyModel
                     AvailablePostures.Add(entry);
             }
         }
-        if (jsonModel.RestingPosture.HasValue)
-        {
-            var expr = ExpressionCompiler.Compile<string>(jsonModel.RestingPosture.Value);
-            var postureId = expr.Eval();
-            var entry = Compendium.GetEntry<BodyPosture>(postureId);
-            if (entry == null)
-                throw new Exception($"Invalid resting posture in JSON: {postureId}");
-            RestingPosture = entry;
-        }
-        else
+
+        if (!jsonModel.RestingPosture.HasValue)
             throw new Exception("Resting posture is required for BodyModel");
-        if (jsonModel.OnBuild != null)
+        var restingId = ExpressionCompiler.Compile<string>(jsonModel.RestingPosture.Value).Eval();
+        RestingPosture = Compendium.GetEntry<BodyPosture>(restingId)
+            ?? throw new Exception($"Invalid resting posture in JSON: {restingId}");
+    }
+
+    /// <summary>Compile an optional list of effect expressions, logging (but not throwing on) failures.</summary>
+    private static List<EffectExpr> CompileEffectList(List<JsonElement>? elements, string label)
+    {
+        var result = new List<EffectExpr>();
+        if (elements == null) return result;
+        foreach (var el in elements)
         {
-            foreach (var effectEl in jsonModel.OnBuild)
-            {
-                try
-                {
-                    var effect = ExpressionCompiler.CompileEffect(effectEl);
-                    OnBuild.Add(effect);
-                }
-                catch (Exception e)
-                {
-                    Logger.LogError($"[BodyModel] Could not parse onBuild effect: {e}");
-                }
-            }
+            try { result.Add(ExpressionCompiler.CompileEffect(el)); }
+            catch (Exception e) { Logger.LogError($"[BodyModel] Could not parse {label} effect: {e}"); }
         }
-        if (jsonModel.OnHealthChange != null)
+        return result;
+    }
+
+    /// <summary>Resolve layer profiles, following "extends" chains topologically.</summary>
+    private static Dictionary<string, ResolvedLayerProfile> ResolveLayerProfiles(Dictionary<string, BodyLayerProfileJson>? rawInput)
+    {
+        var resolved = new Dictionary<string, ResolvedLayerProfile>();
+        if (rawInput == null) return resolved;
+        var rawProfiles = new Dictionary<string, BodyLayerProfileJson>(rawInput);
+
+        ResolvedLayerProfile Resolve(string profileName)
         {
-            foreach (var effectEl in jsonModel.OnHealthChange)
+            if (resolved.TryGetValue(profileName, out var existing))
+                return existing;
+            if (!rawProfiles.TryGetValue(profileName, out var raw))
             {
-                try
-                {
-                    var effect = ExpressionCompiler.CompileEffect(effectEl);
-                    OnHealthChange.Add(effect);
-                }
-                catch (Exception e)
-                {
-                    Logger.LogError($"[BodyModel] Could not parse onHealthChange effect: {e}");
-                }
-            }
-        }
-
-        // Resolve layer profiles (with inheritance via "extends")
-        if (jsonModel.LayerProfiles != null)
-        {
-            var rawProfiles = new Dictionary<string, BodyLayerProfileJson>(jsonModel.LayerProfiles);
-
-            // Topological resolution: resolve "extends" chains
-            var resolved = new Dictionary<string, ResolvedLayerProfile>();
-            ResolvedLayerProfile Resolve(string profileName)
-            {
-                if (resolved.TryGetValue(profileName, out var existing))
-                    return existing;
-                if (!rawProfiles.TryGetValue(profileName, out var raw))
-                {
-                    Logger.LogWarning($"Layer profile '{profileName}' not found");
-                    return new ResolvedLayerProfile();
-                }
-
-                // Resolve parent first if needed
-                if (!string.IsNullOrWhiteSpace(raw.Extends))
-                    Resolve(raw.Extends);
-
-                var profile = BodyPartModel.ResolveOneProfile(raw, resolved);
-                resolved[profileName] = profile;
-                return profile;
+                Logger.LogWarning($"Layer profile '{profileName}' not found");
+                return new ResolvedLayerProfile();
             }
 
-            foreach (var profileName in rawProfiles.Keys)
-                Resolve(profileName);
+            // Resolve parent first if needed
+            if (!string.IsNullOrWhiteSpace(raw.Extends))
+                Resolve(raw.Extends);
 
-            LayerProfiles = resolved;
+            var profile = BodyPartModel.ResolveOneProfile(raw, resolved);
+            resolved[profileName] = profile;
+            return profile;
         }
 
-        if (jsonModel.Root == null) throw new Exception("Root is required");
-        Root = new BodyPartModel(jsonModel.Root);
+        foreach (var profileName in rawProfiles.Keys)
+            Resolve(profileName);
+        return resolved;
+    }
 
-        // Resolve layers for all body parts now that profiles are available
-        Root.ResolveLayers(LayerProfiles);
-
-        if (jsonModel.Features != null)
+    private static List<Feature> ResolveFeatures(List<string>? names)
+    {
+        var result = new List<Feature>();
+        if (names == null) return result;
+        foreach (var name in names)
         {
-            foreach (var name in jsonModel.Features)
-            {
-                var feature = Compendium.GetEntry<Feature>(name);
-                if (feature == null)
-                    Logger.LogWarning("Invalid creature feature in JSON: " + name);
-                else
-                    Features.Add(feature);
-            }
+            var feature = Compendium.GetEntry<Feature>(name);
+            if (feature == null)
+                Logger.LogWarning("Invalid creature feature in JSON: " + name);
+            else
+                result.Add(feature);
         }
+        return result;
+    }
 
-        if (jsonModel.Stats != null)
+    private void ParseStats(BodyJson jsonModel)
+    {
+        if (jsonModel.Stats == null) return;
+        foreach (var (statName, statJson) in jsonModel.Stats)
+            Stats[statName] = ParseStat(statName, statJson);
+    }
+
+    private static StatConfig ParseStat(string statName, StatJson statJson)
+    {
+        string? maxDep = statJson.Max is { ValueKind: JsonValueKind.String } max ? max.GetString() : null;
+        string? minDep = statJson.Min is { ValueKind: JsonValueKind.String } min ? min.GetString() : null;
+
+        var groupEffectiveness = statJson.GroupEffectiveness != null
+            ? new Dictionary<string, float>(statJson.GroupEffectiveness)
+            : new Dictionary<string, float>();
+
+        return new StatConfig
         {
-            foreach (var (statName, statJson) in jsonModel.Stats)
+            BaseVal = statJson.Base.HasValue ? ExpressionCompiler.Compile<float>(statJson.Base.Value) : null,
+            MaxVal = statJson.Max.HasValue ? ExpressionCompiler.Compile<float>(statJson.Max.Value) : null,
+            MinVal = statJson.Min.HasValue ? ExpressionCompiler.Compile<float>(statJson.Min.Value) : null,
+            OverCap = statJson.OverCap,
+            UnderCap = statJson.UnderCap,
+            Aliases = statJson.Aliases?.ToArray() ?? Array.Empty<string>(),
+            Vital = statJson.Vital,
+            MaxDependencyName = maxDep,
+            MinDependencyName = minDep,
+            RegenJson = statJson.Regen,
+            DependsOn = ParseDependencies(statName, statJson.DependsOn),
+            GroupEffectiveness = groupEffectiveness,
+            Name = statJson.Name,
+            OnChange = statJson.OnChange,
+            Thresholds = ParseThresholds(statName, statJson.Thresholds),
+            IsLocal = statJson.Local
+        };
+    }
+
+    private static List<BodyStat.StatDependency>? ParseDependencies(string statName, Dictionary<string, JsonElement>? dependsOn)
+    {
+        if (dependsOn == null) return null;
+        var result = new List<BodyStat.StatDependency>();
+        foreach (var (depName, valElement) in dependsOn)
+        {
+            if (valElement.ValueKind == JsonValueKind.Number)
             {
-                var baseJson = statJson.Base;
-                var maxJson = statJson.Max;
-                var minJson = statJson.Min;
-                var regenJson = statJson.Regen;
-
-                string? maxDep = null;
-                if (maxJson.HasValue && maxJson.Value.ValueKind == JsonValueKind.String)
-                    maxDep = maxJson.Value.GetString();
-                string? minDep = null;
-                if (minJson.HasValue && minJson.Value.ValueKind == JsonValueKind.String)
-                    minDep = minJson.Value.GetString();
-
-                List<BodyStat.StatDependency>? dependsOn = null;
-                if (statJson.DependsOn != null)
-                {
-                    dependsOn = new List<BodyStat.StatDependency>();
-                    foreach (var (depName, valElement) in statJson.DependsOn)
-                    {
-                        
-                        if (valElement.ValueKind == JsonValueKind.Number)
-                        {
-                            // This will be:
-                            // -((1 - ((newVal - depStat.MinValue) / (depStat.MaxValue - depStat.MinValue))) * weight)
-                            Expr<float> expr = new MulExpr(
-                                new SubExpr(
-                                    new ConstNumberExpr(1),
-                                    new DivExpr(
-                                        new SubExpr(
-                                            new VarExpr<float>(0),
-                                            new StatMinExpr(depName, new CallerEntityExpr())
-                                        ),
-                                        new SubExpr(
-                                            new StatMaxExpr(depName, new CallerEntityExpr()),
-                                            new StatMinExpr(depName, new CallerEntityExpr())
-                                        )
-                                    )
-                                ),
-                                new ConstNumberExpr((float)valElement.GetDouble()),
-                                new ConstNumberExpr(-1)
-                            );
-                            dependsOn.Add(new BodyStat.StatDependency(
-                                depName,
-                                expr,
-                                new EnumExpr<StatModifierType>(StatModifierType.Percent)
-                            ));
-                        }
-                        else if (valElement.ValueKind == JsonValueKind.Object)
-                        {
-                            var numberEl = valElement.GetPropertyOrNull("value");
-                            if (!numberEl.HasValue)
-                            {
-                                Logger.LogWarning($"Invalid dependsOn entry for stat {statName}: missing 'value' property");
-                                continue;
-                            }
-                            var typeEl = valElement.GetPropertyOrNull("type");
-                            if (!typeEl.HasValue)
-                            {
-                                Logger.LogWarning($"Invalid dependsOn entry for stat {statName}: 'type' property must be a string");
-                                continue;
-                            }
-                            dependsOn.Add(new BodyStat.StatDependency(
-                                depName,
-                                ExpressionCompiler.Compile<float>(numberEl.Value),
-                                ExpressionCompiler.Compile<StatModifierType>(typeEl.Value)
-                            ));
-                        }
-                        else
-                            Logger.LogWarning($"Invalid dependsOn value for stat {statName} and dependency {depName}: must be a number or an object");
-                    }
-                }
-
-                var groupEffectiveness = new Dictionary<string, float>();
-                if (statJson.GroupEffectiveness != null)
-                {
-                    foreach (var (group, value) in statJson.GroupEffectiveness)
-                        groupEffectiveness[group] = value;
-                }
-
-                List<BodyStat.StatThreshold> thresholds = new();
-                if (statJson.Thresholds != null)
-                {
-                    foreach (var thresholdEl in statJson.Thresholds)
-                    {
-                        if (thresholdEl.ValueKind != JsonValueKind.Object)
-                        {
-                            Logger.LogWarning($"Invalid threshold entry for stat {statName}: must be an object");
-                            continue;
-                        }
-                        var conditionEl = thresholdEl.GetPropertyOrNull("condition");
-                        var effectEl = thresholdEl.GetPropertyOrNull("effect");
-                        var unapplyEl = thresholdEl.GetPropertyOrNull("reverse");
-                        if (!conditionEl.HasValue || !effectEl.HasValue)
-                        {
-                            Logger.LogWarning($"Invalid threshold entry for stat {statName}: missing 'condition' or 'effect' property");
-                            continue;
-                        }
-                        Expr<bool> condition = ExpressionCompiler.Compile<bool>(conditionEl.Value);
-                        EffectExpr effect;
-                        EffectExpr? unapplyEffect = null;
-
-                        if (effectEl.Value.ValueKind == JsonValueKind.String && Compendium.EntryExists<Feature>(effectEl.Value.GetString()!))
-                            effect = new AddFeatureEffect(new CompendiumEntryExpr<Feature>(effectEl.Value.GetString()!), new TargetEntityExpr());
-                        else
-                            effect = ExpressionCompiler.CompileEffect(effectEl.Value);
-
-                        if (unapplyEl.HasValue && unapplyEl.Value.ValueKind == JsonValueKind.String && Compendium.EntryExists<Feature>(unapplyEl.Value.GetString()!))
-                            unapplyEffect = new RemoveFeatureEffect(new CompendiumEntryExpr<Feature>(unapplyEl.Value.GetString()!), new TargetEntityExpr());
-                        else if (unapplyEl.HasValue)
-                            unapplyEffect = ExpressionCompiler.CompileEffect(unapplyEl.Value);
-
-                        thresholds.Add(new BodyStat.StatThreshold(condition, effect, unapplyEffect));
-                    }
-                }
-                Stats[statName] = new StatConfig
-                {
-                    BaseVal = baseJson.HasValue ? ExpressionCompiler.Compile<float>(baseJson.Value) : null,
-                    MaxVal = maxJson.HasValue ? ExpressionCompiler.Compile<float>(maxJson.Value) : null,
-                    MinVal = minJson.HasValue ? ExpressionCompiler.Compile<float>(minJson.Value) : null,
-                    OverCap = statJson.OverCap,
-                    UnderCap = statJson.UnderCap,
-                    Aliases = statJson.Aliases?.ToArray() ?? Array.Empty<string>(),
-                    
-                    Vital = statJson.Vital,
-                    MaxDependencyName = maxDep,
-                    MinDependencyName = minDep,
-                    RegenJson = regenJson,
-                    DependsOn = dependsOn,
-                    GroupEffectiveness = groupEffectiveness,
-                    Name = statJson.Name,
-                    OnChange = statJson.OnChange,
-                    Thresholds = thresholds,
-                    IsLocal = statJson.Local
-                };
+                // Weighted dependency shorthand, expands to:
+                // -((1 - ((newVal - depStat.MinValue) / (depStat.MaxValue - depStat.MinValue))) * weight)
+                Expr<float> expr = new MulExpr(
+                    new SubExpr(
+                        new ConstNumberExpr(1),
+                        new DivExpr(
+                            new SubExpr(
+                                new VarExpr<float>(0),
+                                new StatMinExpr(depName, new CallerEntityExpr())
+                            ),
+                            new SubExpr(
+                                new StatMaxExpr(depName, new CallerEntityExpr()),
+                                new StatMinExpr(depName, new CallerEntityExpr())
+                            )
+                        )
+                    ),
+                    new ConstNumberExpr((float)valElement.GetDouble()),
+                    new ConstNumberExpr(-1)
+                );
+                result.Add(new BodyStat.StatDependency(depName, expr, new EnumExpr<StatModifierType>(StatModifierType.Percent)));
             }
+            else if (valElement.ValueKind == JsonValueKind.Object)
+            {
+                var numberEl = valElement.GetPropertyOrNull("value");
+                if (!numberEl.HasValue)
+                {
+                    Logger.LogWarning($"Invalid dependsOn entry for stat {statName}: missing 'value' property");
+                    continue;
+                }
+                var typeEl = valElement.GetPropertyOrNull("type");
+                if (!typeEl.HasValue)
+                {
+                    Logger.LogWarning($"Invalid dependsOn entry for stat {statName}: 'type' property must be a string");
+                    continue;
+                }
+                result.Add(new BodyStat.StatDependency(
+                    depName,
+                    ExpressionCompiler.Compile<float>(numberEl.Value),
+                    ExpressionCompiler.Compile<StatModifierType>(typeEl.Value)
+                ));
+            }
+            else
+                Logger.LogWarning($"Invalid dependsOn value for stat {statName} and dependency {depName}: must be a number or an object");
         }
+        return result;
+    }
+
+    private static List<BodyStat.StatThreshold> ParseThresholds(string statName, List<JsonElement>? thresholdsJson)
+    {
+        var thresholds = new List<BodyStat.StatThreshold>();
+        if (thresholdsJson == null) return thresholds;
+        foreach (var thresholdEl in thresholdsJson)
+        {
+            if (thresholdEl.ValueKind != JsonValueKind.Object)
+            {
+                Logger.LogWarning($"Invalid threshold entry for stat {statName}: must be an object");
+                continue;
+            }
+            var conditionEl = thresholdEl.GetPropertyOrNull("condition");
+            var effectEl = thresholdEl.GetPropertyOrNull("effect");
+            var unapplyEl = thresholdEl.GetPropertyOrNull("reverse");
+            if (!conditionEl.HasValue || !effectEl.HasValue)
+            {
+                Logger.LogWarning($"Invalid threshold entry for stat {statName}: missing 'condition' or 'effect' property");
+                continue;
+            }
+
+            Expr<bool> condition = ExpressionCompiler.Compile<bool>(conditionEl.Value);
+            EffectExpr effect = CompileThresholdEffect(effectEl.Value, isReverse: false);
+            EffectExpr? unapplyEffect = unapplyEl.HasValue ? CompileThresholdEffect(unapplyEl.Value, isReverse: true) : null;
+
+            thresholds.Add(new BodyStat.StatThreshold(condition, effect, unapplyEffect));
+        }
+        return thresholds;
+    }
+
+    /// <summary>A threshold effect may be a feature id (add on apply, remove on reverse) or a full effect expression.</summary>
+    private static EffectExpr CompileThresholdEffect(JsonElement el, bool isReverse)
+    {
+        if (el.ValueKind == JsonValueKind.String && Compendium.EntryExists<Feature>(el.GetString()!))
+        {
+            var feature = new CompendiumEntryExpr<Feature>(el.GetString()!);
+            return isReverse
+                ? new RemoveFeatureEffect(feature, new TargetEntityExpr())
+                : new AddFeatureEffect(feature, new TargetEntityExpr());
+        }
+        return ExpressionCompiler.CompileEffect(el);
     }
 
     public JsonElement GetOriginalJson()
