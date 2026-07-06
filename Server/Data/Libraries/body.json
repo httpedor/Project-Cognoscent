@@ -1,37 +1,4 @@
 {
-    "bp_groups_alive": {
-        "op": "all",
-        "variables": "$0",
-        "condition": {
-            "op": "body_group_alive",
-            "body": {
-                "op": "body_from_bp",
-                "target": "$0"
-            },
-            "group": {
-                "op": "bp_group",
-                "target": "$0"
-            }
-        }
-    },
-    "bp_array_health_percent": {
-        "op": "div",
-        "numbers": [
-            {
-                "op": "sum",
-                "numbers": {
-                    "op": "map",
-                    "values": "$0",
-                    "expression": {
-                        "op": "bp_health",
-                        "part": "$0"
-                    }
-                }
-            },
-            {
-                "op": "array_size",
-                "array": "$0"
-            }
-        ]
-    }
+    "bp_groups_alive": "= all($0, body_group_alive(bp_group($0), body_from_bp($0)))",
+    "bp_array_health_percent": "= sum(map($0, bp_health($0))) / array_size($0)"
 }

@@ -123,6 +123,45 @@ public static class ExpressionCompiler
     private static readonly MethodInfo _compileComponentAsMethod = typeof(ExpressionCompiler).GetMethod(nameof(CompileComponentAs), BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo _compileEnumMethod = typeof(ExpressionCompiler).GetMethod(nameof(CompileEnum), BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo _compileCompendiumEntryMethod = typeof(ExpressionCompiler).GetMethod(nameof(CompileCompendiumEntry), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    // ── shared helpers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// If <paramref name="element"/> is DSL source (a string starting with '='), desugar it to its
+    /// JSON expression tree; otherwise return it unchanged. Every compile entry point runs this so a
+    /// <c>"= …"</c> string is accepted anywhere an expression is expected.
+    /// </summary>
+    private static JsonElement Desugared(JsonElement element)
+        => Dsl.DslCompiler.IsDslSource(element, out var src) ? Dsl.DslCompiler.Desugar(src) : element;
+
+    /// <summary>Recognizes a <c>"$N"</c> variable-reference string and yields its index N.</summary>
+    private static bool TryGetVarIndex(JsonElement element, out int index)
+    {
+        index = -1;
+        if (element.ValueKind != JsonValueKind.String) return false;
+        var s = element.GetString()!;
+        if (s.Length == 0 || s[0] != '$') return false;
+        if (int.TryParse(s.AsSpan(1), out index)) return true;
+        throw new Exception($"Invalid variable ID: {s[1..]}");
+    }
+
+    /// <summary>Reads the required string <c>"op"</c> property, with a clear error if it is missing.</summary>
+    private static string RequireOp(JsonElement element, string what)
+        => element.TryGetProperty("op", out var op) && op.GetString() is { } s
+            ? s
+            : throw new Exception($"{what} is missing a string 'op' property.");
+
+    private static Expr<T> Expect<T>(BaseExpr? compiled)
+        => compiled as Expr<T> ?? throw new Exception($"Compiled expression is not Expr<{typeof(T).Name}>.");
+
+    private static ArrayExpr<T> ExpectArray<T>(object? compiled)
+        => compiled as ArrayExpr<T> ?? throw new Exception($"Compiled expression is not ArrayExpr<{typeof(T).Name}>.");
+
+    /// <summary>Invokes one of the open generic compile methods (component/enum/compendium) closed over T.</summary>
+    private static Expr<T> InvokeGeneric<T>(MethodInfo openMethod, JsonElement element)
+        => openMethod.MakeGenericMethod(typeof(T)).Invoke(null, new object[] { element }) as Expr<T>
+            ?? throw new Exception($"Compiled expression is not Expr<{typeof(T).Name}>.");
+
     public static int GetVariableSymbolId(string symbolName)
     {
         if (symbolName.StartsWith("$"))
@@ -144,14 +183,17 @@ public static class ExpressionCompiler
     }
     private static Expr<IEnumerable<T>>? CheckForMetaArrays<T>(JsonElement element)
     {
-        var metaExpr = CheckForMetaExpr<IEnumerable<T>>(element);
-        if (metaExpr != null)
-            return metaExpr;
-
+        // Array-producing ops are matched first, before the scalar meta-op check below — otherwise
+        // "map" would be caught by CheckForMetaExpr as a non-array MapExpr<IEnumerable<T>> and its
+        // cast to ArrayExpr<T> would fail.
         if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty("op", out var opElement) && opElement.ValueKind == JsonValueKind.String)
         {
             switch (opElement.GetString()?.ToLower())
             {
+                case "map":
+                    return new MapArrayExpr<T>(
+                        CompileBaseExprArray(element.GetProperty("values")),
+                        Compile<T>(element.GetProperty("expression")));
                 case "concat":
                 case "append":
                 case "join":
@@ -227,26 +269,14 @@ public static class ExpressionCompiler
                     return new ArrayWithVarsExpr<T>(innerArray, variables);*/
             }
         }
-        return null;
+        // Not an array-specific op: fall back to scalar meta-ops that also yield arrays
+        // (a `$N` variable, or if/switch/call_expr whose branches are arrays).
+        return CheckForMetaExpr<IEnumerable<T>>(element);
     }
     private static Expr<T>? CheckForMetaExpr<T>(JsonElement element)
     {
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            string name = element.GetString()!;
-            if (name.StartsWith("$"))
-            {
-                string varId = name[1..];
-                if (int.TryParse(varId, out int symbolId))
-                {
-                    return new VarExpr<T>(symbolId);
-                }
-                else
-                {
-                    throw new Exception($"Invalid variable ID: {varId}");
-                }
-            }
-        }
+        if (TryGetVarIndex(element, out var varIndex))
+            return new VarExpr<T>(varIndex);
         if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty("op", out var opElement) || opElement.ValueKind != JsonValueKind.String)
             return null;
 
@@ -364,161 +394,81 @@ public static class ExpressionCompiler
     }
     public static ArrayExpr<T> CompileArray<T>(JsonElement element)
     {
+        element = Desugared(element);
+
+        // A `$N` variable in array position must become a VarArrayExpr — handle it before the meta
+        // check, which would otherwise return a (non-array) VarExpr<IEnumerable<T>> and fail the cast.
+        if (TryGetVarIndex(element, out var varIndex))
+            return new VarArrayExpr<T>(varIndex);
+
         var metaExpr = CheckForMetaArrays<T>(element);
         if (metaExpr != null)
             return (ArrayExpr<T>)metaExpr;
-        
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            string name = element.GetString()!;
-            if (name.StartsWith("$"))
-            {
-                string varId = name[1..];
-                if (int.TryParse(varId, out int symbolId))
-                {
-                    return new VarArrayExpr<T>(symbolId);
-                }
-                else
-                {
-                    throw new Exception($"Invalid variable ID: {varId}");
-                }
-            }
-        }
 
         if (typeof(T) == typeof(object))
-        {
-            var result = CompileUnknownArray(element);
-            if (result != null)
-                return result as ArrayExpr<T> ?? throw new Exception("Failed to compile unknown array expression.");
-        }
+            return ExpectArray<T>(CompileUnknownArray(element));
+
         if (typeof(T).IsAssignableTo(typeof(EffectExpr)))
         {
-            var list = new List<EffectExpr>();
-            if (element.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var el in element.EnumerateArray())
-                {
-                    list.Add(CompileEffect(el));
-                }
-                return new EffectArray(list.ToArray()) as ArrayExpr<T>
-                    ?? throw new Exception("Failed to compile effect array expression.");
-            }
-            throw new Exception($"Invalid effect array expression element: {element}");
+            if (element.ValueKind != JsonValueKind.Array)
+                throw new Exception($"Invalid effect array expression element: {element}");
+            var effects = element.EnumerateArray().Select(el => CompileEffect(el)).ToArray();
+            return ExpectArray<T>(new EffectArray(effects));
         }
+
         if (element.ValueKind == JsonValueKind.Array)
-        {
-            var list = new List<Expr<T>>();
-            foreach (var el in element.EnumerateArray())
-            {
-                list.Add(Compile<T>(el));
-            }
-            return new ConstArrayExpr<T>(list);
-        }
+            return new ConstArrayExpr<T>(element.EnumerateArray().Select(el => Compile<T>(el)).ToList());
 
         if (element.ValueKind != JsonValueKind.Object)
             throw new Exception($"Invalid array expression element: {element}");
-        var op = element.GetProperty("op").GetString();
-        if (op == null)
-            throw new Exception("Array expression object missing 'op' property.");
-        if (typeof(T) == typeof(string))
-        {
-            return ExprRegistry.CompileStringArray(element, op) as ArrayExpr<T>
-                ?? throw new Exception("Failed to compile string array expression.");
-        }
-        if (typeof(T) == typeof(float))
-        {
-            return ExprRegistry.CompileNumberArray(element, op) as ArrayExpr<T>
-                ?? throw new Exception("Failed to compile number array expression.");
-        }
-        if (typeof(T) == typeof(bool))
-        {
-            return ExprRegistry.CompileConditionArray(element, op) as ArrayExpr<T>
-                ?? throw new Exception("Failed to compile condition array expression.");
-        }
-        if (typeof(Component).IsAssignableFrom(typeof(T)))
-        {
-            var result = ExprRegistry.CompileComponentArray(element, op);
-            if (result != null)
-                return result as ArrayExpr<T> ?? throw new Exception("Failed to compile component array expression.");
-        }
-        if (typeof(T) == typeof(Entity))
-        {
-            var result = ExprRegistry.CompileEntityArray(element, op);
-            if (result != null)
-                return result as ArrayExpr<T> ?? throw new Exception("Failed to compile entity array expression.");
-        }
+
+        var op = RequireOp(element, "Array expression");
+        if (typeof(T) == typeof(string)) return ExpectArray<T>(ExprRegistry.CompileStringArray(element, op));
+        if (typeof(T) == typeof(float)) return ExpectArray<T>(ExprRegistry.CompileNumberArray(element, op));
+        if (typeof(T) == typeof(bool)) return ExpectArray<T>(ExprRegistry.CompileConditionArray(element, op));
+        if (typeof(Component).IsAssignableFrom(typeof(T)) && ExprRegistry.CompileComponentArray(element, op) is { } comp)
+            return ExpectArray<T>(comp);
+        if (typeof(T) == typeof(Entity) && ExprRegistry.CompileEntityArray(element, op) is { } ent)
+            return ExpectArray<T>(ent);
         throw new Exception($"Unknown array operation: {op}");
     }
     public static Expr<T> Compile<T>(JsonElement element)
     {
+        element = Desugared(element);
         var metaExpr = CheckForMetaExpr<T>(element);
         if (metaExpr != null)
             return metaExpr;
+
         if (typeof(T) == typeof(object))
         {
-            var unknownExpr = CompileUnknown(element);
-            return new CastExpr<object>(unknownExpr) as Expr<T>
-                ?? throw new Exception("Failed to compile unknown expression.");
+            // Literal operands (e.g. the right side of `x == 0`) compile directly; CompileUnknown
+            // only handles op-objects, and CheckForMetaExpr already handled `$N` variables.
+            BaseExpr literal = element.ValueKind switch
+            {
+                JsonValueKind.Number => new ConstNumberExpr(element.GetSingle()),
+                JsonValueKind.True or JsonValueKind.False => new ConstConditionExpr(element.GetBoolean()),
+                JsonValueKind.String => new StringLiteralExpr(element.GetString()!),
+                _ => CompileUnknown(element),
+            };
+            return Expect<T>(new CastExpr<object>(literal));
         }
-        if (typeof(T) == typeof(NoReturn))
-            return CompileEffect(element, false) as Expr<T> ?? throw new Exception("Failed to compile effect expression.");
-        else if (typeof(T) == typeof(float))
-            return CompileNumber(element) as Expr<T>
-                ?? throw new Exception("Compiled expression is not of the expected type.");
-        else if (typeof(T).IsNumericType())
-        {
-            var numberExpr = CompileNumber(element);
-            return new CastExpr<T>(numberExpr) as Expr<T>
-                ?? throw new Exception("Compiled expression is not of the expected type.");
-        }
-        else if (typeof(T) == typeof(bool))
-            return CompileCondition(element) as Expr<T>
-                ?? throw new Exception("Compiled expression is not of the expected type.");
-        else if (typeof(T) == typeof(Entity))
-            return CompileEntity(element) as Expr<T>
-                ?? throw new Exception("Compiled expression is not of the expected type.");
-        else if (typeof(T) == typeof(string))
-            return CompileString(element) as Expr<T>
-                ?? throw new Exception("Compiled expression is not of the expected type.");
-        else if (typeof(Component).IsAssignableFrom(typeof(T)))
-        {
-            if (_compileComponentAsMethod == null)
-                throw new Exception("Could not locate CompileComponentAs method via reflection.");
-            var genericMethod = _compileComponentAsMethod.MakeGenericMethod(typeof(T));
-            var compiled = genericMethod.Invoke(null, new object[] { element });
-            if (compiled is Expr<T> typedExpr)
-                return typedExpr;
-            throw new Exception("Compiled expression is not of the expected type.");
-        }
-        else if (typeof(T).IsEnum)
-        {
-            if (_compileEnumMethod == null)
-                throw new Exception("Could not locate CompileEnum method via reflection.");
-            var genericMethod = _compileEnumMethod.MakeGenericMethod(typeof(T));
-            var compiled = genericMethod.Invoke(null, new object[] { element });
-            if (compiled is Expr<T> typedExpr)
-                return typedExpr;
-            throw new Exception("Compiled expression is not of the expected type.");
-        }
-        else if (Compendium.IsFolder<T>())
-        {
-            if (_compileCompendiumEntryMethod == null)
-                throw new Exception("Could not locate CompileCompendiumEntry method via reflection.");
-            var genericMethod = _compileCompendiumEntryMethod.MakeGenericMethod(typeof(T));
-            var compiled = genericMethod.Invoke(null, [element]);
-            if (compiled is Expr<T> typedExpr)
-                return typedExpr;
-            throw new Exception("Compiled expression is not of the expected type.");
-        }
+        if (typeof(T) == typeof(NoReturn)) return Expect<T>(CompileEffect(element, false));
+        if (typeof(T) == typeof(float)) return Expect<T>(CompileNumber(element));
+        if (typeof(T).IsNumericType()) return Expect<T>(new CastExpr<T>(CompileNumber(element)));
+        if (typeof(T) == typeof(bool)) return Expect<T>(CompileCondition(element));
+        if (typeof(T) == typeof(Entity)) return Expect<T>(CompileEntity(element));
+        if (typeof(T) == typeof(string)) return Expect<T>(CompileString(element));
+        if (typeof(Component).IsAssignableFrom(typeof(T))) return InvokeGeneric<T>(_compileComponentAsMethod, element);
+        if (typeof(T).IsEnum) return InvokeGeneric<T>(_compileEnumMethod, element);
+        if (Compendium.IsFolder<T>()) return InvokeGeneric<T>(_compileCompendiumEntryMethod, element);
         throw new Exception($"Unsupported expression type for compilation: {typeof(T)}");
     }
     public static BaseExpr CompileUnknown(JsonElement element)
     {
+        element = Desugared(element);
         if (element.ValueKind != JsonValueKind.Object)
             throw new Exception($"Invalid expression element: {element}");
-        var op = element.GetProperty("op").GetString();
-        if (op == null)
-            throw new Exception("Expression object missing 'op' property.");
+        var op = RequireOp(element, "Expression");
         var builders = ExprRegistry.GetAllBuilders(op.ToLower());
         foreach (var builder in builders)
         {
@@ -545,6 +495,7 @@ public static class ExpressionCompiler
     /// <returns></returns>
     public static BaseExpr CompileBaseExpr(JsonElement element)
     {
+        element = Desugared(element);
         var metaExpr = CheckForMetaArrays<object>(element);
         if (metaExpr != null)
             return metaExpr;
@@ -596,29 +547,38 @@ public static class ExpressionCompiler
         }
         if (element.ValueKind != JsonValueKind.Object)
             throw new Exception($"Invalid expression element: {element}");
-        var op = element.GetProperty("op").GetString();
-        if (op == null)
-            throw new Exception("Expression object missing 'op' property.");
+        var op = RequireOp(element, "Array expression");
         var builders = ExprRegistry.GetAllBuilders(op.ToLower());
-        foreach (var builder in builders)
+        // Prefer a native array builder (e.g. bp_by_tag yields an array directly), then fall back
+        // to treating a single-value op as a one-element array. Both wrap into CastArrayExpr<object>.
+        foreach (var preferArray in new[] { true, false })
         {
-            if (builder.IsArray)
-                continue;
-            try
+            foreach (var builder in builders)
             {
-                var expr = builder.Builder(element);
-                if (expr is BaseExpr baseExpr)
-                    return new CastArrayExpr<object>(baseExpr);
-            }
-            catch
-            {
-                // If the builder throws an exception, ignore it and try the next one. This allows us to attempt multiple builders for the same op until we find one that matches the expected parameters.
+                if (builder.IsArray != preferArray)
+                    continue;
+                try
+                {
+                    var expr = builder.Builder(element);
+                    if (expr is BaseExpr baseExpr)
+                        return new CastArrayExpr<object>(baseExpr);
+                }
+                catch
+                {
+                    // If the builder throws, try the next one — lets us attempt multiple builders
+                    // for the same op until one matches the expected parameters.
+                }
             }
         }
         throw new Exception("Unknown expression operation: " + op);
     }
     private static Expr<float> CompileNumber(JsonElement element)
     {
+        element = Desugared(element);
+        // Meta-ops (if / switch / with_vars / call_expr / $vars) are valid in any typed position,
+        // including nested ones reached directly (e.g. a filter body), not only via Compile<T>.
+        var meta = CheckForMetaExpr<float>(element);
+        if (meta != null) return meta;
         switch (element.ValueKind)
         {
             case JsonValueKind.Number:
@@ -636,13 +596,9 @@ public static class ExpressionCompiler
             }
 
             case JsonValueKind.Object:
-                var op = element.GetProperty("op").GetString();
-                if (op == null)
-                    throw new Exception("Expr<float> object missing 'op' property.");
-                var ret = ExprRegistry.CompileNumber(element, op.ToLower());
-                if (ret == null)
-                    throw new Exception("Unknown number operation: " + op);
-                return ret;
+                var op = RequireOp(element, "Number expression");
+                return ExprRegistry.CompileNumber(element, op.ToLower())
+                    ?? throw new Exception("Unknown number operation: " + op);
 
             default:
                 throw new Exception($"Invalid expression json: {element}");
@@ -650,6 +606,7 @@ public static class ExpressionCompiler
     }
     public static EffectExpr CompileEffect(JsonElement element, bool withMetaOps = true)
     {
+        element = Desugared(element);
         if (withMetaOps)
         {
             var metaEffect = CheckForMetaExpr<NoReturn>(element);
@@ -659,13 +616,9 @@ public static class ExpressionCompiler
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                string? name = element.GetProperty("op").GetString();
-                if (name == null)
-                    throw new Exception("EffectExpression object missing 'effect' property.");
-                var ret = ExprRegistry.CompileEffect(element, name.ToLower());
-                if (ret == null)
-                    throw new Exception("Unknown effect: " + name);
-                return ret;
+                string name = RequireOp(element, "Effect expression");
+                return ExprRegistry.CompileEffect(element, name.ToLower())
+                    ?? throw new Exception("Unknown effect: " + name);
             case JsonValueKind.String:
                 string effectName = element.GetString()!;
                 switch (effectName.ToLower())
@@ -687,59 +640,27 @@ public static class ExpressionCompiler
     }
     private static Expr<bool> CompileCondition(JsonElement element)
     {
+        element = Desugared(element);
+        // CheckForMetaExpr already handles `$N` variables (as well as if/switch/call_expr).
+        var meta = CheckForMetaExpr<bool>(element);
+        if (meta != null) return meta;
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-                string? op = element.GetProperty("op").GetString();
-                if (op == null)
-                    throw new Exception("ConditionExpression object missing 'op' property.");
-                var ret = ExprRegistry.CompileCondition(element, op.ToLower());
-                if (ret == null)
-                    throw new Exception("Unknown condition operation: " + op);
-                return ret;
+                string op = RequireOp(element, "Condition expression");
+                return ExprRegistry.CompileCondition(element, op.ToLower())
+                    ?? throw new Exception("Unknown condition operation: " + op);
             case JsonValueKind.String:
                 {
                     string name = element.GetString()!;
-                    if (name == "true")
-                        return new ConstConditionExpr(true);
-                    if (name == "false")
-                        return new ConstConditionExpr(false);
+                    if (name == "true") return new ConstConditionExpr(true);
+                    if (name == "false") return new ConstConditionExpr(false);
                     if (name.EndsWith("%"))
-                    {
-                        string probStr = name.Substring(0, name.Length - 1);
-                        if (float.TryParse(probStr, out float probValue))
-                        {
-                            return new RandomConditionExpr(new ConstNumberExpr(probValue / 100f));
-                        }
-                        else
-                        {
-                            throw new Exception($"Invalid probability value in condition: {name}");
-                        }
-                    }
-                    if (name.StartsWith("!$"))
-                    {
-                        string varId = name[2..];
-                        if (int.TryParse(varId, out int symbolId))
-                        {
-                            return new NotConditionExpr(new VarExpr<bool>(symbolId));
-                        }
-                        else
-                        {
-                            throw new Exception($"Invalid variable ID: {varId}");
-                        }
-                    }
-                    else if (name.StartsWith("$"))
-                    {
-                        string varId = name[1..];
-                        if (int.TryParse(varId, out int symbolId))
-                        {
-                            return new VarExpr<bool>(symbolId);
-                        }
-                        else
-                        {
-                            throw new Exception($"Invalid variable ID: {varId}");
-                        }
-                    }
+                        return float.TryParse(name[..^1], out float pct)
+                            ? new RandomConditionExpr(new ConstNumberExpr(pct / 100f))
+                            : throw new Exception($"Invalid probability value in condition: {name}");
+                    if (name.StartsWith("!$") && int.TryParse(name.AsSpan(2), out int negId))
+                        return new NotConditionExpr(new VarExpr<bool>(negId));
                     throw new Exception($"Invalid condition string: {name}");
                 }
             case JsonValueKind.Null:
@@ -765,41 +686,22 @@ public static class ExpressionCompiler
 
     private static Expr<Component?> CompileComponent(JsonElement element)
     {
-        // If the expression is written as an entity selector, resolve entity -> component if possible.
-        // Primary component selector ops are in ExprRegistry for category Component.
+        element = Desugared(element);
+        // A variable may hold an entity or component; wrap it and cast where possible.
+        if (TryGetVarIndex(element, out var varIndex))
+            return new VarExpr<Component?>(varIndex);
 
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
-            {
-                string name = element.GetString()!;
-                if (name.StartsWith("$"))
-                {
-                    string varId = name[1..];
-                    if (int.TryParse(varId, out int symbolId))
-                    {
-                        // Variable may contain an entity or component; wrap and cast where possible
-                        return new VarExpr<Component?>(symbolId);
-                    }
-                    else
-                    {
-                        throw new Exception($"Invalid variable ID: {varId}");
-                    }
-                }
-                if (name.ToLower() == "target_component")
+                var name = element.GetString()!;
+                if (name.Equals("target_component", StringComparison.OrdinalIgnoreCase))
                     return new TargetComponentExpr();
                 throw new Exception($"Invalid component expression string: {name}");
-            }
             case JsonValueKind.Object:
-            {
-                string? name = element.GetProperty("op").GetString();
-                if (name == null)
-                    throw new Exception("ComponentExpression object missing 'op' property.");
-                var result = ExprRegistry.CompileComponent(element, name.ToLower());
-                if (result != null)
-                    return result;
-                throw new Exception("Unknown component operation: " + name);
-            }
+                string op = RequireOp(element, "Component expression");
+                return ExprRegistry.CompileComponent(element, op.ToLower())
+                    ?? throw new Exception("Unknown component operation: " + op);
             case JsonValueKind.Null:
             case JsonValueKind.False:
                 return new NoComponentExpr();
@@ -828,39 +730,22 @@ public static class ExpressionCompiler
 
     private static Expr<Entity?> CompileEntity(JsonElement element)
     {
+        element = Desugared(element);
+        if (TryGetVarIndex(element, out var varIndex))
+            return new VarExpr<Entity?>(varIndex);
+
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
-            {
-                string name = element.GetString()!;
-                if (name.StartsWith("$"))
+                return element.GetString()!.ToLowerInvariant() switch
                 {
-                    string varId = name[1..];
-                    if (int.TryParse(varId, out int symbolId))
-                    {
-                        return new VarExpr<Entity?>(symbolId);
-                    }
-                    else
-                    {
-                        throw new Exception($"Invalid variable ID: {varId}");
-                    }
-                }
-                return name.ToLower() switch
-                {
-                    "self" => new CallerEntityExpr(),
-                    "caller" => new CallerEntityExpr(),
+                    "self" or "caller" => new CallerEntityExpr(),
                     "target" => new TargetEntityExpr(),
-                    "target_part" => new TargetComponentEntityExpr(),
-                    _ => new VarExpr<Entity?>(int.Parse(name[1..])),
+                    "target_part" or "target_component" => new TargetComponentEntityExpr(),
+                    var other => throw new Exception($"Invalid entity selector string: {other}"),
                 };
-            }
             case JsonValueKind.Object:
-            {
-                string? name = element.GetProperty("op").GetString();
-                if (name == null)
-                    throw new Exception("Selector expression object missing 'op' property.");
-                return CompileSelectorObj(element, name);
-            }
+                return CompileSelectorObj(element, RequireOp(element, "Selector expression"));
             case JsonValueKind.Null:
             case JsonValueKind.False:
                 return new NoEntityExpr();
@@ -876,30 +761,16 @@ public static class ExpressionCompiler
     }
     private static Expr<string> CompileString(JsonElement element)
     {
+        element = Desugared(element);
+        // CheckForMetaExpr already handles `$N` variables (as well as if/switch/call_expr).
+        var meta = CheckForMetaExpr<string>(element);
+        if (meta != null) return meta;
         switch (element.ValueKind)
         {
             case JsonValueKind.String:
-                if (element.GetString()?.StartsWith("$") == true)
-                {
-                    string varId = element.GetString()![1..];
-                    if (int.TryParse(varId, out int symbolId))
-                    {
-                        return new VarExpr<string>(symbolId);
-                    }
-                    else
-                    {
-                        throw new Exception($"Invalid variable ID: {varId}");
-                    }
-                }
                 return new StringLiteralExpr(element.GetString()!);
             case JsonValueKind.Object:
-                string? op = element.GetProperty("op").GetString();
-                if (op == null)
-                    throw new Exception("StringExpression object missing 'op' property.");
-
-                return CompileStringObj(
-                    element,
-                    op.ToLower());
+                return CompileStringObj(element, RequireOp(element, "String expression").ToLower());
             default:
                 throw new Exception($"Invalid string expression element: {element}");
         }

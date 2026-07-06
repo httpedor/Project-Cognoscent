@@ -14,15 +14,5 @@
 /.idea/
 
 #Bin and Obj files
-/Rpg/obj/
-/Rpg/bin/
-/Server/obj/
-/Server/bin/
-/Client/obj/
-/Client/bin/
-/Tools/ComponentGenerator/obj/
-/Tools/ComponentGenerator/bin/
-/Tools/PacketTsGen/bin/
-/Tools/PacketTsGen/obj/
-/Tools/SchemaWriter/bin
-/Tools/SchemaWriter/obj
+**/obj/**
+**/bin/**

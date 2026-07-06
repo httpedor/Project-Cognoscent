@@ -40,11 +40,7 @@
           "damageModifiers": [
             // Sharp attacks are less effective against bone
             {
-              "condition": {
-                "op": "var_has_tag",
-                "var": 1,
-                "tag": "sharp"
-              },
+              "condition": "= var_has_tag(1, 'sharp')",
               "operation": "Percent",
               "value": -0.2
             }
@@ -149,19 +145,7 @@
       "base": 5,
       "dependsOn": {
         "agility": {
-          "value": {
-            "op": "div",
-            "numbers": [
-              {
-                "op": "sub",
-                "numbers": [
-                  "$0",
-                  25
-                ]
-              },
-              7
-            ]
-          },
+          "value": "= ($0 - 25) / 7",
           "type": "Flat"
         }
       }
@@ -190,25 +174,7 @@
       "dependsOn": {
         "constitution": {
           // (con - 25) / 100, inverted so that higher constitution means less pain
-          "value": {
-            "op": "mul",
-            "numbers": [
-              -1,
-              {
-                "op": "div",
-                "numbers": [
-                  {
-                    "op": "sub",
-                    "numbers": [
-                      "$0",
-                      25
-                    ]
-                  },
-                  100
-                ]
-              }
-            ]
-          },
+          "value": "= -1 * (($0 - 25) / 100)",
           "type": "Percent"
         }
       }
@@ -228,34 +194,7 @@
         "oxygenation": 0.75,
         "pain": {
           // If pain is above 0.1, consciousness starts to drop, reaching 0 at pain 2.35 (which is above the max of 1, so it will never reach 0 just from pain, but it will get close)
-          "value": {
-            "op": "if",
-            "condition": {
-              "op": "<=",
-              "left": "$0",
-              "right": 0.1
-            },
-            "true": 0,
-            "false": {
-              "op": "mul",
-              "numbers": [
-                -1,
-                {
-                  "op": "div",
-                  "numbers": [
-                    {
-                      "op": "sub",
-                      "numbers": [
-                        "$0",
-                        0.1
-                      ]
-                    },
-                    2.25
-                  ]
-                }
-              ]
-            }
-          },
+          "value": "= $0 <= 0.1 ? 0 : -1 * (($0 - 0.1) / 2.25)",
           "type": "Percent"
         }
       },
@@ -265,21 +204,9 @@
       "thresholds": [
         {
           // If consciousness drops to 0.3 or below, apply the "Sleeping" feature
-          "condition": {
-            "op": "<=",
-            "left": "$0",
-            "right": 0.3
-          },
-          "effect": {
-            "op": "add_feature",
-            "feature": "sleeping",
-            "target": "self"
-          },
-          "reverse": {
-            "op": "remove_feature",
-            "feature": "sleeping",
-            "target": "self"
-          }
+          "condition": "= $0 <= 0.3",
+          "effect": "= add_feature('sleeping', self)",
+          "reverse": "= remove_feature('sleeping', self)"
         }
       ]
     },

@@ -239,6 +239,53 @@ public class MapManyExpr<T> : ArrayExpr<T>
         }
     }
 }
+/// <summary>
+/// Maps every element of a source array through a per-element expression, producing a new array.
+/// The current element is exposed as variable 0 (existing variables shift up by one), matching
+/// <see cref="FilterArrayExpr{T}"/>. Unlike <see cref="MapManyExpr{T}"/>, the result is a scalar
+/// per element (not flattened), so it is usable as the source of e.g. <c>sum</c>.
+/// </summary>
+public sealed class MapArrayExpr<T> : ArrayExpr<T>
+{
+    public readonly BaseExpr Source;
+    public readonly Expr<T> ResultExpr;
+
+    public MapArrayExpr(BaseExpr source, Expr<T> resultExpr)
+    {
+        Source = source;
+        ResultExpr = resultExpr;
+    }
+    public MapArrayExpr(Stream stream)
+    {
+        Source = BaseExpr.Deserialize(stream);
+        ResultExpr = BaseExpr.Deserialize<Expr<T>>(stream);
+    }
+
+    public override IEnumerable<T> Eval(EvalContext ctx)
+    {
+        object? result = Source.BaseEval(ctx);
+        while (result is BaseExpr expr)
+            result = expr.BaseEval(ctx);
+        if (result is not IEnumerable enumerable)
+            throw new InvalidCastException($"Cannot map over non-enumerable value of type {result?.GetType().Name ?? "null"}");
+
+        var newVariables = new object[ctx.Variables.Length + 1];
+        Array.Copy(ctx.Variables, 0, newVariables, 1, ctx.Variables.Length);
+        var newCtx = ctx.WithVariables(newVariables);
+        foreach (var item in enumerable)
+        {
+            newVariables[0] = item!;
+            yield return ResultExpr.Eval(newCtx);
+        }
+    }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        Source.ToBytes(stream);
+        ResultExpr.ToBytes(stream);
+    }
+}
 public class ForEachEffectExpr : EffectExpr
 {
     public readonly EffectExpr Effect;

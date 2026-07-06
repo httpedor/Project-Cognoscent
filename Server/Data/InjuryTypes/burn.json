@@ -12,25 +12,10 @@
       "interval": 21600,
       "injury": {
         "type": "infection",
-        "severity": {
-          "op": "mul",
-          "numbers": [
-            0.25,
-            "$0"
-          ]
-        }
+        "severity": "= 0.25 * $0"
       },
 
-      "condition": {
-        "op": "rand",
-        "probability": {
-          "op": "mul",
-          "numbers": [
-            0.05,
-            "$0"
-          ]
-        }
-      }
+      "condition": "= rand(0.05 * $0)"
     }
   ]
 }

@@ -13,20 +13,16 @@ if (args.Length < 2)
 var exprPath = args[0];
 var tagsPath = args[1];
 
-// ── Expression schema (unchanged) ──────────────────────────────────────────
 ExprJsonSchema.WriteToFile(exprPath);
 Console.WriteLine($"Expression schema written to: {exprPath}");
 
-// ── Tag schema (new) ───────────────────────────────────────────────────────
 WriteTagSchema(tagsPath);
 Console.WriteLine($"Tag schema written to:        {tagsPath}");
 return 0;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Scans the Rpg assembly for every static class whose name ends with "Tags",
 // collects all  public static readonly Tag<T>  fields, groups them by T, and
 // writes a JSON schema with one $def per type (e.g. DamageTypeTag, BodyTag).
-// ─────────────────────────────────────────────────────────────────────────────
 static void WriteTagSchema(string outputPath)
 {
     var rpgAssembly = typeof(Tag<>).Assembly;

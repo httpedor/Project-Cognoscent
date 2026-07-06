@@ -119,44 +119,6 @@
             }
         ]
     },
-    "canEnterPosture": {
-        "op": ">=",
-        "left": {
-            "op": "array_count",
-            "array": {
-                "op": "filter",
-                "values": {
-                    "op": "bp_by_tag",
-                    "tag": "foot",
-                    "body": "target_component"
-                },
-                "condition": {
-                    "op": "call_expr",
-                    "id": "body:bp_groups_alive",
-                    "args": ["$0"]
-                }
-            }
-        },
-        "right": 1
-    },
-    "canStayInPosture": {
-        "op": ">=",
-        "left": {
-            "op": "array_count",
-            "array": {
-                "op": "filter",
-                "values": {
-                    "op": "bp_by_tag",
-                    "tag": "foot",
-                    "body": "target_component"
-                },
-                "condition": {
-                    "op": "call_expr",
-                    "id": "body:bp_groups_alive",
-                    "args": ["$0"]
-                }
-            }
-        },
-        "right": 1
-    }
+    "canEnterPosture": "= array_count(filter(bp_by_tag(target_component, 'foot'), body::bp_groups_alive($0))) >= 1",
+    "canStayInPosture": "= array_count(filter(bp_by_tag(target_component, 'foot'), body::bp_groups_alive($0))) >= 1"
 }
