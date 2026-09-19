@@ -152,21 +152,33 @@ public class InjuryType : ISerializable, ITaggable
 }
 public class InjuryModel
 {
-    public CompendiumEntryExpr<InjuryType> Type;
+    public Expr<InjuryType?> Type;
     public Expr<float> Severity;
+
+    public InjuryModel(Expr<InjuryType?> type, Expr<float> severity)
+    {
+        Type = type;
+        Severity = severity;
+    }
+
+    /// <summary>Reads the <c>type</c>/<c>severity</c> pair a compendium entry writes inline.</summary>
     public InjuryModel(JsonElement json)
     {
         if (!json.TryGetProperty("type", out var typeEl))
             throw new Exception("InjuryModel deserialization requires a 'type' property.");
-        Type = new CompendiumEntryExpr<InjuryType>(ExpressionCompiler.Compile<string>(typeEl));
         if (!json.TryGetProperty("severity", out var severityEl))
             throw new Exception("InjuryModel deserialization requires a 'severity' property.");
+
+        Type = ExpressionCompiler.Compile<InjuryType?>(typeEl);
         Severity = ExpressionCompiler.Compile<float>(severityEl);
     }
 
     public InjuryModel(Stream stream)
     {
-        Type = new CompendiumEntryExpr<InjuryType>(stream);
+        // ToBytes writes the expression's own type tag, so it has to be read back through the
+        // dispatching deserializer; reading a CompendiumEntryExpr directly skipped that tag and
+        // left the stream one string out of step.
+        Type = BaseExpr.Deserialize<Expr<InjuryType?>>(stream);
         Severity = BaseExpr.Deserialize<Expr<float>>(stream);
     }
 

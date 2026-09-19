@@ -72,6 +72,7 @@ public class SkillCancelEvent(Component component, SkillData skillData, bool int
 {
     public bool Interrupted = interrupted;
 }
+[RegisterComponent]
 public partial class SkillExecutor : Component, ITickableComponent
 {
     [RequiredComponent(typeof(StatsContainer))]

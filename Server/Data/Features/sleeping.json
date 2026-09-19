@@ -12,30 +12,10 @@
             }
         ]
     },
-    "onEnabled": {
-        "op": "composite",
-        "effects": [
-            {
-                "op": "change_posture_to_resting",
-                "target": "caller"
-            },
-            {
-                "log"
-            }
-        ]
-    },
+    "enable": "= composite([caller.change_posture_to_resting(), log(concat([caller.ent_name(), ' foi dormir.']))])",
     "doesExecuteSkill": {
         // Prevent executing any skills while sleeping
-        "op": "false",
-        "reason": {
-            "op": "concat",
-            "strings": [
-                {
-                    "op": "ent_name",
-                    "target": "caller"
-                },
-                " está dormindo."
-            ]
-        }
+        "condition": false,
+        "reason": "= concat([caller.ent_name(), ' está dormindo.'])"
     }
 }

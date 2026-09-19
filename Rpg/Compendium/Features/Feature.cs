@@ -42,6 +42,41 @@ public class Feature : ISerializable
         return ret;
     }
 
+    /// <summary>
+    /// Reads a field that is an expression plus an explanation to show the player — a gate and why
+    /// it blocked, a damage modifier and its formula.
+    /// <para>
+    /// Written either bare (<c>"doesAttack": false</c>) or as an object naming both parts
+    /// (<c>"doesAttack": { "condition": false, "reason": "…" }</c>). The two used to share one
+    /// element, the explanation riding along as a sibling key of the expression itself; that only
+    /// parsed while an expression could be a JSON object, and it is why the resolver had to tolerate
+    /// argument names it did not recognise.
+    /// </para>
+    /// </summary>
+    private static (Expr<T> Value, Expr<string> Explanation)? CompileExplained<T>(
+        JsonElement json, string property, string valueKey, string explanationKey)
+    {
+        if (!json.TryGetProperty(property, out var element))
+            return null;
+
+        var isPair = element.ValueKind == JsonValueKind.Object;
+        var valueElement = isPair ? element.GetProperty(valueKey) : element;
+
+        Expr<string> explanation = isPair && element.TryGetProperty(explanationKey, out var explanationElement)
+            ? ExpressionCompiler.Compile<string>(explanationElement)
+            : new StringLiteralExpr("");
+
+        return (ExpressionCompiler.Compile<T>(valueElement), explanation);
+    }
+
+    /// <summary>A condition that, when it fails, has a reason.</summary>
+    private static (Expr<bool>, Expr<string>)? CompileGate(JsonElement json, string property)
+        => CompileExplained<bool>(json, property, "condition", "reason");
+
+    /// <summary>A damage modifier that carries the formula explaining it.</summary>
+    private static (Expr<float>, Expr<string>)? CompileDamageModifier(JsonElement json, string property)
+        => CompileExplained<float>(json, property, "amount", "formula");
+
     public static Feature? FromJson(string id, JsonElement json)
     {
         string? type = json.GetProperty("type").GetString();
@@ -70,65 +105,15 @@ public class Feature : ISerializable
         EffectExpr? onTick = json.TryGetProperty("tick", out JsonElement onTickElement) ? ExpressionCompiler.CompileEffect(onTickElement) : null;
         EffectExpr? onEnable = json.TryGetProperty("enable", out JsonElement onEnableElement) ? ExpressionCompiler.CompileEffect(onEnableElement) : null;
         EffectExpr? onDisable = json.TryGetProperty("disable", out JsonElement onDisableElement) ? ExpressionCompiler.CompileEffect(onDisableElement) : null;
-        (Expr<bool>, Expr<string>)? doesGetAttacked = null;
-        if (json.TryGetProperty("doesGetAttacked", out JsonElement doesGetAttackedElement))
-        {
-            var condition = ExpressionCompiler.Compile<bool>(doesGetAttackedElement);
-            Expr<string>? reason = new StringLiteralExpr("");
-            if (doesGetAttackedElement.TryGetProperty("reason", out JsonElement reasonElement))
-            {
-                reason = ExpressionCompiler.Compile<string>(reasonElement);
-            }
-            doesGetAttacked = (condition, reason);
-        }
-        (Expr<bool>, Expr<string>)? doesAttack = null;
-        if (json.TryGetProperty("doesAttack", out JsonElement doesAttackElement))
-        {
-            var condition = ExpressionCompiler.Compile<bool>(doesAttackElement);
-            Expr<string>? reason = new StringLiteralExpr("");
-            if (doesAttackElement.TryGetProperty("reason", out JsonElement reasonElement))
-            {
-                reason = ExpressionCompiler.Compile<string>(reasonElement);
-            }
-            doesAttack = (condition, reason);
-        }
-        (Expr<bool>, Expr<string>)? doesExecuteSkill = null;
-        if (json.TryGetProperty("doesExecuteSkill", out JsonElement doesExecuteSkillElement))
-        {
-            var condition = ExpressionCompiler.Compile<bool>(doesExecuteSkillElement);
-            Expr<string>? reason = new StringLiteralExpr("");
-            if (doesExecuteSkillElement.TryGetProperty("reason", out JsonElement reasonElement))
-            {
-                reason = ExpressionCompiler.Compile<string>(reasonElement);
-            }
-            doesExecuteSkill = (condition, reason);
-        }
+        var doesGetAttacked = CompileGate(json, "doesGetAttacked");
+        var doesAttack = CompileGate(json, "doesAttack");
+        var doesExecuteSkill = CompileGate(json, "doesExecuteSkill");
         EffectExpr? onAttacked = json.TryGetProperty("attacked", out JsonElement onAttackedElement) ? ExpressionCompiler.CompileEffect(onAttackedElement) : null;
         EffectExpr? onAttack = json.TryGetProperty("attack", out JsonElement onAttackElement) ? ExpressionCompiler.CompileEffect(onAttackElement) : null;
         EffectExpr? onExecuteSkill = json.TryGetProperty("onExecuteSkill", out JsonElement onExecuteSkillElement) ? ExpressionCompiler.CompileEffect(onExecuteSkillElement) : null;
         EffectExpr? onInjured = json.TryGetProperty("injured", out JsonElement onInjuredElement) ? ExpressionCompiler.CompileEffect(onInjuredElement) : null;
-        (Expr<float>, Expr<string>)? modifyReceivingDamage = null;
-        if (json.TryGetProperty("receivingDamage", out JsonElement modifyReceivingDamageElement))
-        {
-            var numberExpr = ExpressionCompiler.Compile<float>(modifyReceivingDamageElement);
-            Expr<string>? reason = new StringLiteralExpr("");
-            if (modifyReceivingDamageElement.TryGetProperty("formula", out JsonElement reasonElement))
-            {
-                reason = ExpressionCompiler.Compile<string>(reasonElement);
-            }
-            modifyReceivingDamage = (numberExpr, reason);
-        }
-        (Expr<float>, Expr<string>)? modifyAttackingDamage = null;
-        if (json.TryGetProperty("attackingDamage", out JsonElement modifyAttackingDamageElement))
-        {
-            var numberExpr = ExpressionCompiler.Compile<float>(modifyAttackingDamageElement);
-            Expr<string>? reason = new StringLiteralExpr("");
-            if (modifyAttackingDamageElement.TryGetProperty("formula", out JsonElement reasonElement))
-            {
-                reason = ExpressionCompiler.Compile<string>(reasonElement);
-            }
-            modifyAttackingDamage = (numberExpr, reason);
-        }
+        var modifyReceivingDamage = CompileDamageModifier(json, "receivingDamage");
+        var modifyAttackingDamage = CompileDamageModifier(json, "attackingDamage");
         Dictionary<Expr<string>, List<(Expr<float>, Expr<StatModifierType>)>> statModifiers = new();
         if (json.TryGetProperty("statModifiers", out JsonElement statMods))
         {

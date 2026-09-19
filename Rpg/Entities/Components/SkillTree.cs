@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Rpg.Features;
 using Rpg.Skills;
 
@@ -189,6 +189,7 @@ public class SkillTreeEntry : ISerializable
 
     public bool CanEnable => Dependencies.All(dep => Tree.IsEnabled(dep));
 }
+[RegisterComponent]
 public partial class SkillTree : Component, ISerializable
 {
     private Dictionary<string, SkillTreeEntry> entries = new();

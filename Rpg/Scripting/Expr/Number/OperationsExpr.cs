@@ -15,15 +15,12 @@ public sealed class LerpExpr : Expr<float>
         T = t;
     }
 
-    [ExprOp(ExprCategory.Number, "lerp")]
-    [ExprParam("min", typeof(float), Required = true)]
-    [ExprParam("max", typeof(float), Required = true)]
-    [ExprParam("t", typeof(float), Required = true, Description = "Interpolation factor (0-1)")]
-    public static Expr<float> CompileOp(JsonElement obj)
-        => new LerpExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("min")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("max")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("t")));
+    [ExprOp("lerp", Description = "Linearly interpolates between min and max.")]
+    public static Expr<float> Op(
+        [Doc("Value at t = 0")] Expr<float> min,
+        [Doc("Value at t = 1")] Expr<float> max,
+        [Doc("Interpolation factor (0-1)")] Expr<float> t)
+        => new LerpExpr(min, max, t);
     public LerpExpr(Stream stream)
     {
         Min = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -57,13 +54,12 @@ public sealed class RandomExpr : Expr<float>
         Max = max;
     }
 
-    [ExprOp(ExprCategory.Number, "rand", "random", "distribution")]
-    [ExprParam("min", typeof(float), Required = true)]
-    [ExprParam("max", typeof(float), Required = true)]
-    public static Expr<float> CompileOp(JsonElement obj)
-        => new RandomExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("min")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("max")));
+    [ExprOp("rand", "random", "distribution",
+            Description = "A uniformly random number between min and max.")]
+    public static Expr<float> Op(
+        [Doc("Lower bound")] Expr<float> min,
+        [Doc("Upper bound")] Expr<float> max)
+        => new RandomExpr(min, max);
     public RandomExpr(Stream stream)
     {
         Min = (Expr<float>)BaseExpr.Deserialize(stream);

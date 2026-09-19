@@ -2,45 +2,7 @@
   "parent": "living_base",
   "icon": "humanoid",
   "tags": ["humanoid"],
-  "onHealthChange": [
-    {
-      // Go prone if all movement bodyparts are dead
-      "op": "if",
-      "condition": {
-        "op": "and",
-        "conditions": [
-          {
-            //Optimization trick to avoid checking all bodyparts if the one damaged doesn't have the "movement" tag
-            // since the only way all movement bodyparts are dead is if the damaged one is, we can skip the rest of the checks in that case
-            "op": "var_has_tag",
-            "tag": "movement",
-            "var": "target_part"
-          },
-          {
-            "op": "all",
-            "condition": {
-              "op": "var_has_tag",
-              "tag": "movement",
-              "var": "target_part"
-            },
-            "variables": {
-              "op": "part_by_tag",
-              "body": {
-                "op": "body_from_part",
-                "target": "target_part"
-              },
-              "tag": "movement"
-            }
-          }
-        ]
-      },
-      "true": {
-        "op": "add_feat",
-        "target": "self",
-        "feature": "prone" // TODO: PRONE feat
-      }
-    }
-  ],
+  "restingPosture": "biped_prone",
   "root": {
     "area": 1,
     "maxHealth": 25,
@@ -164,6 +126,15 @@
             "slots": [
               "leg"
             ],
+            "providedStats": [
+              {
+                "atFull": 40,
+                "atZero": 0,
+                "operation": "Flat",
+                "stat": "strength",
+                "standaloneHPOnly": true
+              }
+            ],
             "children": [
               {
                 "area": 0.1,
@@ -175,6 +146,15 @@
                 ],
                 "slots": [
                   "foot"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "strength",
+                    "standaloneHPOnly": true
+                  }
                 ]
               }
             ]
@@ -191,6 +171,15 @@
             "slots": [
               "leg"
             ],
+            "providedStats": [
+              {
+                "atFull": 40,
+                "atZero": 0,
+                "operation": "Flat",
+                "stat": "strength",
+                "standaloneHPOnly": true
+              }
+            ],
             "children": [
               {
                 "area": 0.1,
@@ -202,6 +191,15 @@
                 ],
                 "slots": [
                   "foot"
+                ],
+                "providedStats": [
+                  {
+                    "atFull": 0,
+                    "atZero": -0.1,
+                    "operation": "Percent",
+                    "stat": "strength",
+                    "standaloneHPOnly": true
+                  }
                 ]
               }
             ]
@@ -642,8 +640,8 @@
                 "standaloneHPOnly": true
               },
               {
-                "atFull": 0,
-                "atZero": 20,
+                "atFull": 20,
+                "atZero": 0,
                 "operation": "Flat",
                 "stat": "strength",
                 "standaloneHPOnly": true

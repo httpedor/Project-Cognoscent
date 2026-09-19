@@ -6,10 +6,16 @@
   "$ref": "#/$defs/BodyPosture",
 
   "$defs": {
-    "NumberExpr":       { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
-    "ConditionExpr":    { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
-    "EffectExpr":       { "$ref": "_expr.schema.json#/$defs/EffectExpr" },
-
+    "Expr": {
+      "description": "An expression: either a DSL string (leading '=', e.g. \"= 1 + target.constitution\"; see Rpg/Scripting/DOCS.md) or a literal (number, string, boolean, null, or an array of those).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array" }
+      ]
+    },
     "BodyPosture": {
       "allOf": [
         { "$ref": "compendium-entry.schema.json#/$defs/Entry" }
@@ -29,20 +35,20 @@
           "description": "Human-readable name of the posture (e.g. stand, crouch, prone)."
         },
         "maxStability": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Maximum stability for this posture (Target=Body, $0=Movement Intensity)."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression (Target=Body, $0=Movement Intensity). Maximum stability for this posture."
         },
         "stabilityRecovery": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Rate of stability recovery per second for this posture."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Rate of stability recovery per second for this posture."
         },
         "idealHeight": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Relative ideal interactable height [0,1]."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Relative ideal interactable height [0,1]."
         },
         "heightTolerance": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Allowed deviation from ideal height in meters."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Allowed deviation from ideal height in meters."
         },
         "defensiveness": {
           "type": "object",
@@ -53,20 +59,20 @@
           "default": {}
         },
         "movement": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Movement speed multiplier (Target=Body, $1=Movement Intensity)."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression (Target=Body, $1=Movement Intensity). Movement speed multiplier."
         },
         "onTick": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect executed each tick while in this posture."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Executed each tick while in this posture."
         },
         "canStayInPosture": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Condition checked every 10 ticks for posture maintenance."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Checked every 10 ticks for posture maintenance."
         },
         "canEnterPosture": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Condition checked when attempting to enter this posture."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Checked when attempting to enter this posture."
         },
         "tags": {
           "type": "array",

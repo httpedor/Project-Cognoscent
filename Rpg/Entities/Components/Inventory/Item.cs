@@ -21,6 +21,7 @@ public class ItemHeldEvent(Item item, Component component) : ItemEvent(item, com
 public class ItemUnheldEvent(Item item, Component component) : ItemEvent(item, component)
 {
 }
+[RegisterComponent]
 public partial class Item : Component
 {
     public string Icon;

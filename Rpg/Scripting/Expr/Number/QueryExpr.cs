@@ -17,21 +17,13 @@ public sealed class StatExpr : Expr<float>
         Target = target;
     }
 
-    [ExprOp(ExprCategory.Number, "stat", "creature_stat", "entity_stat", "entitystat", "creaturestat")]
-    [ExprParam("stat", typeof(string), Required = true, Description = "Name of the stat to read")]
-    [ExprParam("entity", typeof(Entity), Description = "Entity to read stat from (defaults to caller)")]
-    [ExprParam("default", typeof(float), Description = "Default value if stat not found (defaults to 0)")]
-    public static Expr<float> CompileOp(JsonElement obj)
-    {
-        string statName = obj.GetProperty("stat").GetString()!;
-        Expr<Entity?> entityExpr = obj.TryGetProperty("entity", out var entityElement)
-            ? ExpressionCompiler.Compile<Entity>(entityElement)
-            : new CallerEntityExpr();
-        Expr<float> defaultValue = obj.TryGetProperty("default", out var defaultElement)
-            ? ExpressionCompiler.Compile<float>(defaultElement)
-            : new ConstNumberExpr(0);
-        return new StatExpr(statName, entityExpr, defaultValue);
-    }
+    [ExprOp("stat", "creature_stat", "entity_stat", "entitystat", "creaturestat",
+            Description = "Reads a named stat from an entity.")]
+    public static Expr<float> Op(
+        [Doc("Name of the stat to read")] string stat,
+        [Doc("Entity to read the stat from; defaults to the caller")] Expr<Entity?>? entity = null,
+        [Doc("Value to use when the stat is not present")] Expr<float>? @default = null)
+        => new StatExpr(stat, entity ?? new CallerEntityExpr(), @default ?? new ConstNumberExpr(0));
     public StatExpr(Stream stream)
     {
         StatName = stream.ReadString();
@@ -62,11 +54,17 @@ public sealed class StatExpr : Expr<float>
 public sealed class GroupStatExpr : Expr<float>
 {
     public readonly string StatName;
-    public readonly string GroupName;
+    /// <summary>
+    /// The body group to read from. This is an expression rather than a constant because callers
+    /// legitimately map over a set of groups (<c>parts.map(group_stat('strength', $0, caller))</c>);
+    /// when it was read as a constant string those call sites silently looked up a group literally
+    /// named "$0" and fell through to the default value.
+    /// </summary>
+    public readonly Expr<string> GroupName;
     public readonly Expr<float> DefaultValue;
     public readonly Expr<Entity?> Target;
 
-    public GroupStatExpr(string statName, string groupName, Expr<Entity?> target, Expr<float> defaultValue)
+    public GroupStatExpr(string statName, Expr<string> groupName, Expr<Entity?> target, Expr<float> defaultValue)
     {
         StatName = statName;
         GroupName = groupName;
@@ -76,27 +74,27 @@ public sealed class GroupStatExpr : Expr<float>
     public GroupStatExpr(Stream stream)
     {
         StatName = stream.ReadString();
-        GroupName = stream.ReadString();
+        GroupName = BaseExpr.Deserialize<Expr<string>>(stream);
         Target = (Expr<Entity?>)BaseExpr.Deserialize(stream);
         DefaultValue = (Expr<float>)BaseExpr.Deserialize(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "group_stat", "stat_from_group", "local_stat", "stat_local")]
-    [ExprParam("stat", typeof(string), Required = true, Description = "Name of the stat to read")]
-    [ExprParam("group", typeof(string), Required = true, Description = "Name of the group to read stat from")]
-    [ExprParam("entity", typeof(Entity), Description = "Entity to read stat from (defaults to caller)")]
-    [ExprParam("default", typeof(float), Description = "Default value if stat not found (defaults to 0)")]
-    public static Expr<float> CompileOp(JsonElement obj)
+    [ExprOp("group_stat", "stat_from_group", "local_stat", "stat_local",
+            Description = "Reads a named stat scoped to a body group.")]
+    public static Expr<float> Op(
+        [Doc("Name of the stat to read")] string stat,
+        [Doc("Body group to read the stat from")] Expr<string> group,
+        [Doc("Entity to read the stat from; defaults to the caller")] Expr<Entity?>? entity = null,
+        [Doc("Value to use when the stat is not present")] Expr<float>? @default = null)
+        => new GroupStatExpr(stat, group, entity ?? new CallerEntityExpr(), @default ?? new ConstNumberExpr(0));
+
+    public override void ToBytes(Stream stream)
     {
-        string statName = obj.GetProperty("stat").GetString()!;
-        string groupName = obj.GetProperty("group").GetString()!;
-        Expr<Entity?> entityExpr = obj.TryGetProperty("entity", out var entityElement)
-            ? ExpressionCompiler.Compile<Entity>(entityElement)
-            : new CallerEntityExpr();
-        Expr<float> defaultValue = obj.TryGetProperty("default", out var defaultElement)
-            ? ExpressionCompiler.Compile<float>(defaultElement)
-            : new ConstNumberExpr(0);
-        return new GroupStatExpr(statName, groupName, entityExpr, defaultValue);
+        base.ToBytes(stream);
+        stream.WriteString(StatName);
+        GroupName.ToBytes(stream);
+        Target.ToBytes(stream);
+        DefaultValue.ToBytes(stream);
     }
 
     public override float Eval(EvalContext ctx)
@@ -114,7 +112,7 @@ public sealed class GroupStatExpr : Expr<float>
                 return defaultValue;
         }
         
-        return body.GetLocalStat(GroupName, StatName, defaultValue);
+        return body.GetLocalStat(GroupName.Eval(ctx), StatName, defaultValue);
     }
 }
 
@@ -199,11 +197,8 @@ public sealed class ArraySizeExpr : Expr<float>
         Array.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "array_size", "length_of_array", "array_length", "array_count", "count_array")]
-    [ExprParam("array", typeof(object[]), Required = true, Description = "The array to get the length of")]
-    public static Expr<float> CompileOp(JsonElement obj)
-    {
-        var arrayExpr = ExpressionCompiler.CompileArray<object>(obj.GetProperty("array"));
-        return new ArraySizeExpr(arrayExpr);
-    }
+    [ExprOp("array_size", "length_of_array", "array_length", "array_count", "count_array", "len", "count",
+            Description = "Number of elements in an array.")]
+    public static Expr<float> Op([Doc("The array to measure")] ArrayExpr<object> array)
+        => new ArraySizeExpr(array);
 }

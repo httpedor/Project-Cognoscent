@@ -13,21 +13,13 @@ public sealed class GreaterThanConditionExpr : Expr<bool>
         Right = right;
     }
 
-    [ExprOp(ExprCategory.Condition, ">")]
-    [ExprParam("left", typeof(float), Required = true)]
-    [ExprParam("right", typeof(float), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new GreaterThanConditionExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("right")));
+    [ExprOp(">", Description = "True when left is greater than right.")]
+    public static Expr<bool> Op(Expr<float> left, Expr<float> right)
+        => new GreaterThanConditionExpr(left, right);
 
-    [ExprOp(ExprCategory.Condition, "<=")]
-    [ExprParam("left", typeof(float), Required = true)]
-    [ExprParam("right", typeof(float), Required = true)]
-    public static Expr<bool> CompileLte(JsonElement obj)
-        => new NotConditionExpr(new GreaterThanConditionExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("right"))));
+    [ExprOp("<=", Description = "True when left is less than or equal to right.")]
+    public static Expr<bool> LessOrEqual(Expr<float> left, Expr<float> right)
+        => new NotConditionExpr(new GreaterThanConditionExpr(left, right));
     public GreaterThanConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -56,21 +48,13 @@ public sealed class LessThanConditionExpr : Expr<bool>
         Right = right;
     }
 
-    [ExprOp(ExprCategory.Condition, "<")]
-    [ExprParam("left", typeof(float), Required = true)]
-    [ExprParam("right", typeof(float), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new LessThanConditionExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("right")));
+    [ExprOp("<", Description = "True when left is less than right.")]
+    public static Expr<bool> Op(Expr<float> left, Expr<float> right)
+        => new LessThanConditionExpr(left, right);
 
-    [ExprOp(ExprCategory.Condition, ">=")]
-    [ExprParam("left", typeof(float), Required = true)]
-    [ExprParam("right", typeof(float), Required = true)]
-    public static Expr<bool> CompileGte(JsonElement obj)
-        => new NotConditionExpr(new LessThanConditionExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("left")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("right"))));
+    [ExprOp(">=", Description = "True when left is greater than or equal to right.")]
+    public static Expr<bool> GreaterOrEqual(Expr<float> left, Expr<float> right)
+        => new NotConditionExpr(new LessThanConditionExpr(left, right));
     public LessThanConditionExpr(Stream stream)
     {
         Left = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -101,15 +85,12 @@ public sealed class InRangeExpr : Expr<bool>
         Max = max;
     }
 
-    [ExprOp(ExprCategory.Condition, "in_range")]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("min", typeof(float), Required = true)]
-    [ExprParam("max", typeof(float), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new InRangeExpr(
-            ExpressionCompiler.Compile<float>(obj.GetProperty("value")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("min")),
-            ExpressionCompiler.Compile<float>(obj.GetProperty("max")));
+    [ExprOp("in_range", Description = "True when min <= value <= max.")]
+    public static Expr<bool> Op(
+        [Doc("Value to test")] Expr<float> value,
+        [Doc("Inclusive lower bound")] Expr<float> min,
+        [Doc("Inclusive upper bound")] Expr<float> max)
+        => new InRangeExpr(value, min, max);
     public InRangeExpr(Stream stream)
     {
         Value = (Expr<float>)BaseExpr.Deserialize(stream);

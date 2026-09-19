@@ -37,21 +37,15 @@ public class BodyPartAliveCondition : BodyPartCondition
 
     protected override bool Eval(BodyPart part) => part.IsAlive;
 
-    [ExprOp(ExprCategory.Condition, "body_part_alive", "is_body_part_alive", "bp_alive")]
-    [ExprParam("part", typeof(BodyPart), Required = true, Description = "The body part to check")]
-    public static BodyPartAliveCondition CompileAlive(JsonElement json)
-    {
-        var bodyPart = ExpressionCompiler.Compile<BodyPart>(json.GetProperty("part"));
-        return new BodyPartAliveCondition(bodyPart);
-    }
+    [ExprOp("body_part_alive", "is_body_part_alive", "bp_alive",
+            Description = "True while a body part is alive.")]
+    public static BodyPartAliveCondition Alive([Doc("Body part to check")] Expr<BodyPart?> part)
+        => new BodyPartAliveCondition(part);
 
-    [ExprOp(ExprCategory.Condition, "body_part_dead", "is_body_part_dead", "bp_dead")]
-    [ExprParam("part", typeof(BodyPart), Required = true, Description = "The body part to check")]
-    public static Expr<bool> CompileDead(JsonElement json)
-    {
-        var bodyPart = ExpressionCompiler.Compile<BodyPart>(json.GetProperty("part"));
-        return new NotConditionExpr(new BodyPartAliveCondition(bodyPart));
-    }
+    [ExprOp("body_part_dead", "is_body_part_dead", "bp_dead",
+            Description = "True once a body part is dead.")]
+    public static Expr<bool> Dead([Doc("Body part to check")] Expr<BodyPart?> part)
+        => new NotConditionExpr(new BodyPartAliveCondition(part));
     
 }
 
@@ -70,15 +64,12 @@ public class BodyGroupAliveCondition : Expr<bool>
         Body = BaseExpr.Deserialize<Expr<Body?>>(stream);
     }
 
-    [ExprOp(ExprCategory.Condition, "body_group_alive", "is_body_group_alive")]
-    [ExprParam("group", typeof(string), Required = true, Description = "The ID of the body group to check")]
-    [ExprParam("body", typeof(Body), Required = true, Description = "The body to check the group on. If not provided, uses the current body in context.")]
-    public static BodyGroupAliveCondition Compile(JsonElement json)
-    {
-        var groupId = ExpressionCompiler.Compile<string>(json.GetProperty("group"));
-        var bodyExpr = ExpressionCompiler.Compile<Body?>(json.GetProperty("body"));
-        return new BodyGroupAliveCondition(groupId, bodyExpr);
-    }
+    [ExprOp("body_group_alive", "is_body_group_alive",
+            Description = "True while any part of a body group is alive.")]
+    public static BodyGroupAliveCondition Op(
+        [Doc("Id of the body group to check")] Expr<string> group,
+        [Doc("Body the group belongs to")] Expr<Body?> body)
+        => new BodyGroupAliveCondition(group, body);
 
     public override bool Eval(EvalContext ctx)
     {

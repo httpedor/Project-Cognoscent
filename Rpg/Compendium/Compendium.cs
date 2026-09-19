@@ -261,6 +261,26 @@ public static class Compendium
         return entry;
     }
 
+    /// <summary>
+    /// Resolve a list of entry names into their compendium entries, logging a warning
+    /// (and skipping) any name that doesn't resolve. Used to parse JSON string lists
+    /// (features, skills, etc.) that reference compendium entries.
+    /// </summary>
+    public static List<T> ResolveEntries<T>(IEnumerable<string>? names, string? warningLabel = null) where T : class
+    {
+        var result = new List<T>();
+        if (names == null) return result;
+        foreach (var name in names)
+        {
+            var entry = GetEntry<T>(name);
+            if (entry == null)
+                Logger.LogWarning($"Invalid {warningLabel ?? typeof(T).Name} in JSON: {name}");
+            else
+                result.Add(entry);
+        }
+        return result;
+    }
+
     public static JsonElement? GetEntryJsonOrNull(string folder, string name)
     {
         return folders.TryGetValue(folder, out var fd) && fd.Entries.TryGetValue(name, out var entry) ? entry.Data : null;
@@ -352,11 +372,18 @@ public static class Compendium
     {
         return EntryExists<T>(name, includeBase);
     }
-    public static bool IsFolder<T>()
-    {
-        string folder = GetFolderName<T>();
-        return folders.ContainsKey(folder);
-    }
+    public static bool IsFolder<T>() => IsFolder(typeof(T));
+
+    /// <summary>
+    /// True if <paramref name="type"/> is stored in a compendium folder.
+    /// <para>
+    /// This answers the question rather than throwing when the answer is no: it went through
+    /// <c>GetFolderName</c>, which raises "Invalid data type" for anything unregistered, so asking
+    /// about an ordinary type (a component, say) failed instead of returning false.
+    /// </para>
+    /// </summary>
+    public static bool IsFolder(Type type)
+        => typeToFolder.TryGetValue(type, out var folder) && folders.ContainsKey(folder);
     
     public static T? GetDefaultEntry<T>() where T : class
     {

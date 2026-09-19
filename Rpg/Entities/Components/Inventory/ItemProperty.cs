@@ -1,5 +1,6 @@
 namespace Rpg.Entities.Components.Inventory;
 
+[RegisterComponent]
 public abstract partial class ItemProperty : Component
 {
     [RequiredComponent(typeof(Item))]

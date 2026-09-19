@@ -1,4 +1,5 @@
 namespace Rpg.Entities;
+[RegisterComponent]
 public partial class CustomDataComponent : Component
 {
     protected readonly Dictionary<string, byte[]> customData = new();

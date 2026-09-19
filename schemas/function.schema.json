@@ -6,13 +6,22 @@
     "$ref": "#/$defs/ExprLibrary",
 
     "$defs": {
-        "BaseExpr": { "$ref": "_expr.schema.json#/$defs/BaseExpr" },
+        "Expr": {
+            "description": "An expression: either a DSL string (leading '=', e.g. \"= 1 + target.constitution\"; see Rpg/Scripting/DOCS.md) or a literal (number, string, boolean, null, or an array of those).",
+            "oneOf": [
+                { "type": "string" },
+                { "type": "number" },
+                { "type": "boolean" },
+                { "type": "null" },
+                { "type": "array" }
+            ]
+        },
         "ExprLibrary": {
             "type": "object",
             "description": "Library of named expressions that can be used in other expression fields.",
             "additionalProperties": {
-                "description": "An expression that can be used in other expression fields by referencing its name.",
-                "$ref": "#/$defs/BaseExpr"
+                "description": "Any expression type (number, condition, string, effect, entity, body, body part, component, or an array of any of these) that can be used in other expression fields by referencing its name.",
+                "$ref": "#/$defs/Expr"
             }
         }
     }

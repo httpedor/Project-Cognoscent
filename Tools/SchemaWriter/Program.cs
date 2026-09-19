@@ -1,20 +1,15 @@
 using System.Reflection;
 using System.Text.Json;
 using Rpg;
-using Rpg.Scripting;
 
-if (args.Length < 2)
+if (args.Length < 1)
 {
-    Console.Error.WriteLine("Usage: SchemaWriter <expr-schema-path> <tags-schema-path>");
-    Console.Error.WriteLine("  Writes the auto-generated expression and tag JSON schemas.");
+    Console.Error.WriteLine("Usage: SchemaWriter <tags-schema-path>");
+    Console.Error.WriteLine("  Writes the auto-generated tag JSON schema.");
     return 1;
 }
 
-var exprPath = args[0];
-var tagsPath = args[1];
-
-ExprJsonSchema.WriteToFile(exprPath);
-Console.WriteLine($"Expression schema written to: {exprPath}");
+var tagsPath = args[0];
 
 WriteTagSchema(tagsPath);
 Console.WriteLine($"Tag schema written to:        {tagsPath}");

@@ -8,10 +8,9 @@ public sealed class AddExpr : Expr<float>
     public AddExpr(ArrayExpr<float> args) => Args = args;
     public AddExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
-    [ExprOp(ExprCategory.Number, "sum", "plus", "add", "addition", "+")]
-    [ExprParam("numbers", typeof(global::System.Collections.Generic.List<float>), Required = true, Description = "Array of numbers to sum")]
-    public static Expr<float> CompileOp(JsonElement obj)
-        => new AddExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
+    [ExprOp("sum", "plus", "add", "addition", "+", Description = "Adds every number in the array.")]
+    public static Expr<float> Op([Doc("Numbers to sum")] ArrayExpr<float> numbers)
+        => new AddExpr(numbers);
     public AddExpr(Stream stream)
     {
         Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
@@ -37,10 +36,10 @@ public sealed class SubExpr : Expr<float>
     public SubExpr(ArrayExpr<float> args) => Args = args;
     public SubExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
-    [ExprOp(ExprCategory.Number, "sub", "subtract", "minus", "subtraction", "-")]
-    [ExprParam("numbers", typeof(float[]), Required = true, Description = "Array of numbers to subtract sequentially")]
-    public static Expr<float> CompileOp(JsonElement obj)
-        => new SubExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
+    [ExprOp("sub", "subtract", "minus", "subtraction", "-",
+            Description = "Subtracts each subsequent number from the first.")]
+    public static Expr<float> Op([Doc("Numbers to subtract sequentially")] ArrayExpr<float> numbers)
+        => new SubExpr(numbers);
     public SubExpr(Stream stream)
     {
         Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
@@ -66,10 +65,10 @@ public sealed class MulExpr : Expr<float>
     public MulExpr(ArrayExpr<float> args) => Args = args;
     public MulExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
-    [ExprOp(ExprCategory.Number, "mul", "multiply", "times", "multiplication", "*")]
-    [ExprParam("numbers", typeof(float[]), Required = true, Description = "Array of numbers to multiply")]
-    public static Expr<float> CompileOp(JsonElement obj)
-        => new MulExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
+    [ExprOp("mul", "multiply", "times", "multiplication", "*",
+            Description = "Multiplies every number in the array.")]
+    public static Expr<float> Op([Doc("Numbers to multiply")] ArrayExpr<float> numbers)
+        => new MulExpr(numbers);
     public MulExpr(Stream stream)
     {
         Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);
@@ -93,10 +92,10 @@ public sealed class DivExpr : Expr<float>
     public DivExpr(ArrayExpr<float> args) => Args = args;
     public DivExpr(params Expr<float>[] args) => Args = new ConstArrayExpr<float>(args);
 
-    [ExprOp(ExprCategory.Number, "div", "divide", "division", "/")]
-    [ExprParam("numbers", typeof(float[]), Required = true, Description = "Array of numbers to divide sequentially")]
-    public static Expr<float> CompileOp(JsonElement obj)
-        => new DivExpr(ExpressionCompiler.CompileArray<float>(obj.GetProperty("numbers")));
+    [ExprOp("div", "divide", "division", "/",
+            Description = "Divides the first number by each subsequent one.")]
+    public static Expr<float> Op([Doc("Numbers to divide sequentially")] ArrayExpr<float> numbers)
+        => new DivExpr(numbers);
     public DivExpr(Stream stream)
     {
         Args = (ArrayExpr<float>)BaseExpr.Deserialize(stream);

@@ -102,6 +102,7 @@ public class BodyJson
     [JsonPropertyName("layerProfiles")] public Dictionary<string, BodyLayerProfileJson>? LayerProfiles { get; set; }
     [JsonPropertyName("sexualDimorphism")] public bool SexualDimorphism { get; set; }
     [JsonPropertyName("onBuild")] public List<JsonElement>? OnBuild { get; set; }
+    [JsonPropertyName("preBuild")] public List<JsonElement>? PreBuild { get; set; }
     [JsonPropertyName("onHealthChange")] public List<JsonElement>? OnHealthChange { get; set; }
 }
 
@@ -166,67 +167,39 @@ public class BodyLayerModel
         var layerJson = json.Deserialize<BodyLayerJson>();
         if (layerJson == null) return model;
 
-        if (layerJson.BloodFlow.HasValue)
-            model.BloodFlow = ExpressionCompiler.Compile<float>(layerJson.BloodFlow.Value);
-        if (layerJson.MaxHealth.HasValue)
-            model.MaxHealth = ExpressionCompiler.Compile<float>(layerJson.MaxHealth.Value);
-        if (layerJson.Regen.HasValue)
-            model.Regen = ExpressionCompiler.Compile<float>(layerJson.Regen.Value);
+        model.BloodFlow = ExpressionCompiler.CompileOr(layerJson.BloodFlow, model.BloodFlow);
+        model.MaxHealth = ExpressionCompiler.CompileOr(layerJson.MaxHealth, model.MaxHealth);
+        model.Regen = ExpressionCompiler.CompileOr(layerJson.Regen, model.Regen);
         if (layerJson.OnHeal.HasValue)
             model.OnHeal = ExpressionCompiler.CompileEffect(layerJson.OnHeal.Value);
-        if (layerJson.Pain.HasValue)
-            model.Pain = ExpressionCompiler.Compile<float>(layerJson.Pain.Value);
-        if (layerJson.Vital.HasValue)
-            model.Vital = ExpressionCompiler.Compile<bool>(layerJson.Vital.Value);
-        if (layerJson.Bypass.HasValue)
-            model.Bypass = ExpressionCompiler.Compile<bool>(layerJson.Bypass.Value);
-        if (layerJson.SurfaceArea.HasValue)
-            model.SurfaceArea = ExpressionCompiler.Compile<float>(layerJson.SurfaceArea.Value);
+        model.Pain = ExpressionCompiler.CompileOr(layerJson.Pain, model.Pain);
+        model.Vital = ExpressionCompiler.CompileOr(layerJson.Vital, model.Vital);
+        model.Bypass = ExpressionCompiler.CompileOr(layerJson.Bypass, model.Bypass);
+        model.SurfaceArea = ExpressionCompiler.CompileOr(layerJson.SurfaceArea, model.SurfaceArea);
 
-        // Parse damage modifiers
+        // Parse damage modifiers. Simple format: { "damageTypeName": NumberExpr }, condition defaults to
+        // VarIsEntryConditionExpr on var 1 (the DamageType). Full format:
+        // [{ "condition": ConditionExpr, "operation": EnumExpr, "value": NumberExpr }].
+        // Modifiers need a float at build time, so values are evaluated eagerly.
         if (layerJson.DamageModifiers.HasValue)
         {
-            var dmgEl = layerJson.DamageModifiers.Value;
-            if (dmgEl.ValueKind == JsonValueKind.Object)
-            {
-                // Simple format: { "damageTypeName": NumberExpr }
-                // Condition defaults to VarIsEntryConditionExpr on var 1 (the DamageType)
-                foreach (var prop in dmgEl.EnumerateObject())
+            model.DamageModifiers = JsonHelpers.ParseConditionedEntries(
+                layerJson.DamageModifiers.Value,
+                dmgTypeName => new VarIsEntryConditionExpr(new StringLiteralExpr(dmgTypeName), 1),
+                (dmgTypeName, valEl) => new StatModifier(
+                    $"layer-{name}-{dmgTypeName}-dmgmod",
+                    ExpressionCompiler.Compile<float>(valEl).Eval(),
+                    StatModifierType.Percent),
+                entry =>
                 {
-                    var condition = new VarIsEntryConditionExpr(
-                        new StringLiteralExpr(prop.Name), 1
-                    );
-                    var value = ExpressionCompiler.Compile<float>(prop.Value);
-                    // Simple-format modifiers need a float at build time, so evaluate eagerly.
-                    model.DamageModifiers[condition] = new StatModifier(
-                        $"layer-{name}-{prop.Name}-dmgmod",
-                        value.Eval(),
-                        StatModifierType.Percent
-                    );
-                }
-            }
-            else if (dmgEl.ValueKind == JsonValueKind.Array)
-            {
-                // Full format: [{ "condition": ConditionExpr, "operation": EnumExpr, "value": NumberExpr }]
-                foreach (var entry in dmgEl.EnumerateArray())
-                {
-                    if (entry.ValueKind != JsonValueKind.Object) continue;
-                    var condEl = entry.GetPropertyOrNull("condition");
                     var valEl = entry.GetPropertyOrNull("value");
+                    if (!valEl.HasValue) return null;
                     var opEl = entry.GetPropertyOrNull("operation");
-                    if (!condEl.HasValue || !valEl.HasValue) continue;
-
-                    var condition = ExpressionCompiler.Compile<bool>(condEl.Value);
-                    var val = ExpressionCompiler.Compile<float>(valEl.Value);
                     var op = opEl.HasValue
                         ? JsonHelpers.ParseOp(opEl.Value.GetString(), StatModifierType.Percent)
                         : StatModifierType.Percent;
-
-                    model.DamageModifiers[condition] = new StatModifier(
-                        $"layer-{name}-dmgmod", val.Eval(), op
-                    );
-                }
-            }
+                    return new StatModifier($"layer-{name}-dmgmod", ExpressionCompiler.Compile<float>(valEl.Value).Eval(), op);
+                });
         }
 
         // Parse injuries
@@ -253,35 +226,21 @@ public class BodyLayerModel
         // Parse providedStats
         model.ProvidedStatsRaw = BodyPartModel.PartStatModifierConfig.ParseList(layerJson.ProvidedStats);
 
-        // Parse penetration resistance
+        // Parse penetration resistance. Simple format: { "damageTypeName": NumberExpr }, scaled by the
+        // layer's current health. Full format: [{ "condition": ConditionExpr, "value": NumberExpr }].
         if (layerJson.Resistance.HasValue)
         {
-            var resEl = layerJson.Resistance.Value;
-            if (resEl.ValueKind == JsonValueKind.Object)
-            {
-                // Simple format: { "damageTypeName": NumberExpr }
-                foreach (var prop in resEl.EnumerateObject())
+            model.PenetrationResistance = JsonHelpers.ParseConditionedEntries(
+                layerJson.Resistance.Value,
+                dmgTypeName => new VarIsEntryConditionExpr(new StringLiteralExpr(dmgTypeName), 1),
+                (dmgTypeName, valEl) => (Expr<float>)new MulExpr(
+                    ExpressionCompiler.Compile<float>(valEl),
+                    new LayerHealthExpr(new CastExpr<BodyPart?>(new EntityToComponentExpr<BodyPart>(new CallerEntityExpr())), new StringLiteralExpr(name))),
+                entry =>
                 {
-                    var condition = new VarIsEntryConditionExpr(
-                        new StringLiteralExpr(prop.Name), 1
-                    );
-                    model.PenetrationResistance[condition] = new MulExpr(ExpressionCompiler.Compile<float>(prop.Value), new LayerHealthExpr(new CastExpr<BodyPart?>(new EntityToComponentExpr<BodyPart>(new CallerEntityExpr())), new StringLiteralExpr(name)));
-                }
-            }
-            else if (resEl.ValueKind == JsonValueKind.Array)
-            {
-                // Full format: [{ "condition": ConditionExpr, "value": NumberExpr }]
-                foreach (var entry in resEl.EnumerateArray())
-                {
-                    if (entry.ValueKind != JsonValueKind.Object) continue;
-                    var condEl = entry.GetPropertyOrNull("condition");
                     var valEl = entry.GetPropertyOrNull("value");
-                    if (!condEl.HasValue || !valEl.HasValue) continue;
-
-                    var condition = ExpressionCompiler.Compile<bool>(condEl.Value);
-                    model.PenetrationResistance[condition] = ExpressionCompiler.Compile<float>(valEl.Value);
-                }
-            }
+                    return valEl.HasValue ? ExpressionCompiler.Compile<float>(valEl.Value) : null;
+                });
         }
 
         return model;
@@ -470,11 +429,11 @@ public class BodyPartModel
         Name = jsonModel.Name ?? "unnamed";
         Group = jsonModel.Group ?? "default";
         PainMultiplier = jsonModel.PainMultiplier;
-        HealthMultiplier = jsonModel.HealthMultiplier.HasValue ? ExpressionCompiler.Compile<float>(jsonModel.HealthMultiplier.Value) : new ConstNumberExpr(1);
-        Sensitivity = jsonModel.Sensitivity.HasValue ? ExpressionCompiler.Compile<float>(jsonModel.Sensitivity.Value) : new ConstNumberExpr(1);
+        HealthMultiplier = ExpressionCompiler.CompileOr(jsonModel.HealthMultiplier, HealthMultiplier);
+        Sensitivity = ExpressionCompiler.CompileOr(jsonModel.Sensitivity, Sensitivity);
         EquipmentSlots = jsonModel.Slots ?? new();
-        Condition = jsonModel.Condition.HasValue ? ExpressionCompiler.Compile<bool>(jsonModel.Condition.Value) : new ConstConditionExpr(true);
-        VitalForGroup = jsonModel.VitalForGroup.HasValue ? ExpressionCompiler.Compile<bool>(jsonModel.VitalForGroup.Value) : new ConstConditionExpr(true);
+        Condition = ExpressionCompiler.CompileOr(jsonModel.Condition, Condition);
+        VitalForGroup = ExpressionCompiler.CompileOr(jsonModel.VitalForGroup, VitalForGroup);
         // parse part-level provided stats
         ProvidedStats = PartStatModifierConfig.ParseList(jsonModel.ProvidedStats);
 
@@ -521,45 +480,9 @@ public class BodyPartModel
             }
         }
 
-        if (jsonModel.Skills != null)
-        {
-            var skills = new List<Skill>();
-            foreach (var skillName in jsonModel.Skills)
-            {
-                var skill = Compendium.GetEntry<Skill>(skillName);
-                if (skill != null)
-                    skills.Add(skill);
-                else
-                    Logger.LogWarning("Invalid skill name in BodyPart JSON: " + skillName);
-            }
-            Skills = skills.ToArray();
-        }
-
-        if (jsonModel.SelfFeatures != null)
-        {
-            var features = new List<Feature>();
-            foreach (var name in jsonModel.SelfFeatures)
-            {
-                var feature = Compendium.GetEntry<Feature>(name);
-                if (feature == null)
-                    Logger.LogWarning("Invalid feature in JSON: " + name);
-                else
-                    features.Add(feature);
-            }
-            SelfFeatures = features;
-        }
-
-        if (jsonModel.Features != null)
-        {
-            foreach (var name in jsonModel.Features)
-            {
-                var feature = Compendium.GetEntry<Feature>(name);
-                if (feature == null)
-                    Logger.LogWarning("Invalid creature feature in JSON: " + name);
-                else
-                    OwnerFeatures.Add(feature);
-            }
-        }
+        Skills = Compendium.ResolveEntries<Skill>(jsonModel.Skills, "skill name in BodyPart JSON").ToArray();
+        SelfFeatures = Compendium.ResolveEntries<Feature>(jsonModel.SelfFeatures, "feature in JSON");
+        OwnerFeatures = Compendium.ResolveEntries<Feature>(jsonModel.Features, "creature feature in JSON");
 
         // Parse layer profile reference
         if (jsonModel.LayersProfile.HasValue)
@@ -801,6 +724,7 @@ public class BodyModel
     public BodyPosture RestingPosture;
     public Dictionary<string, StatConfig> Stats = new();
     public Dictionary<string, ResolvedLayerProfile> LayerProfiles = new();
+    public List<EffectExpr> PreBuild = new();
     public List<EffectExpr> OnBuild = new();
     public List<EffectExpr> OnHealthChange = new();
     public bool SexualDimorphism = false;
@@ -816,6 +740,7 @@ public class BodyModel
         ParseHeader(jsonModel);
         ParsePostures(jsonModel);
         OnBuild = CompileEffectList(jsonModel.OnBuild, "onBuild");
+        PreBuild = CompileEffectList(jsonModel.PreBuild, "preBuild");
         OnHealthChange = CompileEffectList(jsonModel.OnHealthChange, "onHealthChange");
         LayerProfiles = ResolveLayerProfiles(jsonModel.LayerProfiles);
 
@@ -824,7 +749,7 @@ public class BodyModel
         // Resolve layers for all body parts now that profiles are available.
         Root.ResolveLayers(LayerProfiles);
 
-        Features = ResolveFeatures(jsonModel.Features);
+        Features = Compendium.ResolveEntries<Feature>(jsonModel.Features, "creature feature in JSON");
         ParseStats(jsonModel);
     }
 
@@ -833,7 +758,7 @@ public class BodyModel
         Name = jsonModel.Name ?? "unnamed";
         Tags = jsonModel.Tags?.Select(ExpressionCompiler.Compile<string>).ToList() ?? new List<Expr<string>>();
         SexualDimorphism = jsonModel.SexualDimorphism;
-        Height = jsonModel.Height != null ? ExpressionCompiler.Compile<float>(jsonModel.Height.Value) : new ConstNumberExpr(1.5f);
+        Height = ExpressionCompiler.CompileOr(jsonModel.Height, new ConstNumberExpr(1.5f));
         if (SexualDimorphism)
         {
             // All bodies with sexual dimorphism get a tag based on the sex of the built creature.
@@ -909,21 +834,6 @@ public class BodyModel
         foreach (var profileName in rawProfiles.Keys)
             Resolve(profileName);
         return resolved;
-    }
-
-    private static List<Feature> ResolveFeatures(List<string>? names)
-    {
-        var result = new List<Feature>();
-        if (names == null) return result;
-        foreach (var name in names)
-        {
-            var feature = Compendium.GetEntry<Feature>(name);
-            if (feature == null)
-                Logger.LogWarning("Invalid creature feature in JSON: " + name);
-            else
-                result.Add(feature);
-        }
-        return result;
     }
 
     private void ParseStats(BodyJson jsonModel)
@@ -1074,11 +984,11 @@ public class BodyModel
         {
             Variables = variables
         };
-        foreach (var effect in OnBuild)
-        {
+        foreach (var effect in PreBuild)
             effect.Eval(EvalContext);
-        }
-        BodyPart rootPart = Root.Build(this).Component;
+        foreach (var effect in OnBuild)
+            effect.Eval(EvalContext);
+        BodyPart rootPart = Root.Build(this, EvalContext).Component;
         var entity = new Entity(Name);
         entity.AddComponent(new CustomDataComponent() { Entity = entity });
         var stats = new StatsContainer() { Entity = entity };
@@ -1090,7 +1000,7 @@ public class BodyModel
         List<BodyStat> statsList = new();
         foreach (var (statName, cfg) in Stats)
         {
-            float baseVal = cfg.BaseVal != null ? cfg.BaseVal.Eval() : 0;
+            float baseVal = cfg.BaseVal != null ? cfg.BaseVal.Eval(EvalContext) : 0;
             float maxVal = float.MaxValue;
             if (cfg.MaxVal != null)
                 maxVal = cfg.MaxVal.Eval();

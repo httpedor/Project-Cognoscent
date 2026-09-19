@@ -23,6 +23,7 @@ public class FeatureEnabledEvent(Component component, Feature feature) : Feature
 public class FeatureDisabledEvent(Component component, Feature feature) : FeatureEvent(component, feature) 
 {
 }
+[RegisterComponent]
 public partial class FeaturesContainer : Component,
                                         ITickableComponent, ISkillProvider, IPostureProvider,
                                         ComponentEventHandler<DamageEvent>, ComponentEventHandler<BodyLayerInjuryAddedEvent>

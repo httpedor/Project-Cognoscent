@@ -31,19 +31,11 @@ public sealed class LogEffectExpr : EffectExpr
         LevelExpr.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Effect, "log")]
-    [ExprParam("message", typeof(string), Required = true, Description = "The message to log when this effect is evaluated")]
-    [ExprParam("level", typeof(LogLevel), Required = false, Description = "The log level")]
-    public static LogEffectExpr Compile(JsonElement json)
-    {
-        var messageExpr = ExpressionCompiler.Compile<string>(json.GetProperty("message"));
-        Expr<LogLevel>? levelExpr = null;
-        if (json.TryGetProperty("level", out var levelEl))
-        {
-            levelExpr = ExpressionCompiler.Compile<LogLevel>(levelEl);
-        }
-        return new LogEffectExpr(messageExpr, levelExpr);
-    }
+    [ExprOp("log", Description = "Writes a message to the server log.")]
+    public static LogEffectExpr Op(
+        [Doc("Message to log")] Expr<string> message,
+        [Doc("Log level; defaults to Info")] Expr<LogLevel>? level = null)
+        => new LogEffectExpr(message, level);
 }
 public sealed class ChatMessageExpr : EffectExpr
 {
@@ -90,11 +82,10 @@ public sealed class ChatMessageExpr : EffectExpr
         }
     }
 
-    [ExprOp(ExprCategory.Effect, "chat_message", "chat", "log_to_chat")]
-    [ExprParam("message", typeof(string), Required = true, Description = "The message to add to the chat when this effect is evaluated")]
-    public static ChatMessageExpr Compile(JsonElement json)
-    {
-        var messageExpr = ExpressionCompiler.Compile<string>(json.GetProperty("message"));
-        return new ChatMessageExpr(messageExpr);
-    }
+    [ExprOp("chat_message", "chat", "log_to_chat",
+            Description = "Posts a message to the board chat.")]
+    public static ChatMessageExpr Op(
+        [Doc("Message to post")] Expr<string> message,
+        [Doc("Entities whose boards receive it; broadcasts when omitted")] ArrayExpr<Entity?>? targets = null)
+        => new ChatMessageExpr(message, targets);
 }

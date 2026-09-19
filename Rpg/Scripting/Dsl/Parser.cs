@@ -1,10 +1,13 @@
-using System.Text.Json.Nodes;
+using System.Collections.Immutable;
 
 namespace Rpg.Scripting.Dsl;
 
 /// <summary>
-/// Recursive-descent / precedence-climbing parser that emits the existing JSON expression tree
-/// directly (as <see cref="JsonNode"/>). Each grammar rule returns the JSON it desugars to.
+/// Recursive-descent / precedence-climbing parser producing a typed <see cref="AstNode"/> tree.
+/// <para>
+/// Every node records where it came from, so a failure later in compilation can be reported against
+/// the source text rather than against an anonymous subtree.
+/// </para>
 /// </summary>
 internal sealed class Parser
 {
@@ -12,24 +15,16 @@ internal sealed class Parser
     private readonly string _source;
     private int _pos;
 
-    // Lambda parameter names, innermost last. Resolving a bound name yields the matching $index,
-    // matching the runtime's convention: the current element is variable 0 and existing vars shift up.
+    /// <summary>
+    /// Lambda parameter names, innermost last. A bound name resolves to its slot index, matching the
+    /// runtime convention that the innermost binding is <c>$0</c> and outer ones shift up.
+    /// </summary>
     private readonly List<string> _scope = new();
 
-    private static readonly HashSet<string> Keywords = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ContextKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
         "target", "caller", "self", "target_component", "target_part"
     };
-
-    // Functions that take a collection plus a lambda/predicate, with their JSON property names.
-    private static readonly Dictionary<string, (string CollKey, string BodyKey)> LambdaFns =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["map"] = ("values", "expression"),
-            ["filter"] = ("values", "condition"),
-            ["all"] = ("variables", "condition"),
-            ["any"] = ("variables", "condition"),
-        };
 
     public Parser(List<Token> tokens, string source)
     {
@@ -37,7 +32,7 @@ internal sealed class Parser
         _source = source;
     }
 
-    public JsonNode ParseProgram()
+    public AstNode ParseProgram()
     {
         var node = ParseExpr();
         if (Current.Kind != TokKind.Eof)
@@ -49,6 +44,7 @@ internal sealed class Parser
     private Token Current => _tokens[_pos];
     private Token Peek(int n = 1) => _tokens[Math.Min(_pos + n, _tokens.Count - 1)];
     private Token Advance() => _tokens[_pos++];
+    private Span Here => new(Current.Line, Current.Column);
 
     private bool IsOp(string op) => Current.Kind == TokKind.Op && Current.Text == op;
     private bool IsIdent(string kw) => Current.Kind == TokKind.Ident && string.Equals(Current.Text, kw, StringComparison.OrdinalIgnoreCase);
@@ -62,334 +58,391 @@ internal sealed class Parser
     private DslException Error(string message) => new(message, Current.Line, Current.Column, _source);
 
     // ── grammar (lowest to highest precedence) ──────────────────────────────
-    private JsonNode ParseExpr() => ParseTernary();
+    private AstNode ParseExpr() => ParseTernary();
 
-    private JsonNode ParseTernary()
+    private AstNode ParseTernary()
     {
-        var cond = ParseOr();
-        if (IsOp("?"))
-        {
-            Advance();
-            var whenTrue = ParseExpr();
-            Expect(":");
-            var whenFalse = ParseExpr();
-            return new JsonObject { ["op"] = "if", ["condition"] = cond, ["true"] = whenTrue, ["false"] = whenFalse };
-        }
-        return cond;
+        var condition = ParseOr();
+        if (!IsOp("?")) return condition;
+
+        var span = Here;
+        Advance();
+        var whenTrue = ParseExpr();
+        Expect(":");
+        var whenFalse = ParseExpr();
+        return new Call("if", ImmutableArray.Create(condition, whenTrue, whenFalse), span);
     }
 
-    private JsonNode ParseOr()
+    private AstNode ParseOr()
     {
         var left = ParseAnd();
         while (IsIdent("or") || IsOp("||"))
         {
+            var span = Here;
             Advance();
-            left = Combine("or", "conditions", left, ParseAnd());
+            left = Flatten("or", left, ParseAnd(), span);
         }
         return left;
     }
 
-    private JsonNode ParseAnd()
+    private AstNode ParseAnd()
     {
         var left = ParseEquality();
         while (IsIdent("and") || IsOp("&&"))
         {
+            var span = Here;
             Advance();
-            left = Combine("and", "conditions", left, ParseEquality());
+            left = Flatten("and", left, ParseEquality(), span);
         }
         return left;
     }
 
-    private JsonNode ParseEquality()
+    private AstNode ParseEquality()
     {
         var left = ParseComparison();
         while (IsOp("==") || IsOp("!="))
         {
+            var span = Here;
             var op = Advance().Text;
-            left = new JsonObject { ["op"] = op, ["left"] = left, ["right"] = ParseComparison() };
+            left = new Call(op, ImmutableArray.Create(left, ParseComparison()), span);
         }
         return left;
     }
 
-    private JsonNode ParseComparison()
+    private AstNode ParseComparison()
     {
         var left = ParseAdditive();
         while (IsOp("<") || IsOp("<=") || IsOp(">") || IsOp(">="))
         {
+            var span = Here;
             var op = Advance().Text;
-            left = new JsonObject { ["op"] = op, ["left"] = left, ["right"] = ParseAdditive() };
+            left = new Call(op, ImmutableArray.Create(left, ParseAdditive()), span);
         }
         return left;
     }
 
-    private JsonNode ParseAdditive()
+    private AstNode ParseAdditive()
     {
         var left = ParseMultiplicative();
         while (IsOp("+") || IsOp("-"))
         {
+            var span = Here;
             var op = Advance().Text;
-            var right = ParseMultiplicative();
-            left = op == "+" ? Combine("sum", "numbers", left, right)
-                             : Combine("sub", "numbers", left, right);
+            left = Flatten(op == "+" ? "sum" : "sub", left, ParseMultiplicative(), span);
         }
         return left;
     }
 
-    private JsonNode ParseMultiplicative()
+    private AstNode ParseMultiplicative()
     {
         var left = ParseUnary();
         while (IsOp("*") || IsOp("/"))
         {
+            var span = Here;
             var op = Advance().Text;
-            var right = ParseUnary();
-            left = op == "*" ? Combine("mul", "numbers", left, right)
-                             : Combine("div", "numbers", left, right);
+            left = Flatten(op == "*" ? "mul" : "div", left, ParseUnary(), span);
         }
         return left;
     }
 
-    private JsonNode ParseUnary()
+    private AstNode ParseUnary()
     {
         if (IsOp("-"))
         {
+            var span = Here;
             Advance();
             var operand = ParseUnary();
             // Fold a literal negation; otherwise multiply by -1.
-            if (operand is JsonValue v && v.TryGetValue<double>(out var d))
-                return JsonValue.Create(-d);
-            return new JsonObject { ["op"] = "mul", ["numbers"] = new JsonArray(JsonValue.Create(-1.0), operand) };
+            if (operand is NumberLit literal)
+                return new NumberLit(-literal.Value, span);
+            return new Call("mul",
+                ImmutableArray.Create<AstNode>(
+                    new ArrayLit(ImmutableArray.Create<AstNode>(new NumberLit(-1, span), operand), span)),
+                span);
         }
+
         if (IsOp("!") || IsIdent("not"))
         {
+            var span = Here;
             Advance();
-            return new JsonObject { ["op"] = "not", ["condition"] = ParseUnary() };
+            return new Call("not", ImmutableArray.Create(ParseUnary()), span);
         }
+
         return ParsePostfix();
     }
 
-    private JsonNode ParsePostfix()
+    private AstNode ParsePostfix()
     {
         var node = ParsePrimary();
         while (IsOp("."))
         {
+            var span = Here;
             Advance();
             if (Current.Kind != TokKind.Ident)
-                throw Error("expected a stat name after '.'");
-            var stat = Advance().Text;
-            // x.foo  =>  read stat "foo" from entity x
-            node = new JsonObject { ["op"] = "stat", ["entity"] = node, ["stat"] = stat };
+                throw Error("expected a member name after '.'");
+            var name = Advance().Text;
+
+            // Method-call sugar: the receiver becomes the first positional argument, so
+            // `x.fn(a, b)` is exactly `fn(x, a, b)` and `x.ns::fn(a)` is exactly `ns::fn(x, a)`.
+            if (IsOp("::"))
+            {
+                Advance();
+                if (Current.Kind != TokKind.Ident)
+                    throw Error("expected a function name after '::'");
+                var function = Advance().Text;
+                node = ParseLibraryCall($"{name}:{function}", span, node);
+            }
+            else if (IsOp("("))
+            {
+                node = ParseCall(name, span, node);
+            }
+            else
+            {
+                // `x.foo` reads stat "foo" from entity x. `stat` declares (name, entity), so the
+                // receiver is the second argument.
+                node = new Call("stat",
+                    ImmutableArray.Create<AstNode>(new StringLit(name, span), node), span);
+            }
         }
         return node;
     }
 
-    private JsonNode ParsePrimary()
+    private AstNode ParsePrimary()
     {
-        var tok = Current;
-        switch (tok.Kind)
+        var token = Current;
+        var span = new Span(token.Line, token.Column);
+
+        switch (token.Kind)
         {
             case TokKind.Number:
                 Advance();
-                return JsonValue.Create(tok.Number);
+                return new NumberLit(token.Number, span);
             case TokKind.String:
                 Advance();
-                return JsonValue.Create(tok.Text);
+                return new StringLit(token.Text, span);
             case TokKind.Dice:
                 Advance();
-                return JsonValue.Create(tok.Text); // e.g. "1d6" — RandomExpr handles it
+                return new DiceLit(token.Text, span);
             case TokKind.Var:
                 Advance();
-                return JsonValue.Create("$" + tok.Text);
+                return new VarRef(int.Parse(token.Text, System.Globalization.CultureInfo.InvariantCulture), span);
             case TokKind.Ident:
                 return ParseIdent();
-            case TokKind.Op when tok.Text == "(":
+            case TokKind.Op when token.Text == "(":
                 Advance();
                 var inner = ParseExpr();
                 Expect(")");
                 return inner;
-            case TokKind.Op when tok.Text == "[":
+            case TokKind.Op when token.Text == "[":
                 return ParseArrayLiteral();
             default:
-                throw Error($"unexpected '{tok.Text}'");
+                throw Error($"unexpected '{token.Text}'");
         }
     }
 
-    private JsonNode ParseIdent()
+    private AstNode ParseIdent()
     {
+        var span = Here;
         var name = Advance().Text;
 
-        // boolean literals
-        if (string.Equals(name, "true", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(true);
-        if (string.Equals(name, "false", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(false);
+        if (string.Equals(name, "true", StringComparison.OrdinalIgnoreCase)) return new BoolLit(true, span);
+        if (string.Equals(name, "false", StringComparison.OrdinalIgnoreCase)) return new BoolLit(false, span);
 
-        // switch <value> { k => e, _ => default }
         if (string.Equals(name, "switch", StringComparison.OrdinalIgnoreCase))
-            return ParseSwitch();
+            return ParseSwitch(span);
 
-        // qualified library call: namespace::function(args)
+        // Qualified library call: namespace::function(args)
         if (IsOp("::"))
         {
             Advance();
             if (Current.Kind != TokKind.Ident)
                 throw Error("expected a function name after '::'");
-            var fn = Advance().Text;
-            return ParseLibraryCall($"{name}:{fn}");
+            var function = Advance().Text;
+            return ParseLibraryCall($"{name}:{function}", span);
         }
 
-        // function call
         if (IsOp("("))
-            return ParseCall(name);
+            return ParseCall(name, span);
 
-        // lambda-bound variable?
-        var scopeIndex = ResolveScope(name);
-        if (scopeIndex >= 0)
-            return JsonValue.Create("$" + scopeIndex);
+        var bound = ResolveScope(name);
+        if (bound >= 0)
+            return new VarRef(bound, span);
 
-        // context keyword (target / caller / ...)
-        if (Keywords.Contains(name))
-            return JsonValue.Create(name.ToLowerInvariant());
+        if (ContextKeywords.Contains(name))
+            return new ContextRef(name.ToLowerInvariant(), span);
 
-        throw Error($"unknown identifier '{name}' (use $N for variables, or a known keyword)");
+        throw new DslException(
+            $"unknown identifier '{name}' (use $N for variables, or a known keyword)",
+            span.Line, span.Column, _source);
     }
 
-    private JsonNode ParseArrayLiteral()
+    private AstNode ParseArrayLiteral()
     {
+        var span = Here;
         Expect("[");
-        var arr = new JsonArray();
+        var items = ImmutableArray.CreateBuilder<AstNode>();
         while (!IsOp("]"))
         {
-            arr.Add(ParseExpr());
+            items.Add(ParseExpr());
             if (IsOp(",")) Advance();
             else break;
         }
         Expect("]");
-        return arr;
+        return new ArrayLit(items.ToImmutable(), span);
     }
 
-    private JsonNode ParseSwitch()
+    /// <summary>
+    /// <c>switch v { 0 =&gt; a, 1..5 =&gt; b, _ =&gt; c }</c>. A case key is a number, an inclusive
+    /// <c>min..max</c> range, or <c>_</c> for the fallback.
+    /// </summary>
+    private AstNode ParseSwitch(Span span)
     {
         var value = ParseExpr();
         Expect("{");
-        var cases = new JsonObject();
-        JsonNode? defaultCase = null;
+
+        var cases = ImmutableArray.CreateBuilder<SwitchCase>();
+        AstNode? fallback = null;
+
         while (!IsOp("}"))
         {
-            string? key = null;
-            if (Current.Kind == TokKind.Ident && Current.Text == "_")
-                Advance();
-            else if (Current.Kind == TokKind.Number)
-                key = Advance().Text;
-            else
-                throw Error("switch case key must be a number or '_'");
+            var isFallback = Current.Kind == TokKind.Ident && Current.Text == "_";
+            var (min, max) = isFallback ? (0f, 0f) : ParseCaseKey();
+            if (isFallback) Advance();
+
             Expect("=>");
             var body = ParseExpr();
-            if (key == null) defaultCase = body;
-            else cases[key] = body;
+
+            if (isFallback) fallback = body;
+            else cases.Add(new SwitchCase(min, max, body));
+
             if (IsOp(",")) Advance();
             else break;
         }
+
         Expect("}");
-        var node = new JsonObject { ["op"] = "switch_number", ["value"] = value, ["cases"] = cases };
-        if (defaultCase != null) node["default"] = defaultCase;
-        return node;
+        return new Switch(value, cases.ToImmutable(), fallback, span);
     }
 
-    private JsonNode ParseLibraryCall(string id)
+    /// <summary>Reads a case key: either <c>n</c> or <c>min..max</c>, both possibly negated.</summary>
+    private (float Min, float Max) ParseCaseKey()
     {
-        var args = ParseArgList();
-        var node = new JsonObject { ["op"] = "call_expr", ["id"] = id };
-        var argArr = new JsonArray();
-        foreach (var a in args) argArr.Add(a);
-        node["args"] = argArr;
-        return node;
+        var min = ParseCaseBound();
+        if (!IsOp("..")) return (min, min);
+
+        Advance();
+        var max = ParseCaseBound();
+        if (max < min)
+            throw Error($"switch range {min}..{max} is empty; the upper bound must not be below the lower one");
+        return (min, max);
     }
 
-    private JsonNode ParseCall(string name)
+    private float ParseCaseBound()
     {
-        // if(cond, a, b)
-        if (string.Equals(name, "if", StringComparison.OrdinalIgnoreCase))
+        var negative = IsOp("-");
+        if (negative) Advance();
+        if (Current.Kind != TokKind.Number)
+            throw Error("switch case key must be a number, a min..max range, or '_'");
+        var value = (float)Advance().Number;
+        return negative ? -value : value;
+    }
+
+    private AstNode ParseLibraryCall(string id, Span span, AstNode? receiver = null)
+    {
+        var arguments = ParseArgList(receiver);
+        // call_expr declares (id, args, library); the whole argument list is one array.
+        return new Call("call_expr",
+            ImmutableArray.Create<AstNode>(
+                new StringLit(id, span),
+                new ArrayLit(arguments, span)),
+            span);
+    }
+
+    /// <summary>
+    /// Parses <c>name(...)</c>. <paramref name="receiver"/>, when present, comes from method-call
+    /// sugar and is spliced in as the first argument.
+    /// </summary>
+    private AstNode ParseCall(string name, Span span, AstNode? receiver = null)
+    {
+        // array_concat(a, b, …) is variadic sugar for concat([a, b, …]) — the op itself takes one
+        // argument, an array of arrays.
+        if (string.Equals(name, "array_concat", StringComparison.OrdinalIgnoreCase))
         {
-            var a = ParseArgList();
-            if (a.Count != 3)
-                throw Error("if(...) takes exactly 3 arguments: condition, true, false");
-            return new JsonObject { ["op"] = "if", ["condition"] = a[0], ["true"] = a[1], ["false"] = a[2] };
+            var parts = ParseArgList(receiver);
+            return new Call("concat",
+                ImmutableArray.Create<AstNode>(new ArrayLit(parts, span)), span);
         }
 
-        // map/filter/all/any: (collection, lambda-or-expr)
-        if (LambdaFns.TryGetValue(name, out var keys))
-            return ParseLambdaCall(name, keys.CollKey, keys.BodyKey);
-
-        // generic op: positional args mapped to declared parameter names
-        var args = ParseArgList();
-        var node = new JsonObject { ["op"] = name.ToLowerInvariant() };
-        if (args.Count == 0) return node;
-
-        if (!DslCompiler.ParamTable.TryGetValue(name, out var paramNames) || paramNames.Length == 0)
-            throw Error($"unknown op '{name}' (no positional parameters known); check the op name");
-        if (args.Count > paramNames.Length)
-            throw Error($"'{name}' accepts at most {paramNames.Length} argument(s) but got {args.Count}");
-        for (int k = 0; k < args.Count; k++)
-            node[paramNames[k]] = args[k];
-        return node;
+        return new Call(name.ToLowerInvariant(), ParseArgList(receiver), span);
     }
 
-    private JsonNode ParseLambdaCall(string name, string collKey, string bodyKey)
+    /// <summary>Reads a parenthesised argument list, splicing in a method-call receiver.</summary>
+    private ImmutableArray<AstNode> ParseArgList(AstNode? receiver = null)
     {
         Expect("(");
-        var collection = ParseExpr();
-        Expect(",");
-        JsonNode body;
-        // optional `param =>` lambda; otherwise the body may reference $0 directly
-        if (Current.Kind == TokKind.Ident && Peek().Kind == TokKind.Op && Peek().Text == "=>")
-        {
-            var param = Advance().Text;
-            Advance(); // =>
-            _scope.Add(param);
-            body = ParseExpr();
-            _scope.RemoveAt(_scope.Count - 1);
-        }
-        else
-        {
-            body = ParseExpr();
-        }
-        Expect(")");
-        return new JsonObject { ["op"] = name.ToLowerInvariant(), [collKey] = collection, [bodyKey] = body };
-    }
+        var arguments = ImmutableArray.CreateBuilder<AstNode>();
+        if (receiver is not null) arguments.Add(receiver);
 
-    private List<JsonNode> ParseArgList()
-    {
-        Expect("(");
-        var args = new List<JsonNode>();
         while (!IsOp(")"))
         {
-            args.Add(ParseExpr());
+            arguments.Add(ParseArgument());
             if (IsOp(",")) Advance();
             else break;
         }
+
         Expect(")");
-        return args;
+        return arguments.ToImmutable();
     }
 
-    /// <summary>Resolve a lambda-bound name to its variable index (innermost = 0), or -1 if not bound.</summary>
+    /// <summary>
+    /// One argument. <c>p =&gt; body</c> names the function's parameter; any other expression is an
+    /// ordinary argument, and becomes a function body only if the op it lands on wants one there —
+    /// which is decided during overload resolution, not here.
+    /// </summary>
+    private AstNode ParseArgument()
+    {
+        if (Current.Kind == TokKind.Ident && Peek().Kind == TokKind.Op && Peek().Text == "=>")
+        {
+            var span = Here;
+            var parameter = Advance().Text;
+            Advance(); // =>
+
+            _scope.Add(parameter);
+            var body = ParseExpr();
+            _scope.RemoveAt(_scope.Count - 1);
+
+            return new Lambda(body, span);
+        }
+
+        return ParseExpr();
+    }
+
+    /// <summary>Resolves a lambda-bound name to its slot index (innermost = 0), or -1.</summary>
     private int ResolveScope(string name)
     {
-        for (int k = _scope.Count - 1; k >= 0; k--)
-            if (_scope[k] == name)
-                return _scope.Count - 1 - k;
+        for (var i = _scope.Count - 1; i >= 0; i--)
+            if (_scope[i] == name)
+                return _scope.Count - 1 - i;
         return -1;
     }
 
     /// <summary>
-    /// Append <paramref name="right"/> to an existing n-ary node with the same op (flattening
-    /// chains like a+b+c into one array); otherwise create a fresh 2-element node.
+    /// Builds an n-ary call, folding chains so that <c>a + b + c</c> becomes one <c>sum</c> over
+    /// three operands rather than nested two-operand sums.
     /// </summary>
-    private static JsonNode Combine(string op, string arrayKey, JsonNode left, JsonNode right)
+    private static AstNode Flatten(string op, AstNode left, AstNode right, Span span)
     {
-        if (left is JsonObject obj && obj["op"] is JsonValue v && v.TryGetValue<string>(out var existing)
-            && existing == op && obj[arrayKey] is JsonArray arr)
+        if (left is Call existing
+            && existing.Name == op
+            && existing.Arguments.Length == 1
+            && existing.Arguments[0] is ArrayLit operands)
         {
-            arr.Add(right);
-            return obj;
+            return new Call(op,
+                ImmutableArray.Create<AstNode>(new ArrayLit(operands.Items.Add(right), operands.Span)),
+                existing.Span);
         }
-        return new JsonObject { ["op"] = op, [arrayKey] = new JsonArray(left, right) };
+
+        return new Call(op,
+            ImmutableArray.Create<AstNode>(new ArrayLit(ImmutableArray.Create(left, right), span)),
+            span);
     }
 }

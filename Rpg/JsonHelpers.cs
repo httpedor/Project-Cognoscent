@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Rpg.Scripting;
 
 namespace Rpg;
 
@@ -130,6 +131,42 @@ public static class JsonHelpers
             merged.Add(obj);
 
         return merged;
+    }
+
+    /// <summary>
+    /// Parse a "simple object or full array" conditioned-value block, a format shared by
+    /// damage modifiers, resistances, etc:
+    /// <list type="bullet">
+    /// <item>Object format: <c>{ "key": value }</c> — one entry per property, condition built by <paramref name="simpleCondition"/>.</item>
+    /// <item>Array format: <c>[{ "condition": ConditionExpr, ...rest of entry }]</c> — condition compiled from the "condition" property, entry parsed by <paramref name="fromFullEntry"/>.</item>
+    /// </list>
+    /// </summary>
+    public static Dictionary<Expr<bool>, TValue> ParseConditionedEntries<TValue>(
+        JsonElement el,
+        Func<string, Expr<bool>> simpleCondition,
+        Func<string, JsonElement, TValue> fromSimple,
+        Func<JsonElement, TValue?> fromFullEntry) where TValue : class
+    {
+        var result = new Dictionary<Expr<bool>, TValue>();
+        if (el.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in el.EnumerateObject())
+                result[simpleCondition(prop.Name)] = fromSimple(prop.Name, prop.Value);
+        }
+        else if (el.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in el.EnumerateArray())
+            {
+                if (entry.ValueKind != JsonValueKind.Object) continue;
+                var condEl = entry.GetPropertyOrNull("condition");
+                if (!condEl.HasValue) continue;
+                var value = fromFullEntry(entry);
+                if (value == null) continue;
+                var condition = ExpressionCompiler.Compile<bool>(condEl.Value);
+                result[condition] = value;
+            }
+        }
+        return result;
     }
 
     public static float GetFloat(JsonElement json)

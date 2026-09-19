@@ -34,6 +34,7 @@ public class StatsContainerEvent : ComponentEvent
         StatEvent = statEvent;
     }
 }
+[RegisterComponent]
 public partial class StatsContainer : Component, IEnumerable<Stat>, IStatEventHandler
 {
     protected Dictionary<string, Stat> stats = new Dictionary<string, Stat>();

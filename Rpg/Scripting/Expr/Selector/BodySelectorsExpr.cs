@@ -31,13 +31,12 @@ public class BodyPartSelectorByTagExpr : ArrayExpr<Component>
         return body.GetPartsWithTag(tagValue);
     }
     
-    [ExprOp(ExprCategory.Component, "part_by_tag", "bp_by_tag", "bodypart_by_tag", "body_part_by_tag", GenericType = "BodyPart", IsArray = true)]
-    [ExprParam("body", typeof(Body), Required = true)]
-    [ExprParam("tag", typeof(Tag<BodyPart>), Required = true)]
-    public static ArrayExpr<Component> CompileOp(JsonElement obj)
-        => new BodyPartSelectorByTagExpr(
-            ExpressionCompiler.Compile<Body>(obj.GetProperty("body")),
-            ExpressionCompiler.Compile<string>(obj.GetProperty("tag")));
+    [ExprOp("parts_by_tag", "bps_by_tag", "bodyparts_by_tag", "body_parts_by_tag",
+            Description = "Every body part on a body carrying a tag.")]
+    public static ArrayExpr<Component> Op(
+        [Doc("Body to search")] Expr<Body?> body,
+        [Doc("Tag the parts must carry")] Expr<string> tag)
+        => new BodyPartSelectorByTagExpr(body, tag);
 }
 
 public class BodyPartSelectorByNameExpr : ComponentExpr<BodyPart>
@@ -50,13 +49,12 @@ public class BodyPartSelectorByNameExpr : ComponentExpr<BodyPart>
         Name = name;
     }
 
-    [ExprOp(ExprCategory.Component, "part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name", GenericType = "BodyPart")]
-    [ExprParam("target", typeof(Body), Required = true)]
-    [ExprParam("name", typeof(string), Required = true)]
-    public static Expr<Component?> CompileOp(JsonElement obj)
-        => new BodyPartSelectorByNameExpr(
-            ExpressionCompiler.Compile<Body>(obj.GetProperty("target")),
-            ExpressionCompiler.Compile<string>(obj.GetProperty("name")));
+    [ExprOp("part_by_name", "bp_by_name", "bodypart_by_name", "body_part_by_name",
+            Description = "The body part with a given name.")]
+    public static Expr<Component?> Op(
+        [Doc("Body to search")] Expr<Body?> target,
+        [Doc("Part name")] Expr<string> name)
+        => new BodyPartSelectorByNameExpr(target, name);
     public BodyPartSelectorByNameExpr(Stream stream)
     {
         Target = (Expr<Body?>)BaseExpr.Deserialize(stream);
@@ -87,13 +85,12 @@ public class BodyPartSelectorByPathExpr : ComponentExpr<BodyPart>
         Path = path;
     }
 
-    [ExprOp(ExprCategory.Component, "part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path", GenericType = "BodyPart")]
-    [ExprParam("target", typeof(Body), Required = true)]
-    [ExprParam("path", typeof(string), Required = true)]
-    public static Expr<Component?> CompileOp(JsonElement obj)
-        => new BodyPartSelectorByPathExpr(
-            ExpressionCompiler.Compile<Body>(obj.GetProperty("target")),
-            ExpressionCompiler.Compile<string>(obj.GetProperty("path")));
+    [ExprOp("part_by_path", "bp_by_path", "bodypart_by_path", "body_part_by_path",
+            Description = "The body part at a slash-separated path.")]
+    public static Expr<Component?> Op(
+        [Doc("Body to search")] Expr<Body?> target,
+        [Doc("Path to the part")] Expr<string> path)
+        => new BodyPartSelectorByPathExpr(target, path);
     public BodyPartSelectorByPathExpr(Stream stream)
     {
         Target = (Expr<Body?>)BaseExpr.Deserialize(stream);
@@ -118,11 +115,10 @@ public class BodyFromPartSelectorExpr : ComponentExpr<Body>
         Target = target;
     }
 
-    [ExprOp(ExprCategory.Component, "body_from_part", "body_from_bp", "body_from_bodypart", GenericType = "Body")]
-    [ExprParam("target", typeof(BodyPart), Required = true, Description = "The body part to get the body from")]
-    public static Expr<Component?> CompileOp(JsonElement obj)
-        => new BodyFromPartSelectorExpr(
-            ExpressionCompiler.Compile<BodyPart>(obj.GetProperty("target")));
+    [ExprOp("body_from_part", "body_from_bp", "body_from_bodypart",
+            Description = "The body a part belongs to.")]
+    public static Expr<Component?> Op([Doc("Body part to read the owner of")] Expr<BodyPart?> target)
+        => new BodyFromPartSelectorExpr(target);
     public BodyFromPartSelectorExpr(Stream stream)
     {
         Target = (Expr<BodyPart?>)BaseExpr.Deserialize(stream);
@@ -144,15 +140,12 @@ public sealed class BodyPartsInGroupExpr : ArrayExpr<Component>
         GroupId = groupId;
     }
 
-    [ExprOp(ExprCategory.Component, "parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group", GenericType = "BodyPart", IsArray = true)]
-    [ExprParam("body", typeof(Body), Required = true, Description = "The body to get the parts from")]
-    [ExprParam("group_id", typeof(string), Required = true, Description = "The ID of the group to get the parts from")]
-    public static ArrayExpr<Component> Compile(JsonElement json)
-    {
-        var body = ExpressionCompiler.Compile<Body>(json.GetProperty("body"));
-        var groupId = ExpressionCompiler.Compile<string>(json.GetProperty("group_id"));
-        return new BodyPartsInGroupExpr(body, groupId);
-    }
+    [ExprOp("parts_in_group", "bps_in_group", "bodyparts_in_group", "body_parts_in_group",
+            Description = "Every body part belonging to a group.")]
+    public static ArrayExpr<Component> Op(
+        [Doc("Body to search")] Expr<Body?> body,
+        [Doc("Id of the group")] Expr<string> group_id)
+        => new BodyPartsInGroupExpr(body, group_id);
 
     public BodyPartsInGroupExpr(Stream stream)
     {

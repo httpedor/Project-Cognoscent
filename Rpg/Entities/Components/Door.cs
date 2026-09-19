@@ -2,6 +2,7 @@ using System.Numerics;
 
 namespace Rpg.Entities.Components;
 
+[RegisterComponent]
 public partial class Door : Component, ICopyable<Door>
 {
     [RequiredComponent(typeof(Token))]

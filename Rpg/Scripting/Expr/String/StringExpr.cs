@@ -43,11 +43,7 @@ public sealed class VarStringExpr : Expr<string>
 
     public override string Eval(EvalContext ctx)
     {
-        if (SymbolId < 0 || SymbolId >= ctx.Variables.Length)
-        {
-            throw new IndexOutOfRangeException($"String variable symbol ID {SymbolId} is out of range.");
-        }
-        var value = ctx.Variables[SymbolId];
+        var value = ctx.GetVariable(SymbolId);
         if (value == null)
             return "null";
         if (value is Entity entity)
@@ -76,10 +72,9 @@ public sealed class StringConcatExpr : Expr<string>
         Parts = parts;
     }
 
-    [ExprOp(ExprCategory.String, "concat", "add", "join")]
-    [ExprParam("strings", typeof(global::System.Collections.Generic.List<string>), Required = true)]
-    public static Expr<string> CompileOp(JsonElement obj)
-        => new StringConcatExpr(ExpressionCompiler.CompileArray<string>(obj.GetProperty("strings")));
+    [ExprOp("concat", "add", "join", Description = "Joins strings end to end.")]
+    public static Expr<string> Op([Doc("Strings to join")] ArrayExpr<string> strings)
+        => new StringConcatExpr(strings);
     public StringConcatExpr(Stream stream)
     {
         Parts = (ArrayExpr<string>)BaseExpr.Deserialize(stream);

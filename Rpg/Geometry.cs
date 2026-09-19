@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Reflection;
 
 namespace Rpg;
 
@@ -24,6 +23,11 @@ public class Line
         Line other = (Line)obj;
         return Start.Equals(other.Start) && End.Equals(other.End);
     
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Start, End);
     }
 }
 

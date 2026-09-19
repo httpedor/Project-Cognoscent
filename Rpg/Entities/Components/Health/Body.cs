@@ -49,6 +49,7 @@ public class BodyMovementIntensityChangedEvent : BodyEvent
         NewIntensity = newIntensity;
     }
 }
+[RegisterComponent]
 public partial class Body : Component, ISerializable, ITaggable,
     ITickableComponent,
     ISkillProvider,

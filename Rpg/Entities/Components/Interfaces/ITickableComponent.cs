@@ -1,5 +1,6 @@
 namespace Rpg.Entities.Interfaces;
 
+[RegisterComponent]
 public interface ITickableComponent
 {
     virtual void PreTick()

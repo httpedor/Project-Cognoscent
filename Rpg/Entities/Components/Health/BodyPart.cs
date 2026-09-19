@@ -273,6 +273,7 @@ public class BodyLayer : ISerializable, IDamageable
     }
 }
 
+[RegisterComponent]
 public partial class BodyPart : Component, ISerializable, IDamageable, ITaggable, IItemHolder, ISkillProvider,
     ComponentEventHandler<BodyLayerDiedEvent>
 {

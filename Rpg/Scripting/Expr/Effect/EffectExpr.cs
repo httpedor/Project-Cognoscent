@@ -15,6 +15,14 @@ public abstract class EffectExpr : Expr<NoReturn>
         return null!;
     }
 }
+/// <summary>
+/// A list of effects, yielded <em>unevaluated</em>.
+/// <para>
+/// This is why an array of effects is not a <see cref="ConstArrayExpr{T}"/>: that one evaluates its
+/// items to produce the sequence, which for effects means running them all and handing the consumer
+/// a list of nulls. <see cref="CompositeEffectExpr"/> wants the effects themselves, to run in order.
+/// </para>
+/// </summary>
 public class EffectArray : ArrayExpr<EffectExpr>
 {
     public EffectExpr[] Effects { get; set; }
@@ -34,14 +42,22 @@ public class EffectArray : ArrayExpr<EffectExpr>
     {
         return Effects;
     }
+
+    public override void ToBytes(Stream stream)
+    {
+        base.ToBytes(stream);
+        stream.WriteInt32(Effects.Length);
+        foreach (var effect in Effects)
+            effect.ToBytes(stream);
+    }
 }
 public sealed class NoEffectExpr : EffectExpr
 {
     public NoEffectExpr() {}
     public NoEffectExpr(Stream stream) {}
 
-    [ExprOp(ExprCategory.Effect, "null", "nop", "noeffect", "no_effect")]
-    public static EffectExpr CompileOp(JsonElement obj) => new NoEffectExpr();
+    [ExprOp("null", "nop", "noeffect", "no_effect", Description = "Does nothing.")]
+    public static EffectExpr Op() => new NoEffectExpr();
 
     public override void EvalEffect(EvalContext ctx)
     {
@@ -76,10 +92,9 @@ public sealed class CompositeEffectExpr : EffectExpr
     public readonly ArrayExpr<EffectExpr> Effects;
     public CompositeEffectExpr(ArrayExpr<EffectExpr> effects) => Effects = effects;
 
-    [ExprOp(ExprCategory.Effect, "composite")]
-    [ExprParam("effects", typeof(List<EffectExpr>), Required = true)]
-    public static EffectExpr CompileOp(JsonElement obj)
-        => new CompositeEffectExpr(ExpressionCompiler.CompileArray<EffectExpr>(obj.GetProperty("effects")));
+    [ExprOp("composite", Description = "Runs several effects in order.")]
+    public static EffectExpr Op([Doc("Effects to run in sequence")] ArrayExpr<EffectExpr> effects)
+        => new CompositeEffectExpr(effects);
     public CompositeEffectExpr(Stream stream)
     {
         Effects = (ArrayExpr<EffectExpr>)BaseExpr.Deserialize(stream);
@@ -126,59 +141,34 @@ public sealed class SetVariableEffectExpr : EffectExpr
         ValueExpr.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Effect, "set_const", "const_set", "setconst", "constset")]
-    [ExprParam("variable", typeof(float), Required = true, Description = "The ID of the variable")]
-    [ExprParam("value", typeof(object), Required = true)]
-    public static SetVariableEffectExpr Compile(JsonElement json)
-    {
-        int variableID = (int)ExpressionCompiler.Compile<float>(json.GetProperty("variable")).Eval();
-        var valEl = json.GetProperty("value");
-        if (valEl.ValueKind == JsonValueKind.True || valEl.ValueKind == JsonValueKind.False)
-        {
-            // Special case for boolean literals since we want to support them directly as "value"
-            return new SetVariableEffectExpr(variableID, new ConstConditionExpr(valEl.GetBoolean()));
-        }
-        if (valEl.ValueKind == JsonValueKind.Number)
-        {
-            // Special case for number literals since we want to support them directly as "value"
-            return new SetVariableEffectExpr(variableID, new ConstNumberExpr(valEl.GetSingle()));
-        }
-        if (valEl.ValueKind == JsonValueKind.String)
-        {
-            // Special case for string literals since we want to support them directly as "value"
-            return new SetVariableEffectExpr(variableID, new StringLiteralExpr(valEl.GetString()!));
-        }
-        
-        throw new Exception("Invalid value for SetVariableEffectExpr: " + valEl);
-    }
+    // These four differed only in the declared type of the value they store; each now says so in
+    // its signature instead of repeating the same property reads. The variable index was always
+    // evaluated at compile time, so it is declared as a literal rather than an expression.
+    [ExprOp("set_const", "const_set", "setconst", "constset",
+            Description = "Stores a literal value in a variable slot.")]
+    public static SetVariableEffectExpr SetConst(
+        [Doc("Index of the variable slot to write")] int variable,
+        [Doc("Value to store")] Expr<object> value)
+        => new SetVariableEffectExpr(variable, value);
 
-    [ExprOp(ExprCategory.Effect, "set_number", "number_set", "setnumber", "numberset")]
-    [ExprParam("variable", typeof(float), Required = true, Description = "The ID of the variable")]
-    [ExprParam("value", typeof(float), Required = true, Description = "The number expression to evaluate and set the variable to")]
-    public static SetVariableEffectExpr CompileNumber(JsonElement json)
-    {
-        int variableID = (int)ExpressionCompiler.Compile<float>(json.GetProperty("variable")).Eval();
-        var valueExpr = ExpressionCompiler.Compile<float>(json.GetProperty("value"));
-        return new SetVariableEffectExpr(variableID, valueExpr);
-    }
+    [ExprOp("set_number", "number_set", "setnumber", "numberset",
+            Description = "Stores a number in a variable slot.")]
+    public static SetVariableEffectExpr SetNumber(
+        [Doc("Index of the variable slot to write")] int variable,
+        [Doc("Number to store")] Expr<float> value)
+        => new SetVariableEffectExpr(variable, value);
 
-    [ExprOp(ExprCategory.Effect, "set_string", "string_set", "setstring", "stringset")]
-    [ExprParam("variable", typeof(float), Required = true, Description = "The ID of the variable")]
-    [ExprParam("value", typeof(string), Required = true, Description = "The string expression to evaluate and set the variable to")]
-    public static SetVariableEffectExpr CompileString(JsonElement json)
-    {
-        int variableID = (int)ExpressionCompiler.Compile<float>(json.GetProperty("variable")).Eval();
-        var valueExpr = ExpressionCompiler.Compile<string>(json.GetProperty("value"));
-        return new SetVariableEffectExpr(variableID, valueExpr);
-    }
+    [ExprOp("set_string", "string_set", "setstring", "stringset",
+            Description = "Stores a string in a variable slot.")]
+    public static SetVariableEffectExpr SetString(
+        [Doc("Index of the variable slot to write")] int variable,
+        [Doc("String to store")] Expr<string> value)
+        => new SetVariableEffectExpr(variable, value);
 
-    [ExprOp(ExprCategory.Effect, "set_condition", "condition_set", "setcondition", "conditionset")]
-    [ExprParam("variable", typeof(float), Required = true, Description = "The ID of the variable")]
-    [ExprParam("value", typeof(bool), Required = true, Description = "The condition expression to evaluate and set the variable to")]
-    public static SetVariableEffectExpr CompileCondition(JsonElement json)
-    {
-        int variableID = (int)ExpressionCompiler.Compile<float>(json.GetProperty("variable")).Eval();
-        var valueExpr = ExpressionCompiler.Compile<bool>(json.GetProperty("value"));
-        return new SetVariableEffectExpr(variableID, valueExpr);
-    }
+    [ExprOp("set_condition", "condition_set", "setcondition", "conditionset",
+            Description = "Stores a condition result in a variable slot.")]
+    public static SetVariableEffectExpr SetCondition(
+        [Doc("Index of the variable slot to write")] int variable,
+        [Doc("Condition to store")] Expr<bool> value)
+        => new SetVariableEffectExpr(variable, value);
 }

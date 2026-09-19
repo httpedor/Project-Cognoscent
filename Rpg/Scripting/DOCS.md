@@ -1,206 +1,196 @@
-# Script expression JSON — Compiler reference
+# Script expressions — reference
 
 ## Overview 🎯
-This document describes the JSON formats that `ExpressionCompiler` (see `Compiler.cs`) accepts for expressions used throughout the compendium and scripting system.
 
-Supported expression categories:
-- `Number` expressions — numeric literals, indexed variables, ranges, arithmetic, stat lookups
-- `Condition` expressions — booleans, comparisons, logical combinators, probabilities
-- `Effect` expressions — named effects (currently only `noeffect`/`nop` supported)
-- `Selector` expressions — resolve an Entity (caller, target, variable-based)
-- `String` expressions — literals, indexed variables, and concatenation
-- `CompendiumEntry` expressions — string IDs that reference compendium entries
+Expressions are written in a small typed language (the "DSL"). A data field opts into it by holding
+a string that begins with `=`:
 
-Use these JSON forms when authoring data in the compendium, skills, or scripting fields.
+```json
+{
+  "maxStability": "= (80 + target_component.constitution) * 0.5",
+  "canEnterPosture": "= array_count(target_component.bps_by_tag('foot')) >= 1",
+  "idealHeight": 1
+}
+```
+
+Anything that is *not* a `=` string is a **literal**: a number, a boolean, a string, `null`, or an
+array of those. `"idealHeight": 1` is the constant 1; no expression syntax is involved.
+
+There is no other encoding. The `{"op": "sum", "numbers": [...]}` object form is gone — a field
+still written that way reports the call it should now be, e.g. `"= sum(numbers)"`.
+
+---
+
+## How a field is compiled
+
+```
+field JSON
+    ↓ JsonSource      "= …" → Lexer → Parser        (typed AST, nodes carry line/column)
+                      anything else → literal node
+AstNode tree
+    ↓ AstCompiler     lowering directed by the type the field expects
+Expr tree
+```
+
+`ExpressionCompiler` (`Compiler.cs`) is a façade over exactly this: its methods differ only in which
+`ExprType` they aim at. `AstCompiler` is the only place a node becomes an expression, so a rule —
+what a bare number means in a condition, what `null` means in an effect — is written once.
+
+Errors carry a position:
+
+```
+DSL error (line 1, col 6): Unknown operation 'notanop'. Did you mean 'not'?
+     1 + notAnOp(2)
+         ^
+```
+
+An unknown op or identifier is reported where it is written. A failed *overload* is reported at the
+call, listing each candidate and why it was rejected — a different overload might have accepted the
+argument, so the argument itself is not necessarily what is wrong.
+
+---
+
+## Syntax
+
+| Form | Meaning |
+| --- | --- |
+| `1`, `2.5`, `-3` | numbers |
+| `'text'`, `"text"` | strings |
+| `true`, `false` | booleans |
+| `1d6`, `2d8` | dice |
+| `$0`, `$1` | variable slots |
+| `target`, `caller`, `target_part` | context symbols |
+| `[a, b, c]` | array literal |
+| `+ - * /`, `< <= > >=`, `== !=`, `and or not` (`&& \|\| !`) | operators |
+| `c ? a : b` | conditional |
+| `f(a, b)` | call |
+| `x.f(a)` | method sugar — exactly `f(x, a)` |
+| `x.name` | reads stat `name` from `x` — exactly `stat('name', x)` |
+| `lib::fn(a)` / `x.lib::fn(a)` | call `fn` from expression library `lib` |
+| `p => body` | function argument |
+| `switch v { … }` | case table (below) |
+
+### `switch`
+
+Case keys are numbers, inclusive `min..max` ranges, or `_` for the fallback:
+
+```
+= switch array_count(feet) { 0 => 0.1, 1 => 0.33, _ => 1 }
+= switch severity { 0..2 => 'minor', 3..6 => 'serious', _ => 'critical' }
+```
+
+All-exact tables compile to a dictionary lookup; any range arm makes the whole table an ordered scan,
+so overlapping ranges resolve in the order written.
+
+### Function arguments
+
+`map`, `filter`, `order`, `all`, `any`, `foreach`, `top` and `bottom` take a function. Write it
+either way — they mean the same thing:
+
+```
+= filter(parts, p => p.bp_health() > 0)
+= filter(parts, $0.bp_health() > 0)
+```
 
 ---
 
 ## Variables
-- Variables are referenced by integer index using the `$N` syntax (e.g. `"$0"`, `"$1"`).
-- The `EvalContext.Variables` array holds variable values at runtime.
-- Named symbol aliases (like `"STR"` or `"HP"`) are **not** supported — use `$N` indices instead.
+
+- Slots are referenced by index with `$N`.
+- `$0` is the innermost binding. Entering a scope shifts existing variables up: inside
+  `map(parts, …)` the current element is `$0` and whatever was `$0` outside is now `$1`.
+- Bindings come from three places: a function body, `with_vars([…], expr)`, and the arguments of a
+  library call. Everything beyond those is the host's own root slots (the body writes injury
+  severity into slot 0, and so on).
+- A library call starts a **fresh** scope — the called expression sees its arguments as `$0`, `$1`,
+  … and cannot see the caller's bindings.
+- A lambda parameter name (`p => …`) resolves to its slot, so `p` and `$0` are interchangeable.
+- Named aliases for numbered slots (like `"STR"`) are **not** supported.
+
+Scoping is implemented once, in `EvalContext.Push`; combinators never manipulate variable storage
+themselves. A function body is a real `LambdaExpr` node, so `map` has the honest type
+`(a[], (a) -> b) -> b[]`.
 
 ---
 
-## Conditional `if` expression (all types)
-Any expression type supports an inline conditional by using `"op": "if"`:
+## What a literal means
 
-```json
-{ "op": "if", "condition": <Expr<bool>>, "true": <Expr<T>>, "false": <Expr<T>> }
+The type a field expects decides how a literal reads. This is the whole table:
+
+| Literal | in number | in condition | in effect | in string | in enum / compendium ref |
+| --- | --- | --- | --- | --- | --- |
+| `3` | constant | probability (must be 0–1) | — | — | — |
+| `"2:5"`, `"1d6"`, `"3-10"` | random in range | — | — | the text | — |
+| `"30%"` | — | probability | — | the text | — |
+| `true` / `false` | — | constant | `false` = do nothing | — | — |
+| `null` | — | false | do nothing | — | no entity / no component |
+| `"name"` | must parse as a number | must parse as a bool | — | the text | the named entry |
+| `[…]` | — | — | run in order | — | — |
+
+A string naming an enum member or a compendium entry is an *implicit conversion*, so a computed id
+works the same as a literal one: `"= concat(['fire_', $0])"` in an `InjuryType` position resolves the
+entry at evaluation time.
+
+---
+
+## Declaring an op (for engine developers)
+
+An operation is a static method marked `[ExprOp("name", "alias", …)]` whose **parameters are real,
+typed C# parameters**. That single signature is the only declaration: `Tools/ExprGenerator` derives
+from it the op's parameter names, their expression types, which are optional, the result type, the
+argument binding and the schema.
+
+```csharp
+[ExprOp("stat", "creature_stat", "entity_stat", Description = "Reads a named stat from an entity.")]
+public static Expr<float> Op(
+    [Doc("Name of the stat to read")] string stat,                     // literal: must be constant
+    [Doc("Entity to read from; defaults to the caller")] Expr<Entity?>? entity = null,
+    [Doc("Value when the stat is absent")] Expr<float>? @default = null)
+    => new StatExpr(stat, entity ?? new CallerEntityExpr(), @default ?? new ConstNumberExpr(0));
 ```
 
-This works for Number, Condition, Selector, and String expressions.
+Rules:
 
----
+- **`Expr<T>` / `ArrayExpr<T>` / `EffectExpr`** parameters receive a compiled expression.
+- **Bare `string` / `float` / `int` / `bool` / enum** parameters are *literals*: the value must be a
+  compile-time constant, and the op receives the unwrapped value. Say this explicitly rather than
+  reading a constant out of an `Expr<T>` at build time.
+- **`VariableRef`** accepts a slot index, a `$N`, or a context name (`target`, `caller`).
+- **A default value makes a parameter optional**; it arrives as `null` when omitted. A parameter
+  with no default is required, and the resolver reports it by name when it is missing.
+- The **result type** comes from the return type, so array-ness and category are consequences of the
+  signature rather than separate flags.
+- Arguments bind **positionally**, in declaration order.
 
-## Number expressions (`Expr<float>`) 🔢
-Accepts:
-- A JSON number — constant (e.g. `3.5`)
-- A string — dice/range shorthand or indexed variable:
-  - Dice/range: `"1d6"`, `"2-5"`, `"3:6"`, `"1D8"` (any string containing `d`, `D`, `-`, `:`, or `,` with length > 2)
-  - Variable: `"$N"` where N is an integer index into `EvalContext.Variables`
-- An object with an `op` property for composite operations
+Overloads are selected by type: several ops may share a name (`rand` is both a number and a
+condition), and the one whose signature fits the arguments and the surrounding expected type wins.
+When nothing matches, the error lists every candidate and why each was rejected.
 
-`op` object forms:
-- `lerp`: `{ "op": "lerp", "min": <Expr<float>>, "max": <Expr<float>>, "t": <Expr<float>> }`
-- `rand` / `random` / `range`: `{ "op": "rand", "min": <Expr<float>>, "max": <Expr<float>> }`
-- `stat` / `creature_stat` / `entity_stat`: `{ "op": "stat", "stat": "STATNAME", "entity": <Expr<Entity?>>?, "default": <Expr<float>>? }` — `entity` defaults to caller, `default` defaults to 0
-- `sum` / `plus` / `add` / `addition` / `+`: `{ "op": "sum", "numbers": [<Expr<float>>...] }`
-- `sub` / `subtract` / `minus` / `subtraction` / `-`: `{ "op": "sub", "numbers": [<Expr<float>>...] }`
-- `mul` / `multiply` / `times` / `multiplication` / `*`: `{ "op": "mul", "numbers": [<Expr<float>>...] }`
-- `div` / `divide` / `division` / `/`: `{ "op": "div", "numbers": [<Expr<float>>...] }`
+Polymorphic ops (`if`, `map`, `filter`, …) are registered by hand in `Types/MetaOps.cs`, because
+their signatures contain type variables (`map : (a[], a -> b) -> b[]`) and their construction is not
+a plain factory call.
 
-Examples:
-```json
-5
-"1d8"
-"$0"
-{ "op": "sum", "numbers": ["$0", 2, { "op": "rand", "min": 1, "max": 4 }] }
-{ "op": "stat", "stat": "HEALTH", "entity": "target", "default": 0 }
-```
+### The type system
 
----
+`Types/ExprType.cs` is the vocabulary: primitives, CLR-backed refs, arrays, functions, type
+variables, and `any`. Two things there are worth knowing:
 
-## Condition expressions (`Expr<bool>`) ✅/❌
-Accepts:
-- JSON `true` / `false`
-- `null` — treated as `false`
-- A number: between 0–1 is used as probability directly; values > 1 are divided by 100 (treated as percentage)
-- A string:
-  - `"true"` / `"false"` — constant
-  - `"N%"` — probability (e.g. `"30%"`)
-  - `"$N"` — indexed boolean variable
-- An object with an `op` property
+- **`ToClr` vs `ElementClr`.** A scalar `void` is an effect that has already run (`NoReturn`); an
+  *array* of `void` is a list of effects still to be run (`EffectExpr`). `composite([…])` depends on
+  the difference.
+- **`Adapt`** is where an accepted-but-not-identical type becomes a real node: a checked cast, an
+  element-wise array cast, or the name→entry conversion above.
 
-`op` object forms:
-- `and`: `{ "op": "and", "conditions": [<Expr<bool>>...] }`
-- `or`: `{ "op": "or", "conditions": [<Expr<bool>>...] }`
-- `not`: `{ "op": "not", "condition": <Expr<bool>> }`
-- `true` / `false`: constant boolean
-- `>`: `{ "op": ">", "left": <Expr<float>>, "right": <Expr<float>> }`
-- `>=`: `{ "op": ">=", "left": <Expr<float>>, "right": <Expr<float>> }` (implemented as `not <`)
-- `<`: `{ "op": "<", "left": <Expr<float>>, "right": <Expr<float>> }`
-- `<=`: `{ "op": "<=", "left": <Expr<float>>, "right": <Expr<float>> }` (implemented as `not >`)
-- `=` / `==`: `{ "op": "==", "left": <Expr<float>>, "right": <Expr<float>> }`
-- `!=`: `{ "op": "!=", "left": <Expr<float>>, "right": <Expr<float>> }`
-- `random` / `rand`: `{ "op": "random", "probability": <number> }` — defaults to 0.5
+### Checking a change
 
-Examples:
-```json
-true
-0.3
-"50%"
-"$0"
-{ "op": "and", "conditions": ["$0", { "op": ">", "left": "$1", "right": 5 }] }
-{ "op": "random", "probability": 0.25 }
-```
+`Tools/ExprCheck` loads the whole `Server/Data` corpus and dumps every compiled expression tree to a
+stable text file, then runs smoke tests over the op surface, the literal table, and error positions.
+Diff the snapshot before and after a compiler change to see exactly what moved:
 
----
-
-## Effect expressions (`EffectExpr`) ✨
-Accepts an object with an `effect` property, or `false`/`null` for no effect.
-
-Recognized `effect` values:
-- `null` / `nop` / `noeffect` / `no_effect` — returns `NoEffectExpr`
-
-Additional effects may be added by extending `CompileEffectObj`.
-
-Examples:
-```json
-{ "effect": "noeffect" }
-false
-null
-```
-
----
-
-## Selector expressions (`Expr<Entity?>`) 🧭
-Used by `stat` lookups and other places that need to identify an Entity.
-Accepts:
-- Strings:
-  - `"self"` / `"caller"` — the entity executing the script
-  - `"target"` — the target entity
-  - `"target_part"` — the exact body part of the target
-  - `"$N"` — indexed entity variable
-- Objects with an `op` property:
-  - `{ "op": "caller" }` / `{ "op": "self" }`
-  - `{ "op": "target" }`
-  - `{ "op": "target_part" }`
-- `null` / `false` — resolves to no entity
-
-Examples:
-```json
-"caller"
-"target"
-"target_part"
-"$0"
-{ "op": "target" }
+```bash
+dotnet run --project Tools/ExprCheck -- Server out.snap
 ```
 
 ---
 
-## String expressions (`Expr<string>`) 📝
-Accepts:
-- A plain JSON string — literal value, unless it starts with `$N` (integer variable index)
-- An object with an `op` property
-
-`op` object forms:
-- `concat` / `add` / `join`: `{ "op": "concat", "strings": [<Expr<string>>...] }`
-
-Examples:
-```json
-"Hello, world"
-"$0"
-{ "op": "concat", "strings": ["Hello, ", "$0", "!"] }
-```
-
----
-
-## Compendium entry expressions
-- Expects a `StringExpr` containing the entry ID.
-- Typically a literal string or an indexed variable.
-
-Examples:
-```json
-"monster_goblin"
-"$0"
-```
-
----
-
-## Enum expressions
-- Expects a `StringExpr` whose runtime value matches an enum member name.
-- Parsed case-insensitively at evaluation time.
-
----
-
-## Error handling & limits
-- Missing or unknown `op` values raise compile-time exceptions.
-- Probability numbers: prefer `0`–`1` range or `"N%"` strings for clarity; bare numbers > 1 are treated as percentages (divided by 100).
-- `run_script` / `invoke_script` ops in number expressions are explicitly not supported — script invocation must be handled outside the expression system.
-
----
-
-## Quick examples
-```json
-// Number: sum of a variable and a dice roll
-{ "op": "sum", "numbers": ["$0", { "op": "rand", "min": 1, "max": 4 }] }
-
-// Condition: variable is true AND another variable > 0
-{ "op": "and", "conditions": ["$0", { "op": ">", "left": "$1", "right": 0 }] }
-
-// Stat lookup on the target entity
-{ "op": "stat", "stat": "HEALTH", "entity": "target" }
-
-// Inline conditional number
-{ "op": "if", "condition": "$0", "true": 10, "false": 0 }
-
-// String concat
-{ "op": "concat", "strings": ["Damage: ", "$0"] }
-```
-
----
-
-For implementation details, consult `Rpg/Scripting/Compiler.cs`.
-
-> Note: This document mirrors the JSON forms accepted by `ExpressionCompiler`. If you add new expression kinds, update this doc accordingly. 💡
+For implementation details, start at `Compiler.cs` and follow it into `Dsl/`.

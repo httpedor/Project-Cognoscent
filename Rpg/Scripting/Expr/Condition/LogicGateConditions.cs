@@ -7,10 +7,9 @@ public sealed class AndConditionExpr : Expr<bool>
     public readonly ArrayExpr<bool> Args;
     public AndConditionExpr(ArrayExpr<bool> args) => Args = args;
 
-    [ExprOp(ExprCategory.Condition, "and")]
-    [ExprParam("conditions", typeof(bool[]), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new AndConditionExpr(ExpressionCompiler.CompileArray<bool>(obj.GetProperty("conditions")));
+    [ExprOp("and", Description = "True when every condition is true.")]
+    public static Expr<bool> Op([Doc("Conditions that must all hold")] ArrayExpr<bool> conditions)
+        => new AndConditionExpr(conditions);
     public AndConditionExpr(Stream stream)
     {
         Args = (ArrayExpr<bool>)BaseExpr.Deserialize(stream);
@@ -34,10 +33,9 @@ public sealed class OrConditionExpr : Expr<bool>
     public readonly ArrayExpr<bool> Args;
     public OrConditionExpr(ArrayExpr<bool> args) => Args = args;
 
-    [ExprOp(ExprCategory.Condition, "or")]
-    [ExprParam("conditions", typeof(bool[]), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new OrConditionExpr(ExpressionCompiler.CompileArray<bool>(obj.GetProperty("conditions")));
+    [ExprOp("or", Description = "True when at least one condition is true.")]
+    public static Expr<bool> Op([Doc("Conditions, any of which may hold")] ArrayExpr<bool> conditions)
+        => new OrConditionExpr(conditions);
     public OrConditionExpr(Stream stream)
     {
         Args = (ArrayExpr<bool>)BaseExpr.Deserialize(stream);
@@ -61,10 +59,9 @@ public sealed class NotConditionExpr : Expr<bool>
     public readonly Expr<bool> Arg;
     public NotConditionExpr(Expr<bool> arg) => Arg = arg;
 
-    [ExprOp(ExprCategory.Condition, "not")]
-    [ExprParam("condition", typeof(bool), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new NotConditionExpr(ExpressionCompiler.Compile<bool>(obj.GetProperty("condition")));
+    [ExprOp("not", Description = "Negates a condition.")]
+    public static Expr<bool> Op([Doc("Condition to negate")] Expr<bool> condition)
+        => new NotConditionExpr(condition);
     public NotConditionExpr(Stream stream)
     {
         Arg = (Expr<bool>)BaseExpr.Deserialize(stream);

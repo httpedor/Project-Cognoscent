@@ -30,8 +30,9 @@ public class TargetComponentExpr : Expr<Component?>
     {
     }
 
-    [ExprOp(ExprCategory.Component, "target", "component_target", "target_component")]
-    public static Expr<Component?> CompileOp(JsonElement obj) => new TargetComponentExpr();
+    [ExprOp("target", "component_target", "target_component",
+            Description = "The component the script is acting on.")]
+    public static Expr<Component?> Op() => new TargetComponentExpr();
     public TargetComponentExpr(Stream stream)
     {
     }

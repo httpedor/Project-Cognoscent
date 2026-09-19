@@ -55,7 +55,7 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
-			"label": "build web",
+			"label": "Build Web",
 			"command": "npm",
 			"type": "process",
 			"args": [

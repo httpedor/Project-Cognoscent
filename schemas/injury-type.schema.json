@@ -6,17 +6,24 @@
   "$ref": "#/$defs/InjuryType",
 
   "$defs": {
-    "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
-    "StringExpr":    { "$ref": "_expr.schema.json#/$defs/StringExpr" },
-    "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
+    "Expr": {
+      "description": "An expression: either a DSL string (leading '=', e.g. \"= 1 + target.constitution\"; see Rpg/Scripting/DOCS.md) or a literal (number, string, boolean, null, or an array of those).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array" }
+      ]
+    },
 
     "InjuryModel": {
       "type": "object",
       "description": "A builder for Injuries.",
       "required": ["type", "severity"],
       "properties": {
-        "type":     { "$ref": "#/$defs/StringExpr", "description": "A string that points to an InjuryType in the compendium"},
-        "severity": { "$ref": "#/$defs/NumberExpr", "description": "Severity of the injury (positive number)." }
+        "type":     { "$ref": "#/$defs/Expr", "description": "String expression. Points to an InjuryType in the compendium." },
+        "severity": { "$ref": "#/$defs/Expr", "description": "Number expression. Severity of the injury (positive number)." }
       },
       "unevaluatedProperties": false
     },
@@ -26,7 +33,7 @@
       "description": "Every 'interval' seconds, if 'condition' is true, the specified 'injury' is created/applied.",
       "required": ["condition", "injury", "interval"],
       "properties": {
-        "condition": { "$ref": "#/$defs/ConditionExpr" },
+        "condition": { "$ref": "#/$defs/Expr", "description": "Condition (boolean) expression." },
         "injury":    { "$ref": "#/$defs/InjuryModel" },
         "interval":  {
           "type": "number",
@@ -53,28 +60,28 @@
           "description": "Translation key used when a body part is destroyed by this injury type."
         },
         "pain": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Pain value per point of severity."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Pain value per point of severity."
         },
         "bleed": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Bleed rate per point of severity."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Bleed rate per point of severity."
         },
         "overkillMin": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Minimum overkill percentage (0–1) needed to destroy the body part."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Minimum overkill percentage (0–1) needed to destroy the body part."
         },
         "overkillMax": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Overkill percentage (0–1) that guarantees body part destruction."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Overkill percentage (0–1) that guarantees body part destruction."
         },
         "heal": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Rate at which severity decreases naturally per second. Defaults to 0 if omitted."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Rate at which severity decreases naturally per second. Defaults to 0 if omitted."
         },
         "instakill": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "If true, this injury immediately incapacitates the body part (e.g. broken, missing). Defaults to false."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. If true, this injury immediately incapacitates the body part (e.g. broken, missing). Defaults to false."
         },
         "creations": {
           "type": "array",

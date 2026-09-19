@@ -6,11 +6,22 @@
   "$ref": "#/$defs/Skill",
 
   "$defs": {
-    "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
-    "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
-    "StringExpr":    { "$ref": "_expr.schema.json#/$defs/StringExpr" },
-    "EffectExpr":    { "$ref": "_expr.schema.json#/$defs/EffectExpr" },
-    "ArgumentType":  { "$ref": "_expr.schema.json#/$defs/ArgumentType" },
+    "Expr": {
+      "description": "An expression: either a DSL string (leading '=', e.g. \"= 1 + target.constitution\"; see Rpg/Scripting/DOCS.md) or a literal (number, string, boolean, null, or an array of those).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array" }
+      ]
+    },
+
+    "ArgumentType": {
+      "type": "string",
+      "enum": ["entity", "position", "bodypart", "item", "boolean"],
+      "description": "A skill argument type identifier."
+    },
 
     "ArgumentSlot": {
       "description": "A single argument slot: either one type string or an array of accepted types (the player can provide any of them).",
@@ -30,12 +41,12 @@
       "required": ["amount", "type"],
       "properties": {
         "amount": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Damage amount expression."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Damage amount."
         },
         "type": {
-          "$ref": "#/$defs/StringExpr",
-          "description": "DamageType compendium ID (may be a string literal or expression)."
+          "$ref": "#/$defs/Expr",
+          "description": "String expression. DamageType compendium ID."
         }
       },
       "unevaluatedProperties": false
@@ -47,12 +58,12 @@
       "required": ["condition", "description"],
       "properties": {
         "condition": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "If false, the attack misses."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. If false, the attack misses."
         },
         "description": {
-          "$ref": "#/$defs/StringExpr",
-          "description": "Human-readable reason shown when the attack misses."
+          "$ref": "#/$defs/Expr",
+          "description": "String expression. Human-readable reason shown when the attack misses."
         }
       },
       "unevaluatedProperties": false
@@ -94,48 +105,48 @@
         },
 
         "execute": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect evaluated on each execution tick."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Evaluated on each execution tick."
         },
         "start": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect evaluated when the skill starts."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Evaluated when the skill starts."
         },
         "cancel": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect evaluated when the skill is cancelled. Variables: [$0 = interrupted (bool)]."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Evaluated when the skill is cancelled. Variables: [$0 = interrupted (bool)]."
         },
         "canCancel": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Whether the skill can be cancelled by the user."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Whether the skill can be cancelled by the user."
         },
         "canExecute": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Whether the skill can be used at all (CanBeUsed check, evaluated on caller entity only)."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Whether the skill can be used at all (CanBeUsed check, evaluated on caller entity only)."
         },
         "condition": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Arbitrary condition available for use in other expressions."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Arbitrary condition available for use in other expressions."
         },
         "canTarget": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Whether a given target is a valid target for this skill."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Whether a given target is a valid target for this skill."
         },
         "delay": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Tick delay before the skill executes after being used."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Tick delay before the skill executes after being used."
         },
         "cooldown": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Tick cooldown after the skill finishes."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Tick cooldown after the skill finishes."
         },
         "duration": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "How many ticks the skill's execution lasts. Defaults to 1."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. How many ticks the skill's execution lasts. Defaults to 1."
         },
         "layers": {
           "type": "array",
-          "items": { "$ref": "#/$defs/StringExpr" },
+          "items": { "$ref": "#/$defs/Expr", "description": "String expression." },
           "description": "Skill layer identifiers that control visibility and grouping. Defaults to ['default']."
         },
         "arguments": {
@@ -153,12 +164,12 @@
           "description": "Hit condition and miss reason. Only meaningful for 'attack' type skills."
         },
         "onHit": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect evaluated when the attack hits. Only meaningful for 'attack' type skills."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Evaluated when the attack hits. Only meaningful for 'attack' type skills."
         },
         "onAttack": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect evaluated when the attack resolves (hit or miss). Only meaningful for 'attack' type skills."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Evaluated when the attack resolves (hit or miss). Only meaningful for 'attack' type skills."
         }
       }
     }

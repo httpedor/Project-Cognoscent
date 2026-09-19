@@ -19,7 +19,7 @@ using var cts = new CancellationTokenSource();
 var webHostTask = WebHost.StartAsync(cts.Token);
 #endif
 
-IPEndPoint iPEndPoint = new(IPAddress.Any, 25565);
+IPEndPoint iPEndPoint = new(IPAddress.Any, 1234);
 Socket server = new Socket(iPEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 server.Bind(iPEndPoint);
 server.Listen(100);

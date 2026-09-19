@@ -8,8 +8,8 @@ public class CallerEntityExpr : Expr<Entity?>
     public CallerEntityExpr(){}
     public CallerEntityExpr(Stream stream){}
 
-    [ExprOp(ExprCategory.Entity, "caller", "self")]
-    public static Expr<Entity?> CompileOp(JsonElement obj) => new CallerEntityExpr();
+    [ExprOp("caller", "self", Description = "The entity running the script.")]
+    public static Expr<Entity?> Op() => new CallerEntityExpr();
 
     public override Entity? Eval(EvalContext ctx)
     {
@@ -21,8 +21,8 @@ public class TargetEntityExpr : Expr<Entity?>
     public TargetEntityExpr(){}
     public TargetEntityExpr(Stream stream){}
 
-    [ExprOp(ExprCategory.Entity, "target")]
-    public static Expr<Entity?> CompileOp(JsonElement obj) => new TargetEntityExpr();
+    [ExprOp("target", Description = "The entity the script is acting on.")]
+    public static Expr<Entity?> Op() => new TargetEntityExpr();
 
     public override Entity? Eval(EvalContext ctx)
     {
@@ -34,8 +34,8 @@ public class TargetComponentEntityExpr : Expr<Entity?>
     public TargetComponentEntityExpr(){}
     public TargetComponentEntityExpr(Stream stream){}
 
-    [ExprOp(ExprCategory.Entity, "target_component_entity")]
-    public static Expr<Entity?> CompileOp(JsonElement obj) => new TargetComponentEntityExpr();
+    [ExprOp("target_component_entity", Description = "The entity owning the targeted component.")]
+    public static Expr<Entity?> Op() => new TargetComponentEntityExpr();
 
     public override Entity? Eval(EvalContext ctx)
     {
@@ -54,8 +54,10 @@ public class ComponentEntityExpr : Expr<Entity?>
         Component = BaseExpr.Deserialize<Expr<Component?>>(stream);
     }
 
-    [ExprOp(ExprCategory.Entity, "component_entity", "entity_from_component", "entity_of_component")]
-    public static Expr<Entity?> CompileOp(JsonElement obj) => new ComponentEntityExpr(ExpressionCompiler.Compile<Component?>(obj));
+    [ExprOp("component_entity", "entity_from_component", "entity_of_component",
+            Description = "The entity that owns a component.")]
+    public static Expr<Entity?> Op([Doc("Component to read the owner of")] Expr<Component?> component)
+        => new ComponentEntityExpr(component);
 
     public override Entity? Eval(EvalContext ctx)
     {
@@ -77,8 +79,8 @@ public sealed class AllEntitiesExpr : ArrayExpr<Entity>
     public AllEntitiesExpr() {}
     public AllEntitiesExpr(Stream stream) {}
 
-    [ExprOp(ExprCategory.Entity, "all_entities", IsArray = true)]
-    public static ArrayExpr<Entity> CompileOp(JsonElement obj) => new AllEntitiesExpr();
+    [ExprOp("all_entities", Description = "Every entity on the board.")]
+    public static ArrayExpr<Entity> Op() => new AllEntitiesExpr();
 
     public override IEnumerable<Entity> Eval(EvalContext ctx)
     {
@@ -102,10 +104,10 @@ public sealed class AllEntitiesWithComponentExpr : ArrayExpr<Entity>
         ComponentType.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Entity, "all_entities_with_component", IsArray = true)]
-    [ExprParam("component_type", typeof(uint), Required = true, Description = "The full name of the component type that the entities must have to be included in the result")]
-    public static ArrayExpr<Entity> CompileOp(JsonElement obj) =>
-        new AllEntitiesWithComponentExpr(ExpressionCompiler.Compile<uint>(obj.GetProperty("component_type")));
+    [ExprOp("all_entities_with_component", Description = "Every board entity carrying a component type.")]
+    public static ArrayExpr<Entity> Op(
+        [Doc("Id of the component type entities must carry")] Expr<uint> component_type)
+        => new AllEntitiesWithComponentExpr(component_type);
 
     public override IEnumerable<Entity> Eval(EvalContext ctx)
     {

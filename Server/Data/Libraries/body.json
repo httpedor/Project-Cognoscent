@@ -1,4 +1,4 @@
 {
-    "bp_groups_alive": "= all($0, body_group_alive(bp_group($0), body_from_bp($0)))",
-    "bp_array_health_percent": "= sum(map($0, bp_health($0))) / array_size($0)"
+    "bp_groups_alive": "= $0.all(body_group_alive($0.bp_group(), $0.body_from_bp()))",
+    "bp_array_health_percent": "= $0.map($0.bp_health()).sum() / $0.array_size()"
 }

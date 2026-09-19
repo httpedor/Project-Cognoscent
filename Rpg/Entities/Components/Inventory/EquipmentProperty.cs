@@ -4,6 +4,7 @@ using Rpg.Health;
 using Rpg.Skills;
 
 namespace Rpg.Entities.Components.Inventory;
+[RegisterComponent]
 public partial class EquipmentProperty : ItemProperty
 {
     /// <summary>

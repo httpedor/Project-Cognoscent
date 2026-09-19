@@ -18,6 +18,7 @@ public class TokenUpdateEvent : ComponentEvent
         OldMidia = oldMidia;
     }
 }
+[RegisterComponent]
 public partial class Token : Component, ITickableComponent, ICopyable<Token>
 {
     private Vector3 oldPosition;

@@ -34,30 +34,11 @@ public sealed class VarHasTagConditionExpr : Expr<bool>
         stream.WriteString(Tag);
     }
 
-    [ExprOp(ExprCategory.Condition, "var_has_tag")]
-    [ExprParam("var", typeof(float), Required = true, Description = "Which variable to check")]
-    [ExprParam("tag", typeof(string), Required = true, Description = "Tag to check for")]
-    public static Expr<bool> CompileOp(JsonElement obj)
-    {
-        var varIdProp = obj.GetProperty("var");
-        int varId;
-        if (varIdProp.ValueKind == JsonValueKind.Number)
-        {
-            varId = varIdProp.GetInt32();
-        }
-        else if (varIdProp.ValueKind == JsonValueKind.String)
-        {
-            // Try to parse the variable symbol name to an ID
-            string varSymbolName = varIdProp.GetString()!;
-            varId = ExpressionCompiler.GetVariableSymbolId(varSymbolName);
-        }
-        else
-        {
-            throw new JsonException("The 'var' property must be either a number (variable ID) or a string (variable symbol name).");
-        }
-        string tag = obj.GetProperty("tag").GetString()!;
-        return new VarHasTagConditionExpr(varId, tag);
-    }
+    [ExprOp("var_has_tag", Description = "True when the referenced variable carries a tag.")]
+    public static Expr<bool> Op(
+        [Doc("Variable to check, by index or context name")] Types.VariableRef var,
+        [Doc("Tag to look for")] string tag)
+        => new VarHasTagConditionExpr(var, tag);
 }
 
 public sealed class VarIsEntryConditionExpr : Expr<bool>
@@ -81,11 +62,10 @@ public sealed class VarIsEntryConditionExpr : Expr<bool>
         return entryName == EntryName.Eval(ctx);
     }
 
-    [ExprOp(ExprCategory.Condition, "var_name_is", "var_name_equals")]
-    [ExprParam("name", typeof(string), Required = true, Description = "The name to check")]
-    [ExprParam("var", typeof(float), Required = true, Description = "Which variable to check")]
-    public static Expr<bool> CompileOp(JsonElement obj)
-    {
-        return new VarIsEntryConditionExpr(ExpressionCompiler.Compile<string>(obj.GetProperty("name")), obj.GetProperty("var").GetInt32());
-    }
+    [ExprOp("var_name_is", "var_name_equals",
+            Description = "True when the referenced variable is the named compendium entry.")]
+    public static Expr<bool> Op(
+        [Doc("Compendium entry name to compare against")] Expr<string> name,
+        [Doc("Variable to check, by index or context name")] Types.VariableRef var)
+        => new VarIsEntryConditionExpr(name, var);
 }

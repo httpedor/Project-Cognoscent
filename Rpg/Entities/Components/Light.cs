@@ -1,5 +1,6 @@
 namespace Rpg.Entities.Components;
 
+[RegisterComponent]
 public partial class Light : Component
 {
     public float Range;

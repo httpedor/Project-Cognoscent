@@ -17,8 +17,9 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.10.0" />
   </ItemGroup>
-  <ItemGroup>
-    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
-    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-  </ItemGroup>
+  <PropertyGroup>
+    <!-- These analyzers are internal to this repository and are never published as a package, so
+         release tracking (RS2007/RS2008) has nothing to track. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
 </Project>

@@ -1,13 +1,14 @@
 {
   "parent": "humanoid_base",
   "name": "Humano",
+  "sexualDimorphism": true,
   "root": {
     "children": [
       {
         "name": "Barriga",
         "children": [
           {
-            "condition": "$0", // Is Female
+            "condition": "= $0", // Is Female
             "name": "Vagina",
             "area": 0.05,
             "maxHealth": 10,
@@ -18,7 +19,7 @@
             }
           },
           {
-            "condition": "$0", // Is Female
+            "condition": "= $0", // Is Female
             "name": "Útero",
             "area": 0.15,
             "maxHealth": 10,
@@ -27,7 +28,7 @@
             "tags": ["internal"]
           },
           {
-            "condition": "!$0", // Is Male
+            "condition": "= !$0", // Is Male
             "name": "Escroto",
             "area": 0.05,
             "maxHealth": 10,
@@ -53,7 +54,7 @@
             ]
           },
           {
-            "condition": "!$0", // Is Male
+            "condition": "= !$0", // Is Male
             "name": "Pênis",
             "layersProfile": "boneless",
             "sensitivity": 2,

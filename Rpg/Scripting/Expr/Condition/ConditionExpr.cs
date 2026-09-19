@@ -7,11 +7,11 @@ public sealed class ConstConditionExpr : Expr<bool>
     public readonly bool Value;
     public ConstConditionExpr(bool value) => Value = value;
 
-    [ExprOp(ExprCategory.Condition, "true")]
-    public static Expr<bool> CompileTrue(JsonElement obj) => new ConstConditionExpr(true);
+    [ExprOp("true", Description = "The constant true.")]
+    public static Expr<bool> True() => new ConstConditionExpr(true);
 
-    [ExprOp(ExprCategory.Condition, "false")]
-    public static Expr<bool> CompileFalse(JsonElement obj) => new ConstConditionExpr(false);
+    [ExprOp("false", Description = "The constant false.")]
+    public static Expr<bool> False() => new ConstConditionExpr(false);
     public ConstConditionExpr(Stream stream)
     {
         Value = stream.ReadBoolean();
@@ -32,15 +32,10 @@ public sealed class RandomConditionExpr : Expr<bool>
         Probability = probability;
     }
 
-    [ExprOp(ExprCategory.Condition, "random", "rand")]
-    [ExprParam("probability", typeof(float), Description = "Probability value 0-1 (defaults to 0.5)")]
-    public static Expr<bool> CompileOp(JsonElement obj)
-    {
-        Expr<float> probability = obj.TryGetProperty("probability", out var probElem)
-            ? ExpressionCompiler.Compile<float>(probElem)
-            : new ConstNumberExpr(0.5f);
-        return new RandomConditionExpr(probability);
-    }
+    [ExprOp("random", "rand", Description = "True with the given probability.")]
+    public static Expr<bool> Op(
+        [Doc("Probability between 0 and 1; defaults to 0.5")] Expr<float>? probability = null)
+        => new RandomConditionExpr(probability ?? new ConstNumberExpr(0.5f));
     public RandomConditionExpr(Stream stream)
     {
         Probability = BaseExpr.Deserialize<Expr<float>>(stream);
@@ -89,60 +84,6 @@ public sealed class ConditionalExpr<T> : Expr<T>
         Condition.ToBytes(stream);
         TrueExpr.ToBytes(stream);
         FalseExpr.ToBytes(stream);
-    }
-}
-
-public class IfElseExpr<T> : Expr<T>
-{
-    public readonly List<(Expr<bool> Condition, Expr<T> Result)> Cases;
-    public readonly Expr<T>? DefaultCase;
-
-    public IfElseExpr(List<(Expr<bool>, Expr<T>)> cases, Expr<T>? defaultCase = null)
-    {
-        Cases = cases;
-        DefaultCase = defaultCase;
-    }
-
-    public IfElseExpr(Stream stream)
-    {
-        int caseCount = stream.ReadInt32();
-        Cases = new List<(Expr<bool>, Expr<T>)>();
-        for (int i = 0; i < caseCount; i++)
-        {
-            var condition = BaseExpr.Deserialize<Expr<bool>>(stream);
-            var result = BaseExpr.Deserialize<Expr<T>>(stream);
-            Cases.Add((condition, result));
-        }
-        if (stream.ReadBoolean())
-        {
-            DefaultCase = BaseExpr.Deserialize<Expr<T>>(stream);
-        }
-    }
-
-    public override T Eval(EvalContext ctx)
-    {
-        foreach (var (condition, result) in Cases)
-        {
-            if (condition.Eval(ctx))
-                return result.Eval(ctx);
-        }
-        if (DefaultCase != null)
-            return DefaultCase.Eval(ctx);
-        throw new Exception("No conditions matched and no default case provided in SwitchConditionExpr");
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        stream.WriteInt32(Cases.Count);
-        foreach (var (condition, result) in Cases)
-        {
-            condition.ToBytes(stream);
-            result.ToBytes(stream);
-        }
-        stream.WriteBoolean(DefaultCase != null);
-        if (DefaultCase != null)
-            DefaultCase.ToBytes(stream);
     }
 }
 
@@ -268,17 +209,17 @@ public sealed class SwitchRangeExpr<T> : Expr<T>
 public class AllConditionExpr : Expr<bool>
 {
 
-    public readonly Expr<bool> Condition;
+    public readonly LambdaExpr<bool> Condition;
     public readonly ArrayExpr<object> Variables;
 
-    public AllConditionExpr(Expr<bool> condition, ArrayExpr<object> variables)
+    public AllConditionExpr(LambdaExpr<bool> condition, ArrayExpr<object> variables)
     {
         Condition = condition;
         Variables = variables;
     }
     public AllConditionExpr(Stream stream)
     {
-        Condition = BaseExpr.Deserialize<Expr<bool>>(stream);
+        Condition = BaseExpr.Deserialize<LambdaExpr<bool>>(stream);
         Variables = BaseExpr.Deserialize<ArrayExpr<object>>(stream);
     }
 
@@ -286,40 +227,32 @@ public class AllConditionExpr : Expr<bool>
     {
         foreach (var element in Variables.Eval(ctx))
         {
-            var newVariables = new object[ctx.Variables.Length+1];
-            for (int i = 0; i < ctx.Variables.Length; i++)
-                newVariables[i+1] = ctx.Variables[i];
-            newVariables[0] = element!;
-            if (!Condition.Eval(ctx.WithVariables(newVariables)))
+            if (!Condition.Invoke(ctx, element))
                 return false;
         }
         return true;
     }
 
-    [ExprOp(ExprCategory.Condition, "all")]
-    [ExprParam("condition", typeof(bool), Required = true, Description = "The condition to check for all elements. The current element will be available as variable 0 in the condition context.")]
-    [ExprParam("variables", typeof(object[]), Required = true, Description = "The array of elements to check.")]
-    public static Expr<bool> CompileAll(JsonElement obj)
-    {
-        var condition = ExpressionCompiler.Compile<bool>(obj.GetProperty("condition"));
-        var variables = ExpressionCompiler.CompileArray<object>(obj.GetProperty("variables"));
-        return new AllConditionExpr(condition, variables);
-    }
+    [ExprOp("all", Description = "True when the condition holds for every element.")]
+    public static Expr<bool> Op(
+        [Doc("Elements to test")] ArrayExpr<object> variables,
+        [Doc("Test applied to each element")] LambdaExpr<bool> condition)
+        => new AllConditionExpr(condition, variables);
 }
 public class AnyConditionExpr : Expr<bool>
 {
 
-    public readonly Expr<bool> Condition;
+    public readonly LambdaExpr<bool> Condition;
     public readonly ArrayExpr<object> Variables;
 
-    public AnyConditionExpr(Expr<bool> condition, ArrayExpr<object> variables)
+    public AnyConditionExpr(LambdaExpr<bool> condition, ArrayExpr<object> variables)
     {
         Condition = condition;
         Variables = variables;
     }
     public AnyConditionExpr(Stream stream)
     {
-        Condition = BaseExpr.Deserialize<Expr<bool>>(stream);
+        Condition = BaseExpr.Deserialize<LambdaExpr<bool>>(stream);
         Variables = BaseExpr.Deserialize<ArrayExpr<object>>(stream);
     }
 
@@ -328,25 +261,17 @@ public class AnyConditionExpr : Expr<bool>
     {
         foreach (var element in Variables.Eval(ctx))
         {
-            var newVariables = new object[ctx.Variables.Length+1];
-            for (int i = 0; i < ctx.Variables.Length; i++)
-                newVariables[i+1] = ctx.Variables[i];
-            newVariables[0] = element;
-            if (Condition.Eval(ctx.WithVariables(newVariables)))
+            if (Condition.Invoke(ctx, element))
                 return true;
         }
         return false;
     }
 
-    [ExprOp(ExprCategory.Condition, "any")]
-    [ExprParam("condition", typeof(bool), Required = true, Description = "The condition to check for any element. The current element will be available as variable 0 in the condition context.")]
-    [ExprParam("variables", typeof(object[]), Required = true, Description = "The array of elements to check.")]
-    public static Expr<bool> CompileAny(JsonElement obj)
-    {
-        var condition = ExpressionCompiler.Compile<bool>(obj.GetProperty("condition"));
-        var variables = ExpressionCompiler.CompileArray<object>(obj.GetProperty("variables"));
-        return new AnyConditionExpr(condition, variables);
-    }
+    [ExprOp("any", Description = "True when the condition holds for at least one element.")]
+    public static Expr<bool> Op(
+        [Doc("Elements to test")] ArrayExpr<object> variables,
+        [Doc("Test applied to each element")] LambdaExpr<bool> condition)
+        => new AnyConditionExpr(condition, variables);
 }
 public sealed class EqualConditionExpr : Expr<bool>
 {
@@ -359,13 +284,9 @@ public sealed class EqualConditionExpr : Expr<bool>
         Right = right;
     }
 
-    [ExprOp(ExprCategory.Condition, "=", "==")]
-    [ExprParam("left", typeof(object), Required = true)]
-    [ExprParam("right", typeof(object), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new EqualConditionExpr(
-            ExpressionCompiler.Compile<object>(obj.GetProperty("left")),
-            ExpressionCompiler.Compile<object>(obj.GetProperty("right")));
+    [ExprOp("=", "==", Description = "True when both sides are equal.")]
+    public static Expr<bool> Op(Expr<object> left, Expr<object> right)
+        => new EqualConditionExpr(left, right);
     public EqualConditionExpr(Stream stream)
     {
         Left = BaseExpr.Deserialize(stream);
@@ -394,13 +315,9 @@ public sealed class NotEqualConditionExpr : Expr<bool>
         Right = right;
     }
 
-    [ExprOp(ExprCategory.Condition, "!=")]
-    [ExprParam("left", typeof(object), Required = true)]
-    [ExprParam("right", typeof(object), Required = true)]
-    public static Expr<bool> CompileOp(JsonElement obj)
-        => new NotEqualConditionExpr(
-            ExpressionCompiler.Compile<object>(obj.GetProperty("left")),
-            ExpressionCompiler.Compile<object>(obj.GetProperty("right")));
+    [ExprOp("!=", Description = "True when the two sides differ.")]
+    public static Expr<bool> Op(Expr<object> left, Expr<object> right)
+        => new NotEqualConditionExpr(left, right);
     public NotEqualConditionExpr(Stream stream)
     {
         Left = BaseExpr.Deserialize(stream);
@@ -409,7 +326,7 @@ public sealed class NotEqualConditionExpr : Expr<bool>
 
     public override bool Eval(EvalContext ctx)
     {
-        return Left.BaseEval(ctx) != Right.BaseEval(ctx);
+        return !Object.Equals(Left.BaseEval(ctx), Right.BaseEval(ctx));
     }
     public override void ToBytes(Stream stream)
     {

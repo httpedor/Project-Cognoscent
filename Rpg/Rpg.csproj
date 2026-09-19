@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Tools\ComponentGenerator\ComponentGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Tools\ExprGenerator\ExprGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <PropertyGroup>
     <!-- Allow disabling via /p:GenerateTsPackets=false to avoid recursion in child builds -->
@@ -38,15 +39,14 @@
     <Exec Command="$(DotNetExe) run --no-build --project $(PacketTsGenProj) -c $(Configuration) -- $(RpgDll) $(TsOutPath)" ContinueOnError="WarnAndContinue" />
   </Target>
 
-  <!-- Write the auto-generated expression + tag JSON schemas to disk after build -->
+  <!-- Write the auto-generated tag JSON schema to disk after build -->
   <Target Name="WriteSchemas" AfterTargets="Build" Condition="'$(GenerateSchema)' == 'true' and '$(IsCrossTargetingBuild)' != 'true' and '$(SkipRpgPostBuild)' != 'true'">
     <PropertyGroup>
       <_SchemaWriterProj>$(MSBuildProjectDirectory)\..\Tools\SchemaWriter\SchemaWriter.csproj</_SchemaWriterProj>
-      <_ExprSchemaPath>$(MSBuildProjectDirectory)\..\schemas\_expr.schema.json</_ExprSchemaPath>
       <_TagsSchemaPath>$(MSBuildProjectDirectory)\..\schemas\_tags.schema.json</_TagsSchemaPath>
     </PropertyGroup>
-    <Message Text="[Rpg] Writing schemas to $(_ExprSchemaPath) and $(_TagsSchemaPath) ..." Importance="High" />
+    <Message Text="[Rpg] Writing schema to $(_TagsSchemaPath) ..." Importance="High" />
     <Exec Command="dotnet build $(_SchemaWriterProj) -c $(Configuration) /p:SkipRpgPostBuild=true" ContinueOnError="WarnAndContinue" />
-    <Exec Command="dotnet run --no-build --project $(_SchemaWriterProj) -c $(Configuration) -- $(_ExprSchemaPath) $(_TagsSchemaPath)" ContinueOnError="WarnAndContinue" />
+    <Exec Command="dotnet run --no-build --project $(_SchemaWriterProj) -c $(Configuration) -- $(_TagsSchemaPath)" ContinueOnError="WarnAndContinue" />
   </Target>
 </Project>

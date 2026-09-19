@@ -6,10 +6,16 @@
   "$ref": "#/$defs/BodyModel",
 
   "$defs": {
-    "NumberExpr":       { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
-    "ConditionExpr":    { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
-    "EffectExpr":       { "$ref": "_expr.schema.json#/$defs/EffectExpr" },
-    "StatModifierType": { "$ref": "_expr.schema.json#/$defs/StatModifierType" },
+    "Expr": {
+      "description": "An expression: either a DSL string (leading '=', e.g. \"= 1 + target.constitution\"; see Rpg/Scripting/DOCS.md) or a literal (number, string, boolean, null, or an array of those).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array" }
+      ]
+    },
     "BodyPosture":      { "$ref": "body-posture.schema.json#/$defs/BodyPosture" },
 
     "PartStatModifier": {
@@ -22,12 +28,12 @@
           "description": "ID of the stat to modify."
         },
         "atFull": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Modifier value when the body part is at full health."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Modifier value when the body part is at full health."
         },
         "atZero": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Modifier value when the body part is at 0 health. Defaults to 0 if omitted."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Modifier value when the body part is at 0 health. Defaults to 0 if omitted."
         },
         "standaloneHPOnly": {
           "type": "boolean",
@@ -35,8 +41,8 @@
           "default": false
         },
         "operation": {
-          "$ref": "#/$defs/StatModifierType",
-          "description": "How the modifier value is applied to the stat.",
+          "$ref": "#/$defs/Expr",
+          "description": "StatModifierType expression (one of: Flat, FlatPostMods, Percent, Multiplier, Capmax, Capmin, OverrideBase, OverrideFinal). How the modifier value is applied to the stat.",
           "default": "Flat"
         }
       },
@@ -53,12 +59,12 @@
           "description": "Name of the DamageType to modify."
         },
         "value": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Modifier value."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Modifier value."
         },
         "operation": {
-          "$ref": "#/$defs/StatModifierType",
-          "description": "How the modifier is applied.",
+          "$ref": "#/$defs/Expr",
+          "description": "StatModifierType expression (one of: Flat, FlatPostMods, Percent, Multiplier, Capmax, Capmin, OverrideBase, OverrideFinal). How the modifier is applied.",
           "default": "Percent"
         }
       },
@@ -68,7 +74,6 @@
     "BodyPartModel": {
       "type": "object",
       "description": "A body part node in the body hierarchy.",
-      "required": ["name", "maxHealth"],
       "properties": {
         "name": {
           "type": "string",
@@ -80,12 +85,12 @@
           "default": "default"
         },
         "maxHealth": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Maximum health points of this body part."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Maximum health points of this body part."
         },
         "area": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Relative surface area used for hit-location probability. Higher area = more likely to be hit."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Relative surface area used for hit-location probability. Higher area = more likely to be hit."
         },
         "painMultiplier": {
           "type": "number",
@@ -93,8 +98,8 @@
           "default": 1.0
         },
         "groupVital": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Whether this bodypart is vital for the group or not. If so, the group will be considered dead if this part is dead.",
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Whether this bodypart is vital for the group or not. If so, the group will be considered dead if this part is dead.",
           "default": true
         },
         "healthMultiplier": {
@@ -167,12 +172,12 @@
         },
         "postures": {
           "type": "array",
-          "items": { "$ref": "#/$defs/BodyPosture" },
+          "items": { "type": "string" },
           "description": "Optional body postures that can be assumed while this part is healthy enough. Postures provide movement and combat modifiers and can be used to implement crouching, crawling, etc.",
           "default": []
         },
         "restingPosture": {
-          "$ref": "#/$defs/BodyPosture",
+          "type": "string",
           "description": "The default posture assumed when the entity is at rest."
         },
         "layersProfile": {
@@ -189,8 +194,8 @@
           "description": "Layer profile for this body part. Either a string referencing a named profile, or an inline profile object."
         },
         "condition": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Condition evaluated at build time to determine whether this body part is included. If false, the part and all its children are excluded from the final body."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Evaluated at build time to determine whether this body part is included. If false, the part and all its children are excluded from the final body."
         }
       }
     },
@@ -201,12 +206,12 @@
       "required": ["value"],
       "properties": {
         "value": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Expression evaluated to resolve the max/min value from the dependency."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Evaluated to resolve the max/min value from the dependency."
         },
         "operation": {
-          "$ref": "#/$defs/StatModifierType",
-          "description": "How the dependency value is combined.",
+          "$ref": "#/$defs/Expr",
+          "description": "StatModifierType expression (one of: Flat, FlatPostMods, Percent, Multiplier, Capmax, Capmin, OverrideBase, OverrideFinal). How the dependency value is combined.",
           "default": "Flat"
         }
       },
@@ -218,16 +223,16 @@
       "description": "Configuration for an entity-level stat.",
       "properties": {
         "base": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Base value of the stat."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Base value of the stat."
         },
         "max": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Maximum cap. If omitted, no upper cap is enforced (unless overCap is false)."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Maximum cap. If omitted, no upper cap is enforced (unless overCap is false)."
         },
         "min": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Minimum cap. If omitted, no lower cap is enforced (unless underCap is false)."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Minimum cap. If omitted, no lower cap is enforced (unless underCap is false)."
         },
         "overCap": {
           "type": "boolean",
@@ -255,12 +260,12 @@
           "description": "If true, this stat is calculated only on each individual group, and does not represent something that runs through the whole body"
         },
         "regen": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Amount regenerated (or drained if negative) per tick. Omit for no passive regen."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Amount regenerated (or drained if negative) per tick. Omit for no passive regen."
         },
         "dependsOn": {
           "type": "object",
-          "description": "Makes this stat's effective max or min depend on other stats. Keys are stat IDs, values can be a number (treated as a weight based on the ratio of the dependency stat, e.g: if the dependency is 75 and it's max is 100, and the weight is 1, this stat will have a -25% debuff) or an object containing a 'value' NumberExpr and a 'type' enum specifying the StatModifierType. The dependency stat's value is always passed as $0",
+          "description": "Makes this stat's effective max or min depend on other stats. Keys are stat IDs, values can be a number (treated as a weight based on the ratio of the dependency stat, e.g: if the dependency is 75 and it's max is 100, and the weight is 1, this stat will have a -25% debuff) or an object containing a 'value' number expression and a 'type' StatModifierType expression. The dependency stat's value is always passed as $0",
           "additionalProperties": {
             "oneOf": [
               { "type": "number"},
@@ -268,8 +273,8 @@
                 "type": "object",
                 "required": ["value","type"],
                 "properties": {
-                  "value": { "$ref": "#/$defs/NumberExpr" },
-                  "type": { "$ref": "#/$defs/StatModifierType" }
+                  "value": { "$ref": "#/$defs/Expr", "description": "Number expression." },
+                  "type": { "$ref": "#/$defs/Expr", "description": "StatModifierType expression (one of: Flat, FlatPostMods, Percent, Multiplier, Capmax, Capmin, OverrideBase, OverrideFinal)." }
                 },
                 "unevaluatedProperties": false
               }
@@ -288,8 +293,8 @@
           "description": "Optional human-readable display name for the stat."
         },
         "onChange": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect evaluated whenever this stat's value changes."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Evaluated whenever this stat's value changes."
         },
         "thresholds": {
           "type": "array",
@@ -298,16 +303,16 @@
             "required": ["condition", "effect"],
             "properties": {
               "condition": {
-                "$ref": "#/$defs/ConditionExpr",
-                "description": "Condition evaluated against the entity's current state. If true, the threshold's effect is applied."
+                "$ref": "#/$defs/Expr",
+                "description": "Condition (boolean) expression. Evaluated against the entity's current state. If true, the threshold's effect is applied."
               },
               "effect": {
-                "$ref": "#/$defs/EffectExpr",
-                "description": "Effect applied when the condition is met."
+                "$ref": "#/$defs/Expr",
+                "description": "Effect expression. Applied when the condition is met."
               },
               "reverse": {
-                "$ref": "#/$defs/EffectExpr",
-                "description": "Optional effect to unapply when the condition is no longer met (e.g. if the stat goes back above a health threshold)."
+                "$ref": "#/$defs/Expr",
+                "description": "Effect expression. Optional effect to unapply when the condition is no longer met (e.g. if the stat goes back above a health threshold)."
               }
             },
             "unevaluatedProperties": false
@@ -354,15 +359,25 @@
         },
         "onBuild": {
           "type": "array",
-          "items": {"$ref": "#/$defs/EffectExpr" },
+          "items": {"$ref": "#/$defs/Expr", "description": "Effect expression."},
           "description": "Effects that are run when this body model is being built.\nIf this model has sexual dimorphism, the $0 variable will be set to true if the current body is female and false if it's male.",
           "default": []
         },
         "onHealthChange": {
           "type": "array",
-          "items": {"$ref": "#/$defs/EffectExpr" },
+          "items": {"$ref": "#/$defs/Expr", "description": "Effect expression."},
           "description": "Effects that are run when any body part's health changes. \n$0 = BodyPart\n$1 = CurrentHealth\n$2 = OldHealth\n$3 = InjurySeverity\n$4 = InjuryType\nKeep in mind the part can either have been healed or damaged.",
           "default": []
+        },
+        "postures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/BodyPosture" },
+          "description": "Optional body postures that can be assumed while this body is healthy enough. Postures provide movement and combat modifiers and can be used to implement crouching, crawling, etc.",
+          "default": []
+        },
+        "restingPosture": {
+          "$ref": "#/$defs/BodyPosture",
+          "description": "The default posture assumed when the entity is at rest."
         },
         "root": {
           "$ref": "#/$defs/BodyPartModel",
@@ -399,37 +414,37 @@
       "description": "A single tissue layer within a body part (e.g. skin, muscle, bone). Layers are ordered outermost to innermost and damage flows through them sequentially.",
       "properties": {
         "bloodFlow": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "How much blood flows through this layer, affecting bleeding and healing rates.",
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. How much blood flows through this layer, affecting bleeding and healing rates.",
           "default": 0
         },
         "maxHealth": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Maximum health of this layer.",
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Maximum health of this layer.",
           "default": 10
         },
         "regen": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "How much injury severity is reduced per second due to natural healing.",
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. How much injury severity is reduced per second due to natural healing.",
           "default": 0
         },
         "onHeal": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect executed when an injury on this layer is naturally healed (e.g. leave a scar)."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Executed when an injury on this layer is naturally healed (e.g. leave a scar)."
         },
         "pain": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Pain multiplier for injuries on this layer. Higher values mean more painful.",
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Pain multiplier for injuries on this layer. Higher values mean more painful.",
           "default": 1
         },
         "vital": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Whether this layer reaching 0 health instantly disables the body part (e.g. bone breakage).",
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Whether this layer reaching 0 health instantly disables the body part (e.g. bone breakage).",
           "default": false
         },
         "bypass": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Condition evaluated per damage instance. If true, damage skips this layer entirely (goes straight to the next one without being reduced by modifiers or resistance).",
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Evaluated per damage instance. If true, damage skips this layer entirely (goes straight to the next one without being reduced by modifiers or resistance).",
           "default": false
         },
         "damageModifiers": {
@@ -437,7 +452,7 @@
             {
               "type": "object",
               "description": "Simple format: keys are damage type names, values are percentage modifiers (e.g. 0.5 = 50% damage).",
-              "additionalProperties": { "$ref": "#/$defs/NumberExpr" }
+              "additionalProperties": { "$ref": "#/$defs/Expr", "description": "Number expression." }
             },
             {
               "type": "array",
@@ -447,16 +462,16 @@
                 "required": ["condition", "value"],
                 "properties": {
                   "condition": {
-                    "$ref": "#/$defs/ConditionExpr",
-                    "description": "Condition controlling when this modifier applies."
+                    "$ref": "#/$defs/Expr",
+                    "description": "Condition (boolean) expression. Controls when this modifier applies."
                   },
                   "value": {
-                    "$ref": "#/$defs/NumberExpr",
-                    "description": "Modifier value."
+                    "$ref": "#/$defs/Expr",
+                    "description": "Number expression. Modifier value."
                   },
                   "operation": {
-                    "$ref": "#/$defs/StatModifierType",
-                    "description": "How the modifier is applied.",
+                    "$ref": "#/$defs/Expr",
+                    "description": "StatModifierType expression (one of: Flat, FlatPostMods, Percent, Multiplier, Capmax, Capmin, OverrideBase, OverrideFinal). How the modifier is applied.",
                     "default": "Percent"
                   }
                 },
@@ -471,7 +486,7 @@
             {
               "type": "object",
               "description": "Simple format: keys are damage type names, values are penetration thresholds.",
-              "additionalProperties": { "$ref": "#/$defs/NumberExpr" }
+              "additionalProperties": { "$ref": "#/$defs/Expr", "description": "Number expression." }
             },
             {
               "type": "array",
@@ -481,12 +496,12 @@
                 "required": ["condition", "value"],
                 "properties": {
                   "condition": {
-                    "$ref": "#/$defs/ConditionExpr",
-                    "description": "Condition controlling when this resistance applies."
+                    "$ref": "#/$defs/Expr",
+                    "description": "Condition (boolean) expression. Controls when this resistance applies."
                   },
                   "value": {
-                    "$ref": "#/$defs/NumberExpr",
-                    "description": "Penetration threshold value."
+                    "$ref": "#/$defs/Expr",
+                    "description": "Number expression. Penetration threshold value."
                   }
                 },
                 "unevaluatedProperties": false
@@ -508,8 +523,8 @@
           "default": []
         },
         "surfaceArea": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "How much of the body part's surface area this layer covers. This is used to calculate how likely it is for an attack to hit this layer, and is used to calculate bypass chance. This is a value from 0 to 1, where 1 means the layer covers the entire body part and 0 means it doesn't cover any of it.",
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. How much of the body part's surface area this layer covers. This is used to calculate how likely it is for an attack to hit this layer, and is used to calculate bypass chance. This is a value from 0 to 1, where 1 means the layer covers the entire body part and 0 means it doesn't cover any of it.",
           "default": 1
         }
       }
@@ -525,12 +540,12 @@
           "description": "Compendium ID of the InjuryType."
         },
         "severity": {
-          "$ref": "#/$defs/NumberExpr",
-          "description": "Severity of the injury."
+          "$ref": "#/$defs/Expr",
+          "description": "Number expression. Severity of the injury."
         },
         "condition": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Optional condition evaluated at build time. If false, the injury is not added."
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Optional, evaluated at build time. If false, the injury is not added."
         }
       },
       "unevaluatedProperties": false

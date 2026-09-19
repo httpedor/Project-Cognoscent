@@ -17,16 +17,11 @@ public sealed class ConstNumberExpr : Expr<float>
         stream.WriteFloat(Value);
     }
 
-    [ExprOp(ExprCategory.Number, "max_value", "max_float", "float_max_value")]
-    public static Expr<float> CompileMaxFloat(JsonElement obj)
-    {
-        return new ConstNumberExpr(float.MaxValue);
-    }
-    [ExprOp(ExprCategory.Number, "min_value", "min_float", "float_min_value")]
-    public static Expr<float> CompileMinFloat(JsonElement obj)
-    {
-        return new ConstNumberExpr(float.MinValue);
-    }
+    [ExprOp("max_value", "max_float", "float_max_value", Description = "The largest representable number.")]
+    public static Expr<float> MaxValue() => new ConstNumberExpr(float.MaxValue);
+
+    [ExprOp("min_value", "min_float", "float_min_value", Description = "The smallest representable number.")]
+    public static Expr<float> MinValue() => new ConstNumberExpr(float.MinValue);
 }
 
 public sealed class RangeNumberExpr : ArrayExpr<float>
@@ -75,15 +70,11 @@ public sealed class RangeNumberExpr : ArrayExpr<float>
         Step.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "range", "rangeNumber", "numberRange", IsArray = true)]
-    [ExprParam("start", typeof(float), Required = true)]
-    [ExprParam("end", typeof(float), Required = true)]
-    [ExprParam("step", typeof(float), Required = true)]
-    public static RangeNumberExpr Compile(JsonElement obj)
-    {
-        var start = ExpressionCompiler.Compile<float>(obj.GetProperty("start"));
-        var end = ExpressionCompiler.Compile<float>(obj.GetProperty("end"));
-        var step = ExpressionCompiler.Compile<float>(obj.GetProperty("step"));
-        return new RangeNumberExpr(start, end, step);
-    }
+    [ExprOp("range", "rangeNumber", "numberRange",
+            Description = "The numbers from start (inclusive) to end (exclusive), spaced by step.")]
+    public static RangeNumberExpr Op(
+        [Doc("First value")] Expr<float> start,
+        [Doc("Exclusive upper bound")] Expr<float> end,
+        [Doc("Increment between values; may be negative")] Expr<float> step)
+        => new RangeNumberExpr(start, end, step);
 }

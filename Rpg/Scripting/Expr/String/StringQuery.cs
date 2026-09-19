@@ -30,13 +30,9 @@ public sealed class GetBodypartGroupExpr : Expr<string>
         Target.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.String, "bodypart_group", "bp_group")]
-    [ExprParam("target", typeof(BodyPart), Description = "Body part to get the group of (defaults to caller's body part)")]
-    public static Expr<string> CompileOp(JsonElement obj)
-    {
-        var target = ExpressionCompiler.Compile<BodyPart>(obj.GetProperty("target"));
-        return new GetBodypartGroupExpr(target);
-    }
+    [ExprOp("bodypart_group", "bp_group", Description = "The group a body part belongs to.")]
+    public static Expr<string> Op([Doc("Body part to read the group of")] Expr<BodyPart?> target)
+        => new GetBodypartGroupExpr(target);
 }
 public sealed class GetEntityNameExpr : Expr<string>
 {
@@ -64,13 +60,9 @@ public sealed class GetEntityNameExpr : Expr<string>
         Target.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.String, "entity_name", "ent_name")]
-    [ExprParam("target", typeof(Entity), Description = "Entity to get the name of (defaults to caller)")]
-    public static Expr<string> CompileOp(JsonElement obj)
-    {
-        var target = ExpressionCompiler.Compile<Entity>(obj.GetProperty("target"));
-        return new GetEntityNameExpr(target);
-    }
+    [ExprOp("entity_name", "ent_name", Description = "The display name of an entity.")]
+    public static Expr<string> Op([Doc("Entity to read the name of")] Expr<Entity> target)
+        => new GetEntityNameExpr(target);
 }
 public sealed class BodyRestingPostureNameExpr : Expr<string>
 {
@@ -99,11 +91,7 @@ public sealed class BodyRestingPostureNameExpr : Expr<string>
         Target.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.String, "resting_posture", "rest_posture")]
-    [ExprParam("target", typeof(Body), Description = "Body to get the resting posture of (defaults to caller's body)")]
-    public static Expr<string> CompileOp(JsonElement obj)
-    {
-        var target = ExpressionCompiler.Compile<Body>(obj.GetProperty("target"));
-        return new BodyRestingPostureNameExpr(target);
-    }
+    [ExprOp("resting_posture", "rest_posture", Description = "The name of a body's resting posture.")]
+    public static Expr<string> Op([Doc("Body to read the resting posture of")] Expr<Body> target)
+        => new BodyRestingPostureNameExpr(target);
 }

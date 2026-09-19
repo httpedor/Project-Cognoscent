@@ -15,65 +15,45 @@ public class SetStatEffect : EffectExpr
         Value = value;
     }
 
-    [ExprOp(ExprCategory.Effect, "setstat", "set_stat")]
-    [ExprParam("stat", typeof(string), Required = true, Description = "Name of the stat to set")]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr CompileSetStat(JsonElement obj)
-    {
-        string statName = obj.GetProperty("stat").GetString()!;
-        var value = ExpressionCompiler.Compile<float>(obj.GetProperty("value"));
-        var target = ExpressionCompiler.Compile<Entity>(obj.GetProperty("target"));
-        return new SetStatEffect(statName, target, value);
-    }
+    [ExprOp("setstat", "set_stat", Description = "Sets a stat's base value.")]
+    public static EffectExpr SetStat(
+        [Doc("Name of the stat to set")] string stat,
+        [Doc("New base value")] Expr<float> value,
+        [Doc("Entity to modify")] Expr<Entity?> target)
+        => new SetStatEffect(stat, target, value);
 
-    [ExprOp(ExprCategory.Effect, "addstat", "add_stat")]
-    [ExprParam("stat", typeof(string), Required = true)]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr CompileAddStat(JsonElement obj)
-    {
-        string statName = obj.GetProperty("stat").GetString()!;
-        var value = ExpressionCompiler.Compile<float>(obj.GetProperty("value"));
-        var target = ExpressionCompiler.Compile<Entity>(obj.GetProperty("target"));
-        return new SetStatEffect(statName, target, new AddExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
-    }
+    [ExprOp("addstat", "add_stat", Description = "Adds to a stat's base value.")]
+    public static EffectExpr AddStat(
+        [Doc("Name of the stat to change")] string stat,
+        [Doc("Amount to add")] Expr<float> value,
+        [Doc("Entity to modify")] Expr<Entity?> target)
+        => new SetStatEffect(stat, target,
+            new AddExpr([new StatExpr(stat, target, new ConstNumberExpr(0)), value]));
 
-    [ExprOp(ExprCategory.Effect, "substat", "sub_stat", "remove_stat", "removestat")]
-    [ExprParam("stat", typeof(string), Required = true)]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr CompileSubStat(JsonElement obj)
-    {
-        string statName = obj.GetProperty("stat").GetString()!;
-        var value = ExpressionCompiler.Compile<float>(obj.GetProperty("value"));
-        var target = ExpressionCompiler.Compile<Entity>(obj.GetProperty("target"));
-        return new SetStatEffect(statName, target, new SubExpr([new StatExpr(statName, target, new ConstNumberExpr(0)), value]));
-    }
+    [ExprOp("substat", "sub_stat", "remove_stat", "removestat",
+            Description = "Subtracts from a stat's base value.")]
+    public static EffectExpr SubStat(
+        [Doc("Name of the stat to change")] string stat,
+        [Doc("Amount to subtract")] Expr<float> value,
+        [Doc("Entity to modify")] Expr<Entity?> target)
+        => new SetStatEffect(stat, target,
+            new SubExpr([new StatExpr(stat, target, new ConstNumberExpr(0)), value]));
 
-    [ExprOp(ExprCategory.Effect, "mulstat", "mul_stat")]
-    [ExprParam("stat", typeof(string), Required = true)]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr CompileMulStat(JsonElement obj)
-    {
-        string statName = obj.GetProperty("stat").GetString()!;
-        var value = ExpressionCompiler.Compile<float>(obj.GetProperty("value"));
-        var target = ExpressionCompiler.Compile<Entity>(obj.GetProperty("target"));
-        return new SetStatEffect(statName, target, new MulExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
-    }
+    [ExprOp("mulstat", "mul_stat", Description = "Multiplies a stat's base value.")]
+    public static EffectExpr MulStat(
+        [Doc("Name of the stat to change")] string stat,
+        [Doc("Factor to multiply by")] Expr<float> value,
+        [Doc("Entity to modify")] Expr<Entity?> target)
+        => new SetStatEffect(stat, target,
+            new MulExpr([new StatExpr(stat, target, new ConstNumberExpr(1)), value]));
 
-    [ExprOp(ExprCategory.Effect, "divstat", "div_stat")]
-    [ExprParam("stat", typeof(string), Required = true)]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr CompileDivStat(JsonElement obj)
-    {
-        string statName = obj.GetProperty("stat").GetString()!;
-        var value = ExpressionCompiler.Compile<float>(obj.GetProperty("value"));
-        var target = ExpressionCompiler.Compile<Entity>(obj.GetProperty("target"));
-        return new SetStatEffect(statName, target, new DivExpr([new StatExpr(statName, target, new ConstNumberExpr(1)), value]));
-    }
+    [ExprOp("divstat", "div_stat", Description = "Divides a stat's base value.")]
+    public static EffectExpr DivStat(
+        [Doc("Name of the stat to change")] string stat,
+        [Doc("Divisor")] Expr<float> value,
+        [Doc("Entity to modify")] Expr<Entity?> target)
+        => new SetStatEffect(stat, target,
+            new DivExpr([new StatExpr(stat, target, new ConstNumberExpr(1)), value]));
     public override void EvalEffect(EvalContext ctx)
     {
         var entity = Target.Eval(ctx);
@@ -114,21 +94,14 @@ public sealed class StatModifierAddEffect : EffectExpr
         Id = id ?? new StringLiteralExpr(Guid.NewGuid().ToString()); // Generate a random ID if not provided
     }
 
-    [ExprOp(ExprCategory.Effect, "modifystat", "modify_stat")]
-    [ExprParam("stat", typeof(string), Required = true)]
-    [ExprParam("modifier_type", typeof(StatModifierType), Required = true, Description = "How the modifier value is applied to the stat. E.g. \"Flat\", \"Percent\", etc.")]
-    [ExprParam("value", typeof(float), Required = true)]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    [ExprParam("id", typeof(string), Required = false, Description = "Optional ID for the modifier, used to remove it later if needed")]
-    public static EffectExpr Compile(JsonElement obj)
-    {
-        var statName = ExpressionCompiler.Compile<string>(obj.GetProperty("stat"));
-        var modifierType = ExpressionCompiler.Compile<StatModifierType>(obj.GetProperty("modifier_type"));
-        var value = ExpressionCompiler.Compile<float>(obj.GetProperty("value"));
-        var target = ExpressionCompiler.Compile<Entity?>(obj.GetProperty("target"));
-        var id = obj.TryGetProperty("id", out var idElement) ? ExpressionCompiler.Compile<string>(idElement) : null;
-        return new StatModifierAddEffect(statName, modifierType, target, value, id);
-    }
+    [ExprOp("modifystat", "modify_stat", Description = "Attaches a modifier to a stat.")]
+    public static EffectExpr Op(
+        [Doc("Name of the stat to modify")] Expr<string> stat,
+        [Doc("How the value applies, e.g. Flat or Percent")] Expr<StatModifierType> modifier_type,
+        [Doc("Modifier value")] Expr<float> value,
+        [Doc("Entity to modify")] Expr<Entity?> target,
+        [Doc("Id used to remove the modifier later; generated when omitted")] Expr<string>? id = null)
+        => new StatModifierAddEffect(stat, modifier_type, target, value, id);
 
     public override void EvalEffect(EvalContext ctx)
     {
@@ -171,17 +144,13 @@ public sealed class StatModifierRemoveEffect : EffectExpr
         Target = target;
     }
 
-    [ExprOp(ExprCategory.Effect, "removestatmodifier", "remove_stat_modifier")]
-    [ExprParam("stat", typeof(string), Required = true)]
-    [ExprParam("id", typeof(string), Required = true, Description = "ID of the modifier to remove")]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr Compile(JsonElement obj)
-    {
-        var statName = ExpressionCompiler.Compile<string>(obj.GetProperty("stat"));
-        var id = ExpressionCompiler.Compile<string>(obj.GetProperty("id"));
-        var target = ExpressionCompiler.Compile<Entity?>(obj.GetProperty("target"));
-        return new StatModifierRemoveEffect(statName, id, target);
-    }
+    [ExprOp("removestatmodifier", "remove_stat_modifier",
+            Description = "Removes a previously attached stat modifier.")]
+    public static EffectExpr Op(
+        [Doc("Name of the modified stat")] Expr<string> stat,
+        [Doc("Id of the modifier to remove")] Expr<string> id,
+        [Doc("Entity to modify")] Expr<Entity?> target)
+        => new StatModifierRemoveEffect(stat, id, target);
 
     public override void EvalEffect(EvalContext ctx)
     {

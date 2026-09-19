@@ -28,7 +28,7 @@ internal readonly struct Token
 internal static class Lexer
 {
     // Multi-character operators, checked longest-first.
-    private static readonly string[] MultiOps = { "<=", ">=", "==", "!=", "&&", "||", "=>", "::" };
+    private static readonly string[] MultiOps = { "<=", ">=", "==", "!=", "&&", "||", "=>", "::", ".." };
     private const string SingleOps = "+-*/<>()[]{},.?:=!%";
 
     public static List<Token> Tokenize(string src)

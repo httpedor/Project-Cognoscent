@@ -6,11 +6,16 @@
   "$ref": "#/$defs/Feature",
 
   "$defs": {
-    "NumberExpr":    { "$ref": "_expr.schema.json#/$defs/NumberExpr" },
-    "ConditionExpr": { "$ref": "_expr.schema.json#/$defs/ConditionExpr" },
-    "StatModifierType": { "$ref": "_expr.schema.json#/$defs/StatModifierType" },
-    "EffectExpr": { "$ref": "_expr.schema.json#/$defs/EffectExpr" },
-    "StringExpr": { "$ref": "_expr.schema.json#/$defs/StringExpr" },
+    "Expr": {
+      "description": "An expression: either a DSL string (leading '=', e.g. \"= 1 + target.constitution\"; see Rpg/Scripting/DOCS.md) or a literal (number, string, boolean, null, or an array of those).",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array" }
+      ]
+    },
 
     "CommonFields": {
       "description": "Fields shared by all feature types.",
@@ -30,38 +35,22 @@
       }
     },
 
-    "DoesGetAttackedBlock": {
-      "type": "object",
-      "description": "Overrides whether an entity with this feature can be attacked.",
-      "properties": {
-        "reason": {
-          "type": "string",
-          "description": "Reason shown when the attack is blocked."
-        }
-      }
-    },
-
-    "DoesAttackBlock": {
-      "type": "object",
-      "description": "Overrides whether this entity can perform an attack.",
-      "properties": {
-        "reason": {
-          "type": "string",
-          "description": "Reason shown when the attack is blocked."
-        }
-      }
-    },
-
-    "DoesExecuteSkillBlock": {
-      "type": "object",
-      "description": "Overrides whether this entity can execute a skill.",
-      "allOf": [
-        {"$ref": "#/$defs/ConditionExpr"},
+    "GateBlock": {
+      "description": "A condition (boolean) expression, or an object pairing it with the reason shown when it blocks.",
+      "oneOf": [
+        { "$ref": "#/$defs/Expr" },
         {
+          "type": "object",
+          "required": ["condition"],
+          "additionalProperties": false,
           "properties": {
+            "condition": {
+              "$ref": "#/$defs/Expr",
+              "description": "Condition (boolean) expression. False blocks the action."
+            },
             "reason": {
-              "$ref": "#/$defs/StringExpr",
-              "description": "Reason shown when skill execution is blocked."
+              "$ref": "#/$defs/Expr",
+              "description": "String expression. Shown to the player when the action is blocked."
             }
           }
         }
@@ -69,23 +58,26 @@
     },
 
     "DamageModifierBlock": {
-      "type": "object",
-      "description": "Modifies incoming or outgoing damage.",
-      "allOf": [
+      "description": "A number expression modifying incoming or outgoing damage, or an object pairing it with the formula explaining the change.",
+      "oneOf": [
+        { "$ref": "#/$defs/Expr" },
         {
-          "$ref": "#/$defs/NumberExpr"
-        },
-        {
+          "type": "object",
+          "required": ["amount"],
+          "additionalProperties": false,
           "properties": {
+            "amount": {
+              "$ref": "#/$defs/Expr",
+              "description": "Number expression. The modified damage amount."
+            },
             "formula": {
-              "$ref": "#/$defs/StringExpr",
-              "description": "The formula explaining what was changed"
+              "$ref": "#/$defs/Expr",
+              "description": "String expression. The formula explaining what was changed."
             }
           }
         }
       ]
     },
-
     "StatModifiers": {
       "type": "object",
       "description": "Modifiers applied to one or more stats by this feature.",
@@ -96,12 +88,12 @@
           "required": ["type", "value"],
           "properties": {
             "type": {
-              "$ref": "#/$defs/StatModifierType",
-              "description": "How to apply the modifier (add, multiply, etc)."
+              "$ref": "#/$defs/Expr",
+              "description": "StatModifierType expression (one of: Flat, FlatPostMods, Percent, Multiplier, Capmax, Capmin, OverrideBase, OverrideFinal). How to apply the modifier."
             },
             "value": {
-              "$ref": "#/$defs/NumberExpr",
-              "description": "Amount of the modification (number expression)."
+              "$ref": "#/$defs/Expr",
+              "description": "Number expression. Amount of the modification."
             }
           }
         }
@@ -134,25 +126,26 @@
         "skills": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/StringExpr"
+            "$ref": "#/$defs/Expr",
+            "description": "String expression."
           },
           "description": "Skill compendium IDs granted by this feature.",
           "default": []
         },
         "doesGetAttacked": {
-          "$ref": "#/$defs/DoesGetAttackedBlock",
+          "$ref": "#/$defs/GateBlock",
           "description": "Override for whether the entity can be attacked. 'reason' shown on block.\nCaller is this entity, Target is the attacking entity. The variables available are:\n$0 - Boolean representing whether the attack is currently hitting or not.\n$1 - The attack's damage type."
         },
         "doesAttack": {
-          "$ref": "#/$defs/DoesAttackBlock",
+          "$ref": "#/$defs/GateBlock",
           "description": "Override for whether this entity can attack. 'reason' shown on block.\nCaller is this entity, Target is the attacked entity. The variables available are:\n$0 - Boolean representing whether the attack is currently hitting or not.\n$1 - The attack's damage type."
         },
         "onExecuteSkill": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect applied when this entity executes a skill.\nCaller is this entity, Target is the skill being executed. The variables available are:\n$0 - The name of the skill.\n$1...$n - The skill's arguments."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Applied when this entity executes a skill.\nCaller is this entity, Target is the skill being executed. The variables available are:\n$0 - The name of the skill.\n$1...$n - The skill's arguments."
         },
         "doesExecuteSkill": {
-          "$ref": "#/$defs/DoesExecuteSkillBlock",
+          "$ref": "#/$defs/GateBlock",
           "description": "Override for whether this entity can execute skills. 'reason' shown on block. \nCaller is this entity, Target is the skill being executed. The variables available are:\n$0 - The name of the skill.\n$1...$n - The skill's arguments."
         },
         "receivingDamage": {
@@ -164,24 +157,24 @@
           "description": "Modifier applied to damage dealt by this entity. Caller is this entity, Target is the attacked entity. The variables available are:\n$0 - The original damage amount.\n$1 - The damage type."
         },
         "onTick": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect applied to the entity each tick while this feature is active."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Applied to the entity each tick while this feature is active."
         },
         "onEnabled": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect applied to the entity when this feature is enabled."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Applied to the entity when this feature is enabled."
         },
         "onDisabled": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect applied to the entity when this feature is disabled."
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Applied to the entity when this feature is disabled."
         },
         "onInjured": {
-          "$ref": "#/$defs/EffectExpr",
-          "description": "Effect applied to the entity when it receives damage while this feature is active.\n$0 - The injury's severity.\n$1 - The injury's type id"
+          "$ref": "#/$defs/Expr",
+          "description": "Effect expression. Applied to the entity when it receives damage while this feature is active.\n$0 - The injury's severity.\n$1 - The injury's type id"
         },
         "toggleable": {
-          "$ref": "#/$defs/ConditionExpr",
-          "description": "Whether this feature can be toggled on and off.",
+          "$ref": "#/$defs/Expr",
+          "description": "Condition (boolean) expression. Whether this feature can be toggled on and off.",
           "default": false
         },
         "statModifiers": {
@@ -200,7 +193,7 @@
           "then": {
             "properties": {
               "defaultDuration": {
-                "$ref": "#/$defs/NumberExpr",
+                "$ref": "#/$defs/Expr",
                 "description": "Number expression representing how many seconds is the default duration of this condition, if none was specified."
               }
             }

@@ -5,6 +5,42 @@ using Rpg.Entities.Components.Health;
 
 namespace Rpg.Scripting;
 
+/// <summary>
+/// Shared helpers for expressions that consume another expression's sequence output.
+/// </summary>
+internal static class SequenceExpr
+{
+    /// <summary>
+    /// True if <paramref name="expr"/> statically produces a sequence — either it derives from
+    /// <see cref="ArrayExpr{T}"/>, or it is an <c>Expr&lt;T&gt;</c> whose T is enumerable (and not
+    /// a string, which is enumerable but scalar as far as the language is concerned).
+    /// </summary>
+    public static bool ProducesSequence(BaseExpr expr)
+    {
+        for (var type = expr.GetType(); type != null; type = type.BaseType)
+        {
+            if (!type.IsGenericType) continue;
+            var definition = type.GetGenericTypeDefinition();
+            if (definition == typeof(ArrayExpr<>))
+                return true;
+            if (definition == typeof(Expr<>))
+            {
+                var produced = type.GetGenericArguments()[0];
+                if (produced != typeof(string) && typeof(IEnumerable).IsAssignableFrom(produced))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Throws if <paramref name="source"/> is not a sequence-producing expression.</summary>
+    public static BaseExpr RequireSequence(BaseExpr source, string consumer)
+        => ProducesSequence(source)
+            ? source
+            : throw new InvalidOperationException(
+                $"{consumer} requires an array source, but {source.GetType().Name} produces a single value.");
+}
+
 public abstract class ArrayExpr<T> : Expr<IEnumerable<T>>
 {
     public override object? BaseEval(EvalContext ctx)
@@ -27,9 +63,20 @@ public abstract class ArrayExpr<T> : Expr<IEnumerable<T>>
     }
 }
 
-public class ConstArrayExpr<T> : ArrayExpr<T>
+/// <summary>
+/// Lets an array literal's items be read back without knowing their element type — what
+/// <c>concat</c> needs to unpack <c>[a, b]</c> into the parts it appends.
+/// </summary>
+public interface IConstArrayExpr
+{
+    IReadOnlyList<BaseExpr> Items { get; }
+}
+
+public class ConstArrayExpr<T> : ArrayExpr<T>, IConstArrayExpr
 {
     public Expr<T>[] Values { get; set; }
+
+    IReadOnlyList<BaseExpr> IConstArrayExpr.Items => Values;
 
     public ConstArrayExpr(params Expr<T>[] values)
     {
@@ -71,15 +118,7 @@ public class CastArrayExpr<T> : ArrayExpr<T>
 
     public CastArrayExpr(BaseExpr source)
     {
-        Source = source;
-        var type = Source.GetType();
-        while (type != null)
-        {
-            if (type.Name.StartsWith("ArrayExpr") || type is IEnumerable)
-                return;
-            type = type.BaseType;
-        }
-        throw new InvalidOperationException($"Source expression of type {Source.GetType().Name} is not an array expression");
+        Source = SequenceExpr.RequireSequence(source, "CastArrayExpr");
     }
     public CastArrayExpr(Stream stream)
     {
@@ -112,145 +151,18 @@ public class CastArrayExpr<T> : ArrayExpr<T>
     }
 }
 
-public class MapExpr<T> : Expr<T>
-{
-    public readonly BaseExpr Source;
-    public readonly Expr<T> ResultExpr;
-    public MapExpr(BaseExpr source, Expr<T> resultExpr)
-    {
-        Source = source;
-        ResultExpr = resultExpr;
-        var type = Source.GetType();
-        while (type != null)
-        {
-            if (type.Name.StartsWith("ArrayExpr") || type is IEnumerable)
-                return;
-            type = type.BaseType;
-        }
-        throw new InvalidOperationException($"Source expression of type {Source.GetType().Name} is not an array expression");
-    }
-    public MapExpr(Stream stream)
-    {
-        Source = BaseExpr.Deserialize(stream);
-        ResultExpr = BaseExpr.Deserialize<Expr<T>>(stream);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Source.ToBytes(stream);
-        ResultExpr.ToBytes(stream);
-    }
-
-    public override T Eval(EvalContext ctx)
-    {
-        object? result = Source.BaseEval(ctx);
-        while (result is BaseExpr expr)
-            result = expr.BaseEval(ctx);
-
-        var newVariables = new object[ctx.Variables.Length + 1];
-        for (int i = 0; i < ctx.Variables.Length; i++)
-        {
-            newVariables[i + 1] = ctx.Variables[i];
-        }
-        var newCtx = ctx.WithVariables(newVariables);
-        var results = new List<T>();
-        if (result is IEnumerable enumerable)
-        {
-            foreach (var item in enumerable)
-            {
-                newVariables[0] = item;
-                results.Add(ResultExpr.Eval(newCtx));
-            }
-        }
-        else
-        {
-            results.Add(ResultExpr.Eval(newCtx));
-        }
-        if (results.Count == 1)
-            return results[0];
-        return (T)(object)results;
-    }
-
-}
-public class MapManyExpr<T> : ArrayExpr<T>
-{
-    public readonly BaseExpr Source;
-    public readonly ArrayExpr<T> ResultExpr;
-    public MapManyExpr(BaseExpr source, ArrayExpr<T> resultExpr)
-    {
-        Source = source;
-        ResultExpr = resultExpr;
-        var type = Source.GetType();
-        while (type != null)
-        {
-            if (type.Name.StartsWith("ArrayExpr"))
-                return;
-            type = type.BaseType;
-        }
-        throw new InvalidOperationException($"Source expression of type {Source.GetType().Name} is not an array expression");
-    }
-    public MapManyExpr(Stream stream)
-    {
-        Source = BaseExpr.Deserialize(stream);
-        ResultExpr = BaseExpr.Deserialize<ArrayExpr<T>>(stream);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Source.ToBytes(stream);
-        ResultExpr.ToBytes(stream);
-    }
-
-    public override IEnumerable<T> Eval(EvalContext ctx)
-    {
-        var result = Source.BaseEval(ctx);
-        while (result is BaseExpr expr)
-            result = expr.BaseEval(ctx);
-        var newVariables = new object[ctx.Variables.Length + 1];
-        for (int i = 0; i < ctx.Variables.Length; i++)
-        {
-            newVariables[i + 1] = ctx.Variables[i];
-        }
-        var newCtx = ctx.WithVariables(newVariables);
-        Stack<IEnumerable> stack = new Stack<IEnumerable>();
-        if (result is IEnumerable enumerable)
-            stack.Push(enumerable);
-        else
-            throw new InvalidCastException($"Cannot cast value of type {result?.GetType().Name ?? "null"} to IEnumerable");
-        
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            foreach (var item in current)
-            {
-                if (item is IEnumerable inner)
-                    stack.Push(inner);
-                else
-                {
-                    newVariables[0] = item;
-                    foreach (var mapped in ResultExpr.Eval(newCtx))
-                    {
-                        yield return mapped;
-                    }
-                }
-            }
-        }
-    }
-}
 /// <summary>
 /// Maps every element of a source array through a per-element expression, producing a new array.
 /// The current element is exposed as variable 0 (existing variables shift up by one), matching
-/// <see cref="FilterArrayExpr{T}"/>. Unlike <see cref="MapManyExpr{T}"/>, the result is a scalar
-/// per element (not flattened), so it is usable as the source of e.g. <c>sum</c>.
+/// <see cref="FilterArrayExpr{T}"/>. The result is one scalar per element (not flattened), so it is
+/// usable as the source of e.g. <c>sum</c>.
 /// </summary>
 public sealed class MapArrayExpr<T> : ArrayExpr<T>
 {
     public readonly BaseExpr Source;
-    public readonly Expr<T> ResultExpr;
+    public readonly LambdaExpr<T> ResultExpr;
 
-    public MapArrayExpr(BaseExpr source, Expr<T> resultExpr)
+    public MapArrayExpr(BaseExpr source, LambdaExpr<T> resultExpr)
     {
         Source = source;
         ResultExpr = resultExpr;
@@ -258,7 +170,7 @@ public sealed class MapArrayExpr<T> : ArrayExpr<T>
     public MapArrayExpr(Stream stream)
     {
         Source = BaseExpr.Deserialize(stream);
-        ResultExpr = BaseExpr.Deserialize<Expr<T>>(stream);
+        ResultExpr = BaseExpr.Deserialize<LambdaExpr<T>>(stream);
     }
 
     public override IEnumerable<T> Eval(EvalContext ctx)
@@ -269,14 +181,8 @@ public sealed class MapArrayExpr<T> : ArrayExpr<T>
         if (result is not IEnumerable enumerable)
             throw new InvalidCastException($"Cannot map over non-enumerable value of type {result?.GetType().Name ?? "null"}");
 
-        var newVariables = new object[ctx.Variables.Length + 1];
-        Array.Copy(ctx.Variables, 0, newVariables, 1, ctx.Variables.Length);
-        var newCtx = ctx.WithVariables(newVariables);
         foreach (var item in enumerable)
-        {
-            newVariables[0] = item!;
-            yield return ResultExpr.Eval(newCtx);
-        }
+            yield return ResultExpr.Invoke(ctx, item);
     }
 
     public override void ToBytes(Stream stream)
@@ -288,30 +194,26 @@ public sealed class MapArrayExpr<T> : ArrayExpr<T>
 }
 public class ForEachEffectExpr : EffectExpr
 {
-    public readonly EffectExpr Effect;
+    public readonly LambdaExpr<NoReturn> Effect;
     public readonly ArrayExpr<object> Values;
-    public ForEachEffectExpr(ArrayExpr<object> values, EffectExpr effect)
+    public ForEachEffectExpr(ArrayExpr<object> values, LambdaExpr<NoReturn> effect)
     {
         Values = values;
         Effect = effect;
     }
     public ForEachEffectExpr(Stream stream)
     {
-        Effect = (EffectExpr)BaseExpr.Deserialize(stream);
+        Effect = BaseExpr.Deserialize<LambdaExpr<NoReturn>>(stream);
         Values = (ArrayExpr<object>)BaseExpr.Deserialize(stream);
     }
 
     public override void EvalEffect(EvalContext ctx)
     {
-        var newVariables = new object[ctx.Variables.Length + 1];
-        for (int i = 0; i < ctx.Variables.Length; i++)
-            newVariables[i+1] = ctx.Variables[i];
         foreach (var value in Values.Eval(ctx))
         {
             if (value == null)
                 continue;
-            newVariables[0] = value;
-            Effect.Eval(ctx.WithVariables(newVariables));
+            Effect.Invoke(ctx, value);
         }
     }
     public override void ToBytes(Stream stream)
@@ -321,13 +223,13 @@ public class ForEachEffectExpr : EffectExpr
         Values.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Effect, "foreach")]
-    [ExprParam("values", typeof(List<object>), Required = true, Description = "The values to iterate over")]
-    [ExprParam("effect", typeof(EffectExpr), Required = true, Description = "The effect to apply for each value. The current value will be available as variable 0 in each effect context.")]
-    public static ForEachEffectExpr ForEachEffect(JsonElement json)
-    {
-        return new ForEachEffectExpr(ExpressionCompiler.CompileArray<object>(json.GetProperty("values")), ExpressionCompiler.CompileEffect(json.GetProperty("effects")));
-    }
+    // The parameter was documented as "effect" but read as "effects"; the name that actually
+    // worked is the one kept here.
+    [ExprOp("foreach", Description = "Runs an effect once per element of an array.")]
+    public static ForEachEffectExpr Op(
+        [Doc("Values to iterate over")] ArrayExpr<object> values,
+        [Doc("Effect to run per value; the current value is its parameter")] LambdaExpr<NoReturn> effects)
+        => new ForEachEffectExpr(values, effects);
 }
 
 public sealed class ArrayAppendExpr<T> : ArrayExpr<T>
@@ -366,54 +268,11 @@ public sealed class ArrayAppendExpr<T> : ArrayExpr<T>
             array.ToBytes(stream);
     }
 }
-public sealed class ArrayWithVarsExpr<T> : ArrayExpr<T>
-{
-    public readonly ArrayExpr<T> Array;
-    public readonly ArrayExpr<object> Variables;
-    public ArrayWithVarsExpr(ArrayExpr<T> array, ArrayExpr<object> variables)
-    {
-        Array = array;
-        Variables = variables;
-    }
-
-    public ArrayWithVarsExpr(Stream stream)
-    {
-        Array = (ArrayExpr<T>)BaseExpr.Deserialize(stream);
-        Variables = (ArrayExpr<object>)BaseExpr.Deserialize(stream);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Array.ToBytes(stream);
-        Variables.ToBytes(stream);
-    }
-
-    public override IEnumerable<T> Eval(EvalContext ctx)
-    {
-        var newVariables = new object[ctx.Variables.Length + 1];
-        for (int i = 0; i < ctx.Variables.Length; i++)
-            newVariables[i + 1] = ctx.Variables[i];
-        var newCtx = ctx.WithVariables(newVariables);
-        int index = 0;
-        var varsEnum = Variables.Eval(ctx);
-        foreach (var variable in varsEnum)
-        {
-            newVariables[index] = variable;
-            index++;
-            if (index >= newVariables.Length)
-                break;
-        }
-        var arrayVals = Array.Eval(newCtx);
-        foreach (var item in arrayVals)
-        {
-            yield return item;
-        }
-    }
-}
-public sealed class VarArrayExpr<T> : ArrayExpr<T>
+public sealed class VarArrayExpr<T> : ArrayExpr<T>, Types.IVariableReference
 {
     public readonly int VariableID;
+
+    int Types.IVariableReference.ReferencedVariable => VariableID;
 
     public VarArrayExpr(int variableID)
     {
@@ -426,7 +285,7 @@ public sealed class VarArrayExpr<T> : ArrayExpr<T>
 
     public override IEnumerable<T> Eval(EvalContext ctx)
     {
-        object? value = ctx.Variables[VariableID];
+        object? value = ctx.GetVariable(VariableID);
         while (value is BaseExpr expr)
             value = expr.BaseEval(ctx);
 
@@ -484,9 +343,9 @@ public sealed class SubArrayExpr<T> : ArrayExpr<T>
 public sealed class FilterArrayExpr<T> : ArrayExpr<T>
 {
     public readonly ArrayExpr<T> Source;
-    public readonly Expr<bool> Condition;
+    public readonly LambdaExpr<bool> Condition;
 
-    public FilterArrayExpr(ArrayExpr<T> source, Expr<bool> condition)
+    public FilterArrayExpr(ArrayExpr<T> source, LambdaExpr<bool> condition)
     {
         Source = source;
         Condition = condition;
@@ -494,16 +353,14 @@ public sealed class FilterArrayExpr<T> : ArrayExpr<T>
     public FilterArrayExpr(Stream stream)
     {
         Source = (ArrayExpr<T>)BaseExpr.Deserialize(stream);
-        Condition = BaseExpr.Deserialize<Expr<bool>>(stream);
+        Condition = BaseExpr.Deserialize<LambdaExpr<bool>>(stream);
     }
 
     public override IEnumerable<T> Eval(EvalContext ctx)
     {
-        var newCtx = ctx.WithShiftedVariables(1);
         foreach (var item in Source.Eval(ctx))
         {
-            newCtx.Variables[0] = item!;
-            if (Condition.Eval(newCtx))
+            if (Condition.Invoke(ctx, item))
                 yield return item;
         }
     }
@@ -518,9 +375,9 @@ public sealed class FilterArrayExpr<T> : ArrayExpr<T>
 public sealed class OrderArrayExpr<T> : ArrayExpr<T>
 {
     public readonly ArrayExpr<T> Source;
-    public readonly Expr<bool> Comparison;
+    public readonly LambdaExpr<bool> Comparison;
 
-    public OrderArrayExpr(ArrayExpr<T> source, Expr<bool> comparison)
+    public OrderArrayExpr(ArrayExpr<T> source, LambdaExpr<bool> comparison)
     {
         Source = source;
         Comparison = comparison;
@@ -528,20 +385,13 @@ public sealed class OrderArrayExpr<T> : ArrayExpr<T>
     public OrderArrayExpr(Stream stream)
     {
         Source = (ArrayExpr<T>)BaseExpr.Deserialize(stream);
-        Comparison = BaseExpr.Deserialize<Expr<bool>>(stream);
+        Comparison = BaseExpr.Deserialize<LambdaExpr<bool>>(stream);
     }
 
     public override IEnumerable<T> Eval(EvalContext ctx)
     {
         var list = Source.Eval(ctx).ToList();
-        list.Sort((a, b) =>
-        {
-            var newCtx = ctx.WithShiftedVariables(2);
-            newCtx.Variables[0] = a!;
-            newCtx.Variables[1] = b!;
-            var result = Comparison.Eval(newCtx);
-            return result ? -1 : 1;
-        });
+        list.Sort((a, b) => Comparison.Invoke(ctx, a, b) ? -1 : 1);
         return list;
     }
 
@@ -552,85 +402,60 @@ public sealed class OrderArrayExpr<T> : ArrayExpr<T>
         Comparison.ToBytes(stream);
     }
 }
-public sealed class MaxElementsArrayExpr<T> : ArrayExpr<T>
+public sealed class RankedElementsArrayExpr<T> : ArrayExpr<T>
 {
     public readonly ArrayExpr<T> Source;
-    public readonly Expr<float> ValueExpr;
+    public readonly LambdaExpr<float> ScoreExpr;
     public readonly Expr<float> CountExpr;
+    /// <summary>True for <c>top</c>/<c>max</c> (highest scores first), false for <c>bottom</c>/<c>min</c>.</summary>
+    public readonly bool Descending;
 
-    public MaxElementsArrayExpr(ArrayExpr<T> source, Expr<float> valueExpr, Expr<float> countExpr)
+    public RankedElementsArrayExpr(ArrayExpr<T> source, LambdaExpr<float> scoreExpr, Expr<float> countExpr, bool descending)
     {
         Source = source;
-        ValueExpr = valueExpr;
+        ScoreExpr = scoreExpr;
         CountExpr = countExpr;
-
+        Descending = descending;
     }
-    public MaxElementsArrayExpr(Stream stream)
+    public RankedElementsArrayExpr(Stream stream)
     {
         Source = (ArrayExpr<T>)BaseExpr.Deserialize(stream);
-        ValueExpr = BaseExpr.Deserialize<Expr<float>>(stream);
+        ScoreExpr = BaseExpr.Deserialize<LambdaExpr<float>>(stream);
         CountExpr = BaseExpr.Deserialize<Expr<float>>(stream);
+        Descending = stream.ReadBoolean();
     }
 
     public override IEnumerable<T> Eval(EvalContext ctx)
     {
-        var sourceVals = Source.Eval(ctx);
-        var value = ValueExpr.Eval(ctx);
-        var count = (int)CountExpr.Eval(ctx);
-        return sourceVals.Select(item =>
-        {
-            var newCtx = ctx.WithShiftedVariables(1);
-            newCtx.Variables[0] = item!;
-            return (Item: item, Value: ValueExpr.Eval(newCtx));
-        }).Where(x => x.Value <= value).OrderBy(x => x.Value).Take(count).Select(x => x.Item);
+        // The score is a per-element expression: the element is bound as variable 0 before each
+        // evaluation. Evaluating it once against the outer context (as this used to) read whatever
+        // happened to occupy slot 0 and treated the result as a threshold, which was never intended.
+        var scored = Source.Eval(ctx)
+            .Select(item => (Item: item, Score: ScoreExpr.Invoke(ctx, item)));
+
+        var ordered = Descending
+            ? scored.OrderByDescending(x => x.Score)
+            : scored.OrderBy(x => x.Score);
+
+        return ordered.Take(ClampCount(CountExpr.Eval(ctx))).Select(x => x.Item);
     }
+
+    /// <summary>
+    /// Converts the count expression to a usable element count. The "no limit" default is
+    /// <see cref="float.MaxValue"/>, and casting that straight to int overflows to a negative
+    /// number, which would make Take() yield nothing.
+    /// </summary>
+    private static int ClampCount(float count)
+        => count >= int.MaxValue ? int.MaxValue
+         : count <= 0 ? 0
+         : (int)count;
 
     public override void ToBytes(Stream stream)
     {
         base.ToBytes(stream);
         Source.ToBytes(stream);
-        ValueExpr.ToBytes(stream);
+        ScoreExpr.ToBytes(stream);
         CountExpr.ToBytes(stream);
-    }
-}
-public sealed class MinElementsArrayExpr<T> : ArrayExpr<T>
-{
-    public readonly ArrayExpr<T> Source;
-    public readonly Expr<float> ValueExpr;
-    public readonly Expr<float> CountExpr;
-
-    public MinElementsArrayExpr(ArrayExpr<T> source, Expr<float> valueExpr, Expr<float> countExpr)
-    {
-        Source = source;
-        ValueExpr = valueExpr;
-        CountExpr = countExpr;
-
-    }
-    public MinElementsArrayExpr(Stream stream)
-    {
-        Source = (ArrayExpr<T>)BaseExpr.Deserialize(stream);
-        ValueExpr = BaseExpr.Deserialize<Expr<float>>(stream);
-        CountExpr = BaseExpr.Deserialize<Expr<float>>(stream);
-    }
-
-    public override IEnumerable<T> Eval(EvalContext ctx)
-    {
-        var sourceVals = Source.Eval(ctx);
-        var value = ValueExpr.Eval(ctx);
-        var count = (int)CountExpr.Eval(ctx);
-        return sourceVals.Select(item =>
-        {
-            var newCtx = ctx.WithShiftedVariables(1);
-            newCtx.Variables[0] = item!;
-            return (Item: item, Value: ValueExpr.Eval(newCtx));
-        }).Where(x => x.Value >= value).OrderByDescending(x => x.Value).Take(count).Select(x => x.Item);
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        Source.ToBytes(stream);
-        ValueExpr.ToBytes(stream);
-        CountExpr.ToBytes(stream);
+        stream.WriteBoolean(Descending);
     }
 }

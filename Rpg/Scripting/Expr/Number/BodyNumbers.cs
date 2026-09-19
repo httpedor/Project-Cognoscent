@@ -14,15 +14,11 @@ public sealed class BodyPartHealthExpr : Expr<float>
         Standalone = standalone;
     }
 
-    [ExprOp(ExprCategory.Number, "body_part_health", "bp_health")]
-    [ExprParam("part", typeof(BodyPart), Required = true, Description = "The body part to get the health of")]
-    [ExprParam("standalone", typeof(bool), Required = false, Description = "Whether to get the health of the body part alone, without counting its parents. If false or not provided, the health of the body part will be 0 if the parent is dead.")]
-    public static BodyPartHealthExpr Compile(JsonElement json)
-    {
-        var bodyPart = ExpressionCompiler.Compile<BodyPart?>(json.GetProperty("part"));
-        var standalone = json.TryGetProperty("standalone", out var standaloneEl) ? ExpressionCompiler.Compile<bool>(standaloneEl) : null;
-        return new BodyPartHealthExpr(bodyPart, standalone);
-    }
+    [ExprOp("body_part_health", "bp_health", Description = "Current health of a body part.")]
+    public static BodyPartHealthExpr Op(
+        [Doc("Body part to read")] Expr<BodyPart?> part,
+        [Doc("Read the part's own health, ignoring whether its parent is dead")] Expr<bool>? standalone = null)
+        => new BodyPartHealthExpr(part, standalone);
 
     public override float Eval(EvalContext ctx)
     {
@@ -42,13 +38,9 @@ public sealed class BodyPartMaxHealthExpr : Expr<float>
         BodyPart = bodyPart;
     }
 
-    [ExprOp(ExprCategory.Number, "bp_max_health", "body_part_max_health")]
-    [ExprParam("part", typeof(BodyPart), Required = true, Description = "The body part to get the max health of")]
-    public static BodyPartMaxHealthExpr Compile(JsonElement json)
-    {
-        var bodyPart = ExpressionCompiler.Compile<BodyPart?>(json.GetProperty("part"));
-        return new BodyPartMaxHealthExpr(bodyPart);
-    }
+    [ExprOp("bp_max_health", "body_part_max_health", Description = "Maximum health of a body part.")]
+    public static BodyPartMaxHealthExpr Op([Doc("Body part to read")] Expr<BodyPart?> part)
+        => new BodyPartMaxHealthExpr(part);
 
     public override float Eval(EvalContext ctx)
     {
@@ -66,13 +58,10 @@ public sealed class BodyPartHealthPercentExpr : Expr<float>
         BodyPart = bodyPart;
     }
 
-    [ExprOp(ExprCategory.Number, "bp_health_percent", "body_part_health_percent", "health_percent_bp")]
-    [ExprParam("part", typeof(BodyPart), Required = true, Description = "The body part to get the health percent of")]
-    public static BodyPartHealthPercentExpr Compile(JsonElement json)
-    {
-        var bodyPart = ExpressionCompiler.Compile<BodyPart?>(json.GetProperty("part"));
-        return new BodyPartHealthPercentExpr(bodyPart);
-    }
+    [ExprOp("bp_health_percent", "body_part_health_percent", "health_percent_bp",
+            Description = "Health of a body part as a fraction of its maximum.")]
+    public static BodyPartHealthPercentExpr Op([Doc("Body part to read")] Expr<BodyPart?> part)
+        => new BodyPartHealthPercentExpr(part);
 
     public override float Eval(EvalContext ctx)
     {
@@ -114,11 +103,11 @@ public sealed class LayerIndexExpr : Expr<float>
         LayerName.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "layer_index", "find_layer_index")]
-    [ExprParam("target", typeof(BodyPart), Required = true, Description = "The layer's bodypart")]
-    [ExprParam("name", typeof(string), Required = true, Description = "The layer's name")]
-    public static Expr<float> CompileOp(JsonElement json)
-        => new LayerIndexExpr(ExpressionCompiler.Compile<BodyPart?>(json.GetProperty("target")), ExpressionCompiler.Compile<string>(json.GetProperty("name")));
+    [ExprOp("layer_index", "find_layer_index", Description = "Index of a named layer on a body part.")]
+    public static Expr<float> Op(
+        [Doc("Body part the layer belongs to")] Expr<BodyPart?> target,
+        [Doc("Layer name")] Expr<string> name)
+        => new LayerIndexExpr(target, name);
 }
 
 public sealed class LayerHealthExpr : Expr<float>
@@ -155,11 +144,11 @@ public sealed class LayerHealthExpr : Expr<float>
         LayerName.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "layer_health")]
-    [ExprParam("target", typeof(BodyPart), Required = true, Description = "The layer's bodypart")]
-    [ExprParam("name", typeof(string), Required = true, Description = "The layer's name")]
-    public static Expr<float> CompileOp(JsonElement json)
-        => new LayerHealthExpr(ExpressionCompiler.Compile<BodyPart?>(json.GetProperty("target")), ExpressionCompiler.Compile<string>(json.GetProperty("name")));
+    [ExprOp("layer_health", Description = "Health of a named layer on a body part.")]
+    public static Expr<float> Op(
+        [Doc("Body part the layer belongs to")] Expr<BodyPart?> target,
+        [Doc("Layer name")] Expr<string> name)
+        => new LayerHealthExpr(target, name);
 }
 public sealed class BodyStabilityExpr : Expr<float>
 {
@@ -187,10 +176,10 @@ public sealed class BodyStabilityExpr : Expr<float>
         Target.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "body_stability", "stability_of_body", "get_body_stability")]
-    [ExprParam("target", typeof(Body), Required = true, Description = "The body to get the stability of")]
-    public static Expr<float> CompileOp(JsonElement json)
-        => new BodyStabilityExpr(ExpressionCompiler.Compile<Body?>(json.GetProperty("target")));
+    [ExprOp("body_stability", "stability_of_body", "get_body_stability",
+            Description = "How stable a body currently is.")]
+    public static Expr<float> Op([Doc("Body to read")] Expr<Body?> target)
+        => new BodyStabilityExpr(target);
 }
 
 public sealed class BodyMovementIntensityExpr : Expr<float>
@@ -219,8 +208,8 @@ public sealed class BodyMovementIntensityExpr : Expr<float>
         Target.ToBytes(stream);
     }
 
-    [ExprOp(ExprCategory.Number, "body_movement_intensity", "movement_intensity_of_body", "get_body_movement_intensity")]
-    [ExprParam("target", typeof(Body), Required = true, Description = "The body to get the movement intensity of")]
-    public static Expr<float> CompileOp(JsonElement json)
-        => new BodyMovementIntensityExpr(ExpressionCompiler.Compile<Body?>(json.GetProperty("target")));
+    [ExprOp("body_movement_intensity", "movement_intensity_of_body", "get_body_movement_intensity",
+            Description = "How intensely a body is currently moving.")]
+    public static Expr<float> Op([Doc("Body to read")] Expr<Body?> target)
+        => new BodyMovementIntensityExpr(target);
 }

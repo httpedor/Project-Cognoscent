@@ -1174,7 +1174,7 @@ public sealed class Command
                 if (Compendium.GetEntryJsonOrNull(folder, fName) != null)
                     throw new CommandException($"Entry '{fName}' already exists in folder '{folder}'.");
 
-                var json = JsonDocument.Parse(File.ReadAllText(fPath)).RootElement;
+                var json = JsonDocument.Parse(File.ReadAllText(fPath), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip }).RootElement;
                 if (json.ValueKind != JsonValueKind.Object)
                     throw new CommandException("Invalid JSON data (expected object).");
                 var obj = Compendium.RegisterEntry(folder, fName, json);

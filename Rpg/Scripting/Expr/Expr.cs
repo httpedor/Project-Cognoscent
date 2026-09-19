@@ -92,9 +92,17 @@ public abstract class Expr<T> : BaseExpr
         return Eval(null, null, null);
     }
 }
-public class CastExpr<T> : Expr<T>
+/// <summary>Lets a cast be unwrapped without knowing its target type.</summary>
+public interface ICastExpr
+{
+    BaseExpr CastSource { get; }
+}
+
+public class CastExpr<T> : Expr<T>, ICastExpr
 {
     public readonly BaseExpr Source;
+
+    BaseExpr ICastExpr.CastSource => Source;
 
     private static readonly ConcurrentDictionary<(Type Source, Type Target), MethodInfo?> _userDefinedConversionCache
         = new ConcurrentDictionary<(Type Source, Type Target), MethodInfo?>();
@@ -212,39 +220,14 @@ public class WithVariablesExpr<T> : Expr<T>
 
     public override T Eval(EvalContext ctx)
     {
-        var variables = Variables.Eval(ctx).ToArray();
-        var newVariables = new object[variables.Length + ctx.Variables.Length];
-        Array.Copy(variables, newVariables, variables.Length);
-        Array.Copy(ctx.Variables, 0, newVariables, variables.Length, ctx.Variables.Length);
-        var newCtx = ctx.WithVariables(newVariables);
-        return InnerExpr.Eval(newCtx);
+        return InnerExpr.Eval(ctx.Push(Variables.Eval(ctx).ToArray()));
     }
 }
-public class EscapeExpr : Expr<BaseExpr>
-{
-    public BaseExpr InnerExpr;
-    public EscapeExpr(BaseExpr innerExpr)
-    {
-        InnerExpr = innerExpr;
-    }
-    public EscapeExpr(Stream stream)
-    {
-        InnerExpr = BaseExpr.Deserialize(stream);
-    }
-    public override BaseExpr Eval(EvalContext ctx)
-    {
-        return InnerExpr;
-    }
-
-    public override void ToBytes(Stream stream)
-    {
-        base.ToBytes(stream);
-        InnerExpr.ToBytes(stream);
-    }
-}
-public class VarExpr<T> : Expr<T>
+public class VarExpr<T> : Expr<T>, Types.IVariableReference
 {
     public readonly int VariableID;
+
+    int Types.IVariableReference.ReferencedVariable => VariableID;
 
     public VarExpr(int variableID)
     {
@@ -257,9 +240,7 @@ public class VarExpr<T> : Expr<T>
 
     public override T Eval(EvalContext ctx)
     {
-        object? value = ctx.Variables[VariableID];
-        
-        return CastExpr<T>.CastOp(value, ctx);
+        return CastExpr<T>.CastOp(ctx.GetVariable(VariableID), ctx);
     }
 
     public override void ToBytes(Stream stream)

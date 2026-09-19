@@ -21,13 +21,16 @@ public class AddInjuryEffect : EffectExpr
             Layer = layer;
     }
 
-    [ExprOp(ExprCategory.Effect, "add_injury", "injury", "hurt")]
-    [ExprParam("injury", typeof(InjuryModel), Required = true, Description = "Injury model definition")]
-    [ExprParam("target", typeof(BodyPart), Required = true)]
-    public static EffectExpr CompileOp(JsonElement obj)
-        => new AddInjuryEffect(
-            new InjuryModel(obj.GetProperty("injury")),
-            ExpressionCompiler.Compile<BodyPart>(obj.GetProperty("target")));
+    // The injury used to be declared as a raw JSON subtree the op parsed itself, which was the last
+    // thing in the language that could only be written as an object. An injury model is a type and a
+    // severity, so it is now spelled out as two ordinary arguments.
+    [ExprOp("add_injury", "injury", "hurt", Description = "Applies an injury to a body part.")]
+    public static EffectExpr Op(
+        [Doc("Injury type compendium id")] Expr<InjuryType> injury,
+        [Doc("How severe the injury is")] Expr<float> severity,
+        [Doc("Body part to injure")] Expr<BodyPart?> target,
+        [Doc("Layer to injure; defaults to the outermost")] Expr<float>? layer = null)
+        => new AddInjuryEffect(new InjuryModel(injury!, severity), target, layer);
     public AddInjuryEffect(Stream stream)
     {
         InjuryModel = new InjuryModel(stream);
@@ -70,28 +73,15 @@ public class HealInjuryTypeEffect : EffectExpr
         Target = target;
     }
 
-    [ExprOp(ExprCategory.Effect, "heal_injury")]
-    [ExprParam("injury", typeof(string), Required = true, Description = "Injury type compendium ID")]
-    [ExprParam("target", typeof(BodyPart), Required = true)]
-    [ExprParam("amount", typeof(float), Description = "Amount to heal (omit to remove entirely)")]
-    [ExprParam("layer", typeof(float), Description = "The layer that will be healed")]
-    public static EffectExpr CompileOp(JsonElement obj)
-    {
-        var injuryType = ExpressionCompiler.Compile<InjuryType>(obj.GetProperty("injury"));
-        var target = ExpressionCompiler.Compile<BodyPart>(obj.GetProperty("target"));
-        if (obj.TryGetProperty("amount", out var amountElement))
-        {
-            var amount = ExpressionCompiler.Compile<float>(amountElement);
-            return new HealInjuryTypeEffect(injuryType, amount, target)
-            {
-                Layer = obj.TryGetProperty("layer", out var layerProp) ? ExpressionCompiler.Compile<float>(layerProp) : null
-            };
-        }
-        return new HealInjuryTypeEffect(injuryType, target)
-        {
-            Layer = obj.TryGetProperty("layer", out var layerObj) ? ExpressionCompiler.Compile<float>(layerObj) : null
-        };
-    }
+    [ExprOp("heal_injury", Description = "Heals or removes an injury on a body part.")]
+    public static EffectExpr Op(
+        [Doc("Injury type compendium id")] Expr<InjuryType> injury,
+        [Doc("Body part to heal")] Expr<BodyPart?> target,
+        [Doc("Amount to heal; omit to remove the injury entirely")] Expr<float>? amount = null,
+        [Doc("Layer to heal")] Expr<float>? layer = null)
+        => amount == null
+            ? new HealInjuryTypeEffect(injury, target) { Layer = layer }
+            : new HealInjuryTypeEffect(injury, amount, target) { Layer = layer };
     public HealInjuryTypeEffect(Stream stream)
     {
         InjuryType = (CompendiumEntryExpr<InjuryType>)BaseExpr.Deserialize(stream);
@@ -165,31 +155,23 @@ public class ChangeStabilityEffect : EffectExpr
         Amount = amount;
         Target = target;
     }
-    [ExprOp(ExprCategory.Effect, "change_stability", "set_stability")]
-    [ExprParam("amount", typeof(float), Required = true, Description = "Amount of stability to add (negative to remove)")]
-    [ExprParam("target", typeof(Body), Required =true, Description = "The body whose stability will be changed")]
-    public static EffectExpr CompileOp(JsonElement obj)
-        => new ChangeStabilityEffect(ExpressionCompiler.Compile<float>(obj.GetProperty("amount")), ExpressionCompiler.Compile<Body>(obj.GetProperty("target")));
-    
-    [ExprOp(ExprCategory.Effect, "add_stability", "addstability")]
-    [ExprParam("amount", typeof(float), Required = true, Description = "Amount of stability to add")]
-    [ExprParam("target", typeof(Body), Required =true, Description = "The body whose stability will be changed")]
-    public static EffectExpr CompileAddOp(JsonElement obj)
-    {
-        var body = ExpressionCompiler.Compile<Body>(obj.GetProperty("target"));
-        var amount = ExpressionCompiler.Compile<float>(obj.GetProperty("amount"));
-        return new ChangeStabilityEffect(new AddExpr(amount, new BodyStabilityExpr(body)), body);
-    }
+    [ExprOp("change_stability", "set_stability", Description = "Sets a body's stability outright.")]
+    public static EffectExpr SetStability(
+        [Doc("New stability value")] Expr<float> amount,
+        [Doc("Body to change")] Expr<Body?> target)
+        => new ChangeStabilityEffect(amount, target);
 
-    [ExprOp(ExprCategory.Effect, "remove_stability", "reduce_stability")]
-    [ExprParam("amount", typeof(float), Required = true, Description = "Amount of stability to remove")]
-    [ExprParam("target", typeof(Body), Required =true, Description = "The body whose stability will be changed")]
-    public static EffectExpr CompileRemoveOp(JsonElement obj)
-    {
-        var body = ExpressionCompiler.Compile<Body>(obj.GetProperty("target"));
-        var amount = ExpressionCompiler.Compile<float>(obj.GetProperty("amount"));
-        return new ChangeStabilityEffect(new SubExpr(new BodyStabilityExpr(body), amount), body);
-    }
+    [ExprOp("add_stability", "addstability", Description = "Increases a body's stability.")]
+    public static EffectExpr AddStability(
+        [Doc("Amount to add")] Expr<float> amount,
+        [Doc("Body to change")] Expr<Body?> target)
+        => new ChangeStabilityEffect(new AddExpr(amount, new BodyStabilityExpr(target)), target);
+
+    [ExprOp("remove_stability", "reduce_stability", Description = "Decreases a body's stability.")]
+    public static EffectExpr RemoveStability(
+        [Doc("Amount to remove")] Expr<float> amount,
+        [Doc("Body to change")] Expr<Body?> target)
+        => new ChangeStabilityEffect(new SubExpr(new BodyStabilityExpr(target), amount), target);
     public ChangeStabilityEffect(Stream stream)
     {
         Amount = (Expr<float>)BaseExpr.Deserialize(stream);
@@ -243,16 +225,15 @@ public class ChangePostureEffect : EffectExpr
         body.ChangePosture(posture);
     }
 
-    [ExprOp(ExprCategory.Effect, "change_posture", "set_posture")]
-    [ExprParam("posture", typeof(string), Required = true, Description = "The posture to set (compendium ID)")]
-    [ExprParam("target", typeof(Body), Required =true, Description = "The body whose posture will be changed")]
-    public static EffectExpr CompileOp(JsonElement obj)
-        => new ChangePostureEffect(ExpressionCompiler.Compile<BodyPosture?>(obj.GetProperty("posture")), ExpressionCompiler.Compile<Body>(obj.GetProperty("target"))!);
-    [ExprOp(ExprCategory.Effect, "change_posture_to_resting", "reset_posture", "go_to_resting_posture")]
-    [ExprParam("target", typeof(Body), Required =true, Description = "The body whose posture will be changed")]
-    public static EffectExpr CompileResting(JsonElement obj)
-    {
-        var body = ExpressionCompiler.Compile<Body>(obj.GetProperty("target"));
-        return new ChangePostureEffect(new CompendiumEntryExpr<BodyPosture>(new BodyRestingPostureNameExpr(body)), body!);
-    }
+    [ExprOp("change_posture", "set_posture", Description = "Puts a body into a named posture.")]
+    public static EffectExpr Op(
+        [Doc("Posture compendium id")] Expr<BodyPosture?> posture,
+        [Doc("Body to change")] Expr<Body?> target)
+        => new ChangePostureEffect(posture, target);
+
+    [ExprOp("change_posture_to_resting", "reset_posture", "go_to_resting_posture",
+            Description = "Returns a body to its model's resting posture.")]
+    public static EffectExpr ToResting([Doc("Body to change")] Expr<Body?> target)
+        => new ChangePostureEffect(
+            new CompendiumEntryExpr<BodyPosture>(new BodyRestingPostureNameExpr(target)), target);
 }

@@ -14,25 +14,16 @@ public class AddFeatureEffect : EffectExpr
         Target = target;
     }
 
-    /// <summary>
-    /// Compiles add_feature / add_condition effect from JSON.
-    /// If "ticks" is present, creates an AddConditionEffect instead.
-    /// </summary>
-    [ExprOp(ExprCategory.Effect, "add_feature", "addfeature", "add_feat", "add_condition", "addcondition")]
-    [ExprParam("feature", typeof(string), Required = true, Description = "Compendium feature ID")]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    [ExprParam("ticks", typeof(float), Description = "Duration in ticks (creates a timed condition)")]
-    public static EffectExpr CompileOp(JsonElement obj)
-    {
-        var feature = ExpressionCompiler.Compile<Feature?>(obj.GetProperty("feature"));
-        var selector = ExpressionCompiler.Compile<Entity?>(obj.GetProperty("target"));
-        if (obj.TryGetProperty("ticks", out var ticksElement))
-        {
-            var ticks = ExpressionCompiler.Compile<float>(ticksElement);
-            return new AddConditionEffect(feature, selector, ticks);
-        }
-        return new AddFeatureEffect(feature, selector);
-    }
+    /// <summary>Giving a duration produces a timed condition rather than a permanent feature.</summary>
+    [ExprOp("add_feature", "addfeature", "add_feat", "add_condition", "addcondition",
+            Description = "Adds a feature to an entity, optionally for a limited time.")]
+    public static EffectExpr Op(
+        [Doc("Feature compendium id")] Expr<Feature?> feature,
+        [Doc("Entity to add it to")] Expr<Entity?> target,
+        [Doc("Duration in ticks; omit for a permanent feature")] Expr<float>? ticks = null)
+        => ticks == null
+            ? new AddFeatureEffect(feature, target)
+            : new AddConditionEffect(feature, target, ticks);
     public AddFeatureEffect(Stream stream)
     {
         Feature = (Expr<Feature?>)BaseExpr.Deserialize(stream);
@@ -68,13 +59,12 @@ public class RemoveFeatureEffect : EffectExpr
         Target = target;
     }
 
-    [ExprOp(ExprCategory.Effect, "remove_feature", "removefeature", "remove_feat")]
-    [ExprParam("feature", typeof(string), Required = true, Description = "Compendium feature ID to remove")]
-    [ExprParam("target", typeof(Entity), Required = true)]
-    public static EffectExpr CompileOp(JsonElement obj)
-        => new RemoveFeatureEffect(
-            ExpressionCompiler.Compile<Feature>(obj.GetProperty("feature")),
-            ExpressionCompiler.Compile<Entity>(obj.GetProperty("target")));
+    [ExprOp("remove_feature", "removefeature", "remove_feat",
+            Description = "Removes a feature from an entity.")]
+    public static EffectExpr Op(
+        [Doc("Feature compendium id to remove")] Expr<Feature> feature,
+        [Doc("Entity to remove it from")] Expr<Entity?> target)
+        => new RemoveFeatureEffect(feature, target);
     public RemoveFeatureEffect(Stream stream)
     {
         Feature = (Expr<Feature>)BaseExpr.Deserialize(stream);
